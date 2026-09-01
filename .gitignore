@@ -9,6 +9,9 @@
 media/
 tmp/
 
+# Служебные файлы блокировки, которые создаёт запись диалога
+docs/history/*.lock
+
 node_modules/
 npm-debug.log*
 
