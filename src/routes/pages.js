@@ -7,7 +7,12 @@ import { stubPage } from '../views/stub.js';
 import { feedPage } from '../views/feed.js';
 import { lessonPage } from '../views/lesson.js';
 import { listLessons, getLessonBySlug, listNews } from '../services/lessons.js';
-import { listComments, countReactions, getViewerReaction } from '../services/feedback.js';
+import {
+  listComments,
+  countReactions,
+  ratingSummary,
+  getViewerReaction
+} from '../services/feedback.js';
 import { PublicError } from '../middleware/errors.js';
 
 /**
@@ -63,6 +68,7 @@ export function pageRoutes(config, pool) {
 
     const объект = { objectType: 'lesson', objectId: lesson.id };
     lesson.reactions = await countReactions(pool, объект);
+    const rating = await ratingSummary(pool, объект);
     const comments = await listComments(pool, {
       ...объект,
       viewerId: req.user?.id ?? null,
@@ -72,7 +78,7 @@ export function pageRoutes(config, pool) {
       ...объект,
       userId: req.user?.id ?? null
     });
-    res.type('html').send(lessonPage({ config, lesson, comments, user, viewerReaction }));
+    res.type('html').send(lessonPage({ config, lesson, comments, user, viewerReaction, rating }));
   });
 
   router.get('/login', async (req, res) => {

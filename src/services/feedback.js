@@ -6,13 +6,18 @@
 // и сводной ленте отзывов на этапе 9.
 // Вызывается из src/routes/feedback.js и src/routes/pages.js.
 import { PublicError } from '../middleware/errors.js';
+import { допустимаяОценка } from '../lib/reactions.js';
 
 // Длина комментария. Верхняя граница защищает страницу от простыни на экран,
 // нижняя отсекает пустые нажатия.
 const МАКС_ДЛИНА = 4000;
 
-/** Ставит или меняет реакцию. Повтор той же реакции ничего не меняет. */
+/** Ставит или меняет оценку. Повтор той же оценки ничего не меняет. */
 export async function setReaction(pool, { userId, objectType, objectId, kind }) {
+  // Проверяем до базы, чтобы человек получил внятный отказ, а не ошибку
+  // ограничения. Ограничение в базе при этом остаётся: оно защищает от того,
+  // что запишет мимо этой функции.
+  if (!допустимаяОценка(kind)) throw new PublicError('Такой оценки нет на шкале');
   await pool.query(
     `INSERT INTO reactions (user_id, object_type, object_id, kind)
      VALUES ($1, $2, $3, $4)
@@ -40,7 +45,28 @@ export async function countReactions(pool, { objectType, objectId }) {
 }
 
 /**
- * Какую реакцию поставил этот человек. null — никакой.
+ * Средняя оценка и число голосов.
+ * Зачем отдельно от распределения: на карточке урока человеку нужна одна
+ * цифра, а девять счётчиков — это уже отчёт для автора.
+ * Вызывается из src/routes/pages.js и src/routes/lessons.js.
+ */
+export async function ratingSummary(pool, { objectType, objectId }) {
+  const { rows } = await pool.query(
+    `SELECT count(*)::int AS total, avg(kind::int) AS average
+       FROM reactions WHERE object_type = $1 AND object_id = $2`,
+    [objectType, objectId]
+  );
+  const { total, average } = rows[0];
+  return {
+    total,
+    // Ноль на шкале от одного до девяти означал бы «хуже некуда», а не
+    // «никто не оценил», поэтому при отсутствии голосов возвращаем null.
+    average: total ? Math.round(Number(average) * 10) / 10 : null
+  };
+}
+
+/**
+ * Какую оценку поставил этот человек. null — никакой.
  * Зачем отдельно от счётчиков: кнопка должна показывать, что она уже нажата,
  * иначе человек жмёт её второй раз и не понимает, почему счётчик не растёт.
  * Вызывается из src/routes/pages.js при отрисовке карточки урока.

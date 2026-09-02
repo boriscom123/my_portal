@@ -22,42 +22,42 @@ async function seed(pool) {
   return { lessonId: lesson.id, petr: Number(rows[0].id), anna: Number(rows[1].id) };
 }
 
-test('реакция одного человека засчитывается один раз', skipWithoutDb, async () => {
+test('оценка одного человека засчитывается один раз', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
     const { lessonId, petr } = await seed(pool);
     const where = { objectType: 'lesson', objectId: lessonId };
-    await setReaction(pool, { ...where, userId: petr, kind: 'like' });
-    await setReaction(pool, { ...where, userId: petr, kind: 'like' });
-    assert.deepEqual(await countReactions(pool, where), { like: 1 });
+    await setReaction(pool, { ...where, userId: petr, kind: '7' });
+    await setReaction(pool, { ...where, userId: petr, kind: '7' });
+    assert.deepEqual(await countReactions(pool, where), { 7: 1 });
   });
 });
 
-test('смена реакции заменяет прежнюю, а не добавляет', skipWithoutDb, async () => {
+test('смена оценки заменяет прежнюю, а не добавляет', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
     const { lessonId, petr } = await seed(pool);
     const where = { objectType: 'lesson', objectId: lessonId };
-    await setReaction(pool, { ...where, userId: petr, kind: 'like' });
-    await setReaction(pool, { ...where, userId: petr, kind: 'fire' });
-    assert.deepEqual(await countReactions(pool, where), { fire: 1 });
+    await setReaction(pool, { ...where, userId: petr, kind: '3' });
+    await setReaction(pool, { ...where, userId: petr, kind: '9' });
+    assert.deepEqual(await countReactions(pool, where), { 9: 1 });
   });
 });
 
-test('видно, какую реакцию поставил этот человек', skipWithoutDb, async () => {
+test('видно, какую оценку поставил этот человек', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
     const { lessonId, petr, anna } = await seed(pool);
     const where = { objectType: 'lesson', objectId: lessonId };
-    await setReaction(pool, { ...where, userId: petr, kind: 'fire' });
-    assert.equal(await getViewerReaction(pool, { ...where, userId: petr }), 'fire');
+    await setReaction(pool, { ...where, userId: petr, kind: '8' });
+    assert.equal(await getViewerReaction(pool, { ...where, userId: petr }), '8');
     assert.equal(await getViewerReaction(pool, { ...where, userId: anna }), null);
     assert.equal(await getViewerReaction(pool, { ...where, userId: null }), null);
   });
 });
 
-test('реакцию можно снять', skipWithoutDb, async () => {
+test('оценку можно снять', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
     const { lessonId, petr } = await seed(pool);
     const where = { objectType: 'lesson', objectId: lessonId };
-    await setReaction(pool, { ...where, userId: petr, kind: 'like' });
+    await setReaction(pool, { ...where, userId: petr, kind: '6' });
     await removeReaction(pool, { ...where, userId: petr });
     assert.deepEqual(await countReactions(pool, where), {});
   });

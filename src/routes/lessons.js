@@ -10,7 +10,7 @@ import {
   saveLesson,
   setLessonTags
 } from '../services/lessons.js';
-import { countReactions } from '../services/feedback.js';
+import { countReactions, ratingSummary } from '../services/feedback.js';
 import { requireAdmin } from '../middleware/guards.js';
 import { PublicError } from '../middleware/errors.js';
 
@@ -33,7 +33,9 @@ export function lessonRoutes(config, pool) {
       includeDrafts: req.user?.role === 'admin'
     });
     if (!lesson) throw new PublicError('Урок не найден', 404);
-    lesson.reactions = await countReactions(pool, { objectType: 'lesson', objectId: lesson.id });
+    const объект = { objectType: 'lesson', objectId: lesson.id };
+    lesson.reactions = await countReactions(pool, объект);
+    lesson.rating = await ratingSummary(pool, объект);
     res.json({ lesson });
   });
 

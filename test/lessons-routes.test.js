@@ -83,14 +83,14 @@ test('гость не может поставить реакцию', skipWithout
       const res = await fetch(`${base}/api/reactions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ objectType: 'lesson', objectId: lessonId, kind: 'like' })
+        body: JSON.stringify({ objectType: 'lesson', objectId: lessonId, kind: '8' })
       });
       assert.equal(res.status, 401);
     });
   });
 });
 
-test('вошедший ставит реакцию, счётчик растёт на единицу', skipWithoutDb, async () => {
+test('вошедший ставит оценку, голос считается один', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
     const { petr, lessonId } = await seed(pool);
     const app = finalize(createApp({ config, pool }));
@@ -99,11 +99,12 @@ test('вошедший ставит реакцию, счётчик растёт 
         await fetch(`${base}/api/reactions`, {
           method: 'POST',
           headers: as(petr),
-          body: JSON.stringify({ objectType: 'lesson', objectId: lessonId, kind: 'like' })
+          body: JSON.stringify({ objectType: 'lesson', objectId: lessonId, kind: '8' })
         });
       }
       const lesson = await (await fetch(`${base}/api/lessons/docker-1`)).json();
-      assert.deepEqual(lesson.lesson.reactions, { like: 1 });
+      assert.deepEqual(lesson.lesson.reactions, { 8: 1 });
+      assert.deepEqual(lesson.lesson.rating, { total: 1, average: 8 });
     });
   });
 });

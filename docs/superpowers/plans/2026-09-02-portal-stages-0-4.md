@@ -81,6 +81,7 @@ JS, без сборки.
 | nginx проекта game | `shared-nginx-1` из `ClaudeDocker` | Вход сервера переехал в общий слой |
 | `passport` + `passport-google-oauth20` | Голый `fetch` по эндпоинтам Google | В game (`server/routes/auth.js:87-131`) OAuth написан вручную и работает; `passport` там лежит неиспользуемой зависимостью. Минус две зависимости из публичного репозитория |
 | Три контейнера с первого дня | `api` сейчас, `worker` на этапе 5 | Воркеру до конвейера нечего делать, а память на машине в дефиците |
+| Реакции как набор видов («нравится», «огонь») | Оценка по девятибалльной шкале смайликами, пятая ступень — нейтральная середина | **Требование заказчика от 2026-09-02.** У шкалы есть среднее: «7,2 из 9 по 34 голосам» говорит автору об уроке больше, чем несравнимые счётчики. Шкала ограничена проверкой в базе — опечатка в ней испортила бы среднее молча |
 | «серверный рендер HTML шаблонами» | Шаблоны — обычные ESM-функции, возвращающие строку | Движок шаблонов — ещё одна зависимость и ещё один язык в кадре. Функция с экранированием проверяется обычным `node:test` |
 
 ## Что берём готовым
@@ -113,8 +114,9 @@ migrations/
   002_users.sql             users, identities
   003_content.sql           lessons, news, tags, lesson_tags, publications
   004_feedback.sql          reactions, comments
-  005_notifications.sql     push_subscriptions, notifications
-  006_ideas.sql             ideas, idea_votes
+  005_reaction_scale.sql    девятибалльная шкала оценки
+  006_notifications.sql     push_subscriptions, notifications
+  007_ideas.sql             ideas, idea_votes
 
 src/
   config.js                 чтение и проверка окружения (единственная точка)
@@ -4360,7 +4362,7 @@ git commit -m "feat: манифест, service worker и офлайн-оболо
 ### Задача 19: Подписки Web Push и журнал уведомлений
 
 **Файлы:**
-- Создать: `migrations/005_notifications.sql`, `src/routes/push.js`,
+- Создать: `migrations/006_notifications.sql`, `src/routes/push.js`,
   `test/push-routes.test.js`
 - Изменить: `src/app.js`, `public/app.js`
 
@@ -4471,7 +4473,7 @@ test('отписка убирает подписку', skipWithoutDb, async () =
 Выполнить: `node --test test/push-routes.test.js`
 Ожидается: FAIL — 404 на `/api/push/key`.
 
-- [ ] **Шаг 3: Написать `migrations/005_notifications.sql`**
+- [ ] **Шаг 3: Написать `migrations/006_notifications.sql`**
 
 ```sql
 -- Подписки на пуши и журнал отправленного.
@@ -4607,7 +4609,7 @@ document.querySelector('#включить-уведомления')?.addEventList
 - [ ] **Шаг 6: Коммит**
 
 ```bash
-git add migrations/005_notifications.sql src/routes/push.js src/app.js \
+git add migrations/006_notifications.sql src/routes/push.js src/app.js \
         public/app.js test/push-routes.test.js
 git commit -m "feat: подписки Web Push и журнал уведомлений"
 ```
@@ -5444,7 +5446,7 @@ git commit -m "feat: уведомления об ответе на отзыв и
 ### Задача 22: Таблицы и сервис борда идей
 
 **Файлы:**
-- Создать: `migrations/006_ideas.sql`, `src/services/ideas.js`,
+- Создать: `migrations/007_ideas.sql`, `src/services/ideas.js`,
   `test/ideas-service.test.js`
 
 **Интерфейсы:**
@@ -5568,7 +5570,7 @@ test('идея без темы не принимается', skipWithoutDb, asyn
 Выполнить: `node --test test/ideas-service.test.js`
 Ожидается: FAIL — модуль не найден.
 
-- [ ] **Шаг 3: Написать `migrations/006_ideas.sql`**
+- [ ] **Шаг 3: Написать `migrations/007_ideas.sql`**
 
 ```sql
 -- Борд идей: что люди хотят увидеть в следующих уроках.
@@ -5718,7 +5720,7 @@ export async function setIdeaStatus(pool, { ideaId, status, lessonSlug = null })
 - [ ] **Шаг 6: Коммит**
 
 ```bash
-git add migrations/006_ideas.sql src/services/ideas.js test/ideas-service.test.js
+git add migrations/007_ideas.sql src/services/ideas.js test/ideas-service.test.js
 git commit -m "feat: борд идей — предложения, голоса, статусы"
 ```
 

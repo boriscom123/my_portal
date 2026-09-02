@@ -98,14 +98,14 @@ const карточкаУрока = document.querySelector('[data-урок]');
 if (карточкаУрока) {
   const objectId = Number(карточкаУрока.dataset.урок);
 
-  for (const кнопка of карточкаУрока.querySelectorAll('[data-реакция]')) {
+  for (const кнопка of карточкаУрока.querySelectorAll('[data-оценка]')) {
     кнопка.addEventListener('click', async () => {
-      // Нажатие по уже отданной реакции снимает её: иначе передумать нельзя,
-      // а сервер всё равно хранит одну реакцию на человека.
+      // Нажатие по уже отданной оценке снимает её: иначе передумать нельзя,
+      // а сервер всё равно хранит одну оценку на человека.
       const отдана = кнопка.classList.contains('отдана');
       const ответ = await запрос('/api/reactions', {
         method: отдана ? 'DELETE' : 'POST',
-        body: JSON.stringify({ objectType: 'lesson', objectId, kind: кнопка.dataset.реакция })
+        body: JSON.stringify({ objectType: 'lesson', objectId, kind: кнопка.dataset.оценка })
       });
       if (ответ) location.reload();
     });

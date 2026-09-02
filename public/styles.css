@@ -500,31 +500,45 @@ footer {
   margin: 24px 0;
 }
 
-.реакции {
-  display: flex;
-  gap: 10px;
+.оценка {
   padding-bottom: 24px;
   border-bottom: 1px solid var(--line);
 }
-.реакция {
+
+/* Девять ступеней в ряд. На узком экране переносятся, но порядок сохраняется:
+   человек запоминает положение смайлика, а не сам смайлик. */
+.шкала {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.ступень {
   min-height: var(--цель);
-  padding: 0 18px;
+  min-width: var(--цель);
+  padding: 0;
+  font-size: 22px;
+  line-height: 1;
   border: 1px solid var(--line);
   border-radius: var(--скругление);
   background: var(--surface);
-  color: var(--fg);
-  font: inherit;
-  font-size: 15px;
   cursor: pointer;
+  /* Смайлики в разных системах разной ширины; фиксируем шаг, иначе шкала
+     выглядит кривой лесенкой. */
+  flex: 0 0 auto;
+  filter: grayscale(0.55);
+  transition: filter 0.15s ease;
 }
-.реакция:hover {
+.ступень:hover {
   border-color: var(--brand-2);
+  filter: none;
 }
-/* Отданная реакция залита фирменным градиентом — тем же, что и кнопки: так
-   видно, что она уже нажата, и второе нажатие снимет её, а не удвоит счёт. */
-.реакция.отдана {
+/* Отданная ступень залита фирменным градиентом и показана в полном цвете:
+   видно, что оценка уже поставлена и что повторное нажатие её снимет. */
+.ступень.отдана {
   border-color: transparent;
-  color: #ffffff;
+  filter: none;
   background: linear-gradient(
     96deg,
     var(--brand-1) 0%,
@@ -535,6 +549,34 @@ footer {
   );
   background-size: 300% 100%;
   animation: перелив 9s ease-in-out infinite;
+}
+
+/* Середина шкалы отмечена: без метки девять смайликов читаются как набор, а
+   не как шкала с нейтральной серединой. */
+.ступень[data-оценка='5'] {
+  position: relative;
+}
+.ступень[data-оценка='5']::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -7px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  transform: translateX(-50%);
+  background: var(--muted);
+}
+
+.итог-оценки {
+  margin: 0;
+  font-size: 15px;
+  color: var(--muted);
+}
+.итог-оценки b {
+  font-family: Unbounded, system-ui, sans-serif;
+  font-size: 19px;
+  color: var(--fg);
 }
 
 .отзывы ul {
