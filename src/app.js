@@ -6,6 +6,7 @@
 import express from 'express';
 import { version } from './version.js';
 import { notFound, errorHandler } from './middleware/errors.js';
+import { stubPage } from './views/stub.js';
 
 /**
  * Собирает приложение: прослойки и маршруты.
@@ -27,6 +28,9 @@ export function createApp({ config, pool }) {
   // Проба живости для docker и для человека: адрес открылся — значит дошло до
   // приложения, а не остановилось на nginx.
   app.get('/healthz', (req, res) => res.json({ status: 'ok', version }));
+
+  // Заглушка до этапа 2. Заменится настоящей витриной вместе с src/views/stub.js.
+  app.get('/', (req, res) => res.type('html').send(stubPage()));
 
   return app;
 }
