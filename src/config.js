@@ -63,6 +63,10 @@ export function loadConfig(env = process.env) {
     adminIdentities: parseAdminIdentities(env.ADMIN_IDENTITIES ?? ''),
     telegram: {
       botToken: env.TELEGRAM_BOT_TOKEN ?? '',
+      // Виджет входа на сайте адресуется к боту по имени, а не по токену:
+      // токен секретный и в разметку попасть не может. Без имени виджета не
+      // будет, даже если токен задан.
+      botUsername: (env.TELEGRAM_BOT_USERNAME ?? '').replace(/^@/, ''),
       channelId: env.TELEGRAM_CHANNEL_ID ?? ''
     },
     google: {

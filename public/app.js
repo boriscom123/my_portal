@@ -43,16 +43,36 @@ window.войтиЧерезTelegram = async (user) => {
  * настройка устройства, а не свойство аккаунта. */
 const КЛЮЧ_ТЕМЫ = 'portal-theme';
 
+/**
+ * Красит строку браузера в цвет фактического фона страницы.
+ * Зачем скриптом, а не двумя метками с prefers-color-scheme: часть версий
+ * Safari media у theme-color игнорирует и красит бары своим цветом — тем
+ * самым белым, что видно сверху и снизу экрана. Одну метку понимают все.
+ * Вызывается при загрузке и при каждой смене темы.
+ */
+function обновитьЦветСтроки() {
+  const фон = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
+  const метка = document.querySelector('meta[name="theme-color"]');
+  if (метка && фон) метка.setAttribute('content', фон);
+}
+
 function применитьТему(тема) {
   if (тема) document.documentElement.dataset.theme = тема;
   else delete document.documentElement.dataset.theme;
+  обновитьЦветСтроки();
 }
 
 try {
   применитьТему(localStorage.getItem(КЛЮЧ_ТЕМЫ));
 } catch {
   // Приватное окно или запрет на хранилище: остаёмся на системной теме.
+  обновитьЦветСтроки();
 }
+
+// Человек переключил тему в системе, пока страница открыта.
+window
+  .matchMedia('(prefers-color-scheme: dark)')
+  .addEventListener('change', обновитьЦветСтроки);
 
 document.querySelector('[data-тема]')?.addEventListener('click', () => {
   const системнаяТёмная = window.matchMedia('(prefers-color-scheme: dark)').matches;

@@ -38,6 +38,11 @@ test('список админов разбирается в пары прова�
   ]);
 });
 
+test('имя бота читается и очищается от собаки', () => {
+  assert.equal(loadConfig({ ...minimal, TELEGRAM_BOT_USERNAME: '@solo_ai_journey_bot' }).telegram.botUsername, 'solo_ai_journey_bot');
+  assert.equal(loadConfig(minimal).telegram.botUsername, '');
+});
+
 test('пустой список админов не даёт пустых пар', () => {
   assert.deepEqual(loadConfig(minimal).adminIdentities, []);
 });

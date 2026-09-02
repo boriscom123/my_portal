@@ -44,12 +44,19 @@ test('гостю показывается вход, вошедшему — ег�
   assert.ok(!свой.includes('>Войти<'));
 });
 
-test('цвет строки браузера задан для обеих тем', () => {
+test('цвет строки браузера — одна метка, её правит скрипт', () => {
   const html = layout({ config, title: 'Т', description: 'о', body: '' });
-  // Одно значение на обе темы красит строку браузера на телефоне не в тот
-  // цвет — ровно та же болезнь, что давала белые полосы по краям страницы.
-  assert.match(html, /theme-color" content="#f8f7fe" media="\(prefers-color-scheme: light\)"/);
-  assert.match(html, /theme-color" content="#0c0a20" media="\(prefers-color-scheme: dark\)"/);
+  // Ровно одна метка: варианты с media часть версий Safari игнорирует и
+  // красит бары белым. Фактическое значение проставляет public/app.js.
+  assert.equal(html.match(/name="theme-color"/g).length, 1);
+});
+
+test('стили и скрипт помечены отпечатком содержимого', () => {
+  const html = layout({ config, title: 'Т', description: 'о', body: '' });
+  // Отпечаток меняется вместе с файлом: без него правка стилей доходит до
+  // человека через час, когда истечёт кеш, — и выглядит как невыкаченная.
+  assert.match(html, /styles\.css\?v=[0-9a-f]{8}/);
+  assert.match(html, /app\.js\?v=[0-9a-f]{8}/);
 });
 
 test('имя пользователя экранируется', () => {
