@@ -91,3 +91,45 @@ document.querySelector('[data-тема]')?.addEventListener('click', () => {
     // Не сохранилось — тема продержится до перезагрузки страницы.
   }
 });
+
+/* --- Карточка урока: реакции и отзывы ----------------------------------- */
+
+const карточкаУрока = document.querySelector('[data-урок]');
+if (карточкаУрока) {
+  const objectId = Number(карточкаУрока.dataset.урок);
+
+  for (const кнопка of карточкаУрока.querySelectorAll('[data-реакция]')) {
+    кнопка.addEventListener('click', async () => {
+      // Нажатие по уже отданной реакции снимает её: иначе передумать нельзя,
+      // а сервер всё равно хранит одну реакцию на человека.
+      const отдана = кнопка.classList.contains('отдана');
+      const ответ = await запрос('/api/reactions', {
+        method: отдана ? 'DELETE' : 'POST',
+        body: JSON.stringify({ objectType: 'lesson', objectId, kind: кнопка.dataset.реакция })
+      });
+      if (ответ) location.reload();
+    });
+  }
+
+  const форма = document.querySelector('#форма-отзыва');
+  форма?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const кнопка = форма.querySelector('button');
+    кнопка.disabled = true;
+    try {
+      const ответ = await запрос('/api/comments', {
+        method: 'POST',
+        body: JSON.stringify({
+          objectType: 'lesson',
+          objectId,
+          body: new FormData(форма).get('body')
+        })
+      });
+      // Перезагружаем: отзыв скрыт до проверки, но своему автору он виден —
+      // человек должен увидеть, что его слова не пропали.
+      if (ответ) location.reload();
+    } finally {
+      кнопка.disabled = false;
+    }
+  });
+}

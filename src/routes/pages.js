@@ -4,6 +4,11 @@
 import { Router } from 'express';
 import { loginPage } from '../views/login.js';
 import { stubPage } from '../views/stub.js';
+import { feedPage } from '../views/feed.js';
+import { lessonPage } from '../views/lesson.js';
+import { listLessons, getLessonBySlug, listNews } from '../services/lessons.js';
+import { listComments, countReactions, getViewerReaction } from '../services/feedback.js';
+import { PublicError } from '../middleware/errors.js';
 
 /**
  * Текущий пользователь для шаблона: только имя и роль.
@@ -32,7 +37,42 @@ export function pageRoutes(config, pool) {
 
   router.get('/', async (req, res) => {
     const user = await текущийПользователь(pool, req);
-    res.type('html').send(stubPage(config, user));
+    const lessons = await listLessons(pool, { includeDrafts: user?.role === 'admin' });
+    // Пока уроков нет вовсе, показываем заглушку с рассказом о проекте:
+    // пустая лента на новом сайте читается как сломанная страница.
+    if (!lessons.length) {
+      res.type('html').send(stubPage(config, user));
+      return;
+    }
+    const news = await listNews(pool, {});
+    res.type('html').send(feedPage({ config, lessons, news, user }));
+  });
+
+  router.get('/tag/:slug', async (req, res) => {
+    const user = await текущийПользователь(pool, req);
+    const lessons = await listLessons(pool, { tag: req.params.slug });
+    res.type('html').send(feedPage({ config, lessons, news: [], user, tag: req.params.slug }));
+  });
+
+  router.get('/lesson/:slug', async (req, res) => {
+    const user = await текущийПользователь(pool, req);
+    const lesson = await getLessonBySlug(pool, req.params.slug, {
+      includeDrafts: user?.role === 'admin'
+    });
+    if (!lesson) throw new PublicError('Урок не найден', 404);
+
+    const объект = { objectType: 'lesson', objectId: lesson.id };
+    lesson.reactions = await countReactions(pool, объект);
+    const comments = await listComments(pool, {
+      ...объект,
+      viewerId: req.user?.id ?? null,
+      isAdmin: user?.role === 'admin'
+    });
+    const viewerReaction = await getViewerReaction(pool, {
+      ...объект,
+      userId: req.user?.id ?? null
+    });
+    res.type('html').send(lessonPage({ config, lesson, comments, user, viewerReaction }));
   });
 
   router.get('/login', async (req, res) => {

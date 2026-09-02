@@ -408,3 +408,190 @@ footer {
   justify-content: center;
   min-height: 52px;
 }
+
+/* --- Витрина ------------------------------------------------------------- */
+
+.лид {
+  font-size: clamp(16px, 2.4vw, 18px);
+  color: var(--muted);
+  max-width: 34rem;
+}
+
+.мета {
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+
+/* auto-fit со свободной минимальной шириной: на телефоне одна колонка, на
+   ноутбуке три — без единого медиазапроса и без пересчёта на JS. */
+.сетка-уроков {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+  gap: 20px;
+}
+
+.урок-карточка {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.урок-карточка .тело {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.урок-карточка h3 {
+  margin: 0;
+}
+.урок-карточка h3 a {
+  color: var(--fg);
+}
+.урок-карточка .описание {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.обложка {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+
+.теги {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+}
+.тег {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 13px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 13px;
+}
+.тег:hover {
+  text-decoration: none;
+  color: var(--fg);
+}
+
+/* --- Карточка урока ------------------------------------------------------ */
+
+.урок {
+  max-width: 44rem;
+}
+
+.площадки {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 24px 0;
+}
+
+.реакции {
+  display: flex;
+  gap: 10px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--line);
+}
+.реакция {
+  min-height: var(--цель);
+  padding: 0 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--скругление);
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+.реакция:hover {
+  border-color: var(--brand-2);
+}
+/* Отданная реакция залита фирменным градиентом — тем же, что и кнопки: так
+   видно, что она уже нажата, и второе нажатие снимет её, а не удвоит счёт. */
+.реакция.отдана {
+  border-color: transparent;
+  color: #ffffff;
+  background: linear-gradient(
+    96deg,
+    var(--brand-1) 0%,
+    var(--brand-2) 25%,
+    var(--brand-3) 50%,
+    var(--brand-2) 75%,
+    var(--brand-1) 100%
+  );
+  background-size: 300% 100%;
+  animation: перелив 9s ease-in-out infinite;
+}
+
+.отзывы ul {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.отзыв {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px;
+}
+/* Ожидающий проверки отзыв виден только своему автору и админу — приглушаем,
+   чтобы человек не решил, что он уже в общей ленте. */
+.отзыв.ждёт {
+  opacity: 0.72;
+  border-style: dashed;
+}
+.отзыв .автор {
+  margin: 0 0 6px;
+  font-weight: 500;
+}
+.отзыв p:last-child {
+  margin: 0;
+  color: var(--muted);
+}
+.метка {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+  background: var(--surface-2);
+  border-radius: 5px;
+  padding: 3px 8px;
+}
+
+#форма-отзыва textarea {
+  width: 100%;
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--скругление);
+  padding: 12px;
+  resize: vertical;
+}
+#форма-отзыва textarea:focus {
+  outline: 2px solid var(--brand-2);
+  outline-offset: 1px;
+}
+#форма-отзыва .строка {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
