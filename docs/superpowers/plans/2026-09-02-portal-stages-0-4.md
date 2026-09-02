@@ -53,6 +53,11 @@ JS, без сборки.
   `chore:`, `docs:`), тело — зачем, если это не очевидно. Коммит после каждой
   задачи, не реже.
 - Порт приложения — **3004** (3001 занят game, 3002 devbot, 3003 myproject).
+- **Адреса маршрутов только латиницей** (`/lesson/:slug`, `/ideas`, `/tag/:slug`,
+  `/offline`). Express сверяет сырой путь запроса, а браузер шлёт кириллицу
+  percent-кодированной, поэтому литерал `/урок` не совпадёт никогда —
+  проверено экспериментом на этапе 0. Русские тексты остаются в содержимом
+  страниц, а не в адресах.
 - **Домены проекта** (зарегистрированы 2026-09-02): `soloaijourney.online` и
   `soloaijourney.ru`. Основной — тот, что стоит в `PUBLIC_BASE_URL`; второй
   отвечает редиректом на первый. Установленная PWA и подписки Web Push
@@ -2473,7 +2478,7 @@ ${image ? `<meta property="og:image" content="${escapeHtml(image)}">` : ''}
 <header class="шапка">
   <a href="/" class="лого">Портал видеоуроков</a>
   <nav>
-    <a href="/идеи">Идеи</a>
+    <a href="/ideas">Идеи</a>
     ${user ? `<span class="имя">${escapeHtml(user.displayName)}</span>` : '<a href="/login">Войти</a>'}
   </nav>
 </header>
@@ -3760,8 +3765,8 @@ git commit -m "feat: JSON API витрины, реакций и коммента
 
 **Интерфейсы:**
 - Потребляет: `layout`, `escapeHtml`, сервисы витрины и обратной связи.
-- Отдаёт дальше: `GET /` — лента; `GET /урок/:slug` — карточка с тегами
-  Open Graph; `GET /тег/:slug` — лента по тегу.
+- Отдаёт дальше: `GET /` — лента; `GET /lesson/:slug` — карточка с тегами
+  Open Graph; `GET /tag/:slug` — лента по тегу.
 
 - [ ] **Шаг 1: Написать падающий тест**
 
@@ -3814,7 +3819,7 @@ test('карточка урока несёт теги превью', skipWithout
     });
     const app = finalize(createApp({ config, pool }));
     await withServer(app, async (base) => {
-      const html = await (await fetch(`${base}/урок/docker-1`)).text();
+      const html = await (await fetch(`${base}/lesson/docker-1`)).text();
       assert.match(html, /<meta property="og:title" content="Docker, часть 1">/);
       assert.match(html, /Контейнеры с нуля/);
     });
@@ -3826,7 +3831,7 @@ test('черновик по прямой ссылке даёт 404', skipWithout
     await saveLesson(pool, { slug: 'черновик', title: 'Не готов' });
     const app = finalize(createApp({ config, pool }));
     await withServer(app, async (base) => {
-      assert.equal((await fetch(`${base}/урок/черновик`)).status, 404);
+      assert.equal((await fetch(`${base}/lesson/черновик`)).status, 404);
     });
   });
 });
@@ -3861,7 +3866,7 @@ test('название урока с разметкой экранируется
 ```js
 // Лента: уроки и новости одним списком, свежие сверху. Задача — дать
 // поисковику и человеку без приложения полноценную главную страницу.
-// Вызывается из src/routes/pages.js по маршрутам / и /тег/:slug.
+// Вызывается из src/routes/pages.js по маршрутам / и /tag/:slug.
 import { escapeHtml } from '../lib/html.js';
 import { layout } from './layout.js';
 
@@ -3873,7 +3878,7 @@ function датаПоРусски(value) {
 function карточка(lesson) {
   return `<article class="карточка">
   ${lesson.coverUrl ? `<img src="${escapeHtml(lesson.coverUrl)}" alt="">` : ''}
-  <h2><a href="/урок/${encodeURIComponent(lesson.slug)}">${escapeHtml(lesson.title)}</a></h2>
+  <h2><a href="/lesson/${encodeURIComponent(lesson.slug)}">${escapeHtml(lesson.title)}</a></h2>
   <p>${escapeHtml(lesson.description)}</p>
   <p class="мета">${lesson.publishedAt ? датаПоРусски(lesson.publishedAt) : 'Черновик'}</p>
 </article>`;
@@ -3910,7 +3915,7 @@ ${
 // Карточка урока: описание, кнопки «смотреть на», реакции и комментарии.
 // Задача — быть той страницей, ссылку на которую отправляют в мессенджер;
 // поэтому заголовок, описание и обложка обязаны попасть в теги превью.
-// Вызывается из src/routes/pages.js по маршруту /урок/:slug.
+// Вызывается из src/routes/pages.js по маршруту /lesson/:slug.
 import { escapeHtml } from '../lib/html.js';
 import { layout } from './layout.js';
 
@@ -4006,13 +4011,13 @@ router.get('/', async (req, res) => {
   res.type('html').send(feedPage({ config, lessons, news, user }));
 });
 
-router.get('/тег/:slug', async (req, res) => {
+router.get('/tag/:slug', async (req, res) => {
   const user = await текущий(pool, req);
   const lessons = await listLessons(pool, { tag: req.params.slug });
   res.type('html').send(feedPage({ config, lessons, news: [], user, tag: req.params.slug }));
 });
 
-router.get('/урок/:slug', async (req, res) => {
+router.get('/lesson/:slug', async (req, res) => {
   const user = await текущий(pool, req);
   const lesson = await getLessonBySlug(pool, req.params.slug, {
     includeDrafts: user?.role === 'admin'
@@ -4114,7 +4119,7 @@ docker compose up -d --build
 1. Завести урок: `PUT /api/lessons/docker-1` с телом
    `{"title":"Docker, часть 1","description":"...","status":"published","publishedAt":"2026-09-02T10:00:00Z"}`
    под админской сессией.
-2. Открыть `https://<домен>/урок/docker-1` **в инкогнито** — урок виден.
+2. Открыть `https://<домен>/lesson/docker-1` **в инкогнито** — урок виден.
 3. Войти, нажать 👍 дважды — счётчик показывает 1.
 4. Отправить отзыв, открыть страницу в инкогнито — отзыва **нет**.
 5. Одобрить (`POST /api/comments/<id>/moderate` со `status: approved`),
@@ -4152,7 +4157,7 @@ git commit -m "feat: страницы ленты и карточки урока 
 
 **Интерфейсы:**
 - Отдаёт дальше: `GET /manifest.webmanifest` — манифест, собранный из
-  `PUBLIC_BASE_URL`; `GET /sw.js` — service worker; офлайн-страница `/офлайн`.
+  `PUBLIC_BASE_URL`; `GET /sw.js` — service worker; офлайн-страница `/offline`.
 
 - [ ] **Шаг 1: Написать падающий тест**
 
@@ -4269,7 +4274,7 @@ export function pwaRoutes(config) {
  * Регистрируется из public/app.js при загрузке любой страницы.
  */
 const КЕШ = 'портал-оболочка-v1';
-const ОБОЛОЧКА = ['/', '/офлайн', '/styles.css', '/app.js', '/icons/icon-192.png', '/icons/icon-512.png'];
+const ОБОЛОЧКА = ['/', '/offline', '/styles.css', '/app.js', '/icons/icon-192.png', '/icons/icon-512.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(КЕШ).then((c) => c.addAll(ОБОЛОЧКА)).then(() => self.skipWaiting()));
@@ -4295,7 +4300,7 @@ self.addEventListener('fetch', (event) => {
         caches.open(КЕШ).then((c) => c.put(event.request, копия));
         return response;
       })
-      .catch(() => caches.match(event.request).then((c) => c ?? caches.match('/офлайн')))
+      .catch(() => caches.match(event.request).then((c) => c ?? caches.match('/offline')))
   );
 });
 
@@ -4334,7 +4339,7 @@ self.addEventListener('notificationclick', (event) => {
 
 - Нарисовать три иконки (192, 512, 180) — можно временные, с буквой; заменяются
   позже без правки кода.
-- В `src/routes/pages.js` добавить `GET /офлайн` — страница «нет сети».
+- В `src/routes/pages.js` добавить `GET /offline` — страница «нет сети».
 - Регистрация service worker уже добавлена в `public/app.js` задачей 12 —
   проверить, что строка на месте, и ничего не дублировать.
 - В `src/app.js` подключить `app.use('/', pwaRoutes(config))` **до** статики.
@@ -5093,7 +5098,7 @@ async function разослатьОУроке(pool, channels, lesson, config) {
         dedupKey: `lesson:${lesson.id}:published:${id}`,
         title: 'Новый урок',
         body: lesson.title,
-        url: `/урок/${lesson.slug}`
+        url: `/lesson/${lesson.slug}`
       },
       channels
     );
@@ -5405,9 +5410,9 @@ async function разослатьОбОтзыве(pool, channels, comment, об�
       objectType === 'lesson'
         ? await (async () => {
             const { rows } = await pool.query('SELECT slug FROM lessons WHERE id = $1', [objectId]);
-            return { url: rows.length ? `/урок/${rows[0].slug}` : '/' };
+            return { url: rows.length ? `/lesson/${rows[0].slug}` : '/' };
           })()
-        : { url: '/идеи' };
+        : { url: '/ideas' };
 
     await разослатьОбОтзыве(pool, req.app.locals.channels, comment, объект);
 ```
@@ -5943,7 +5948,7 @@ export function ideaRoutes(config, pool) {
           dedupKey: `idea:${idea.id}:${idea.status}:${userId}`,
           title: `Идея ${ПОДПИСИ_СТАТУСОВ[idea.status]}`,
           body: idea.title,
-          url: idea.lessonSlug ? `/урок/${idea.lessonSlug}` : '/идеи'
+          url: idea.lessonSlug ? `/lesson/${idea.lessonSlug}` : '/ideas'
         },
         req.app.locals.channels
       );
@@ -5977,7 +5982,7 @@ git commit -m "feat: API борда идей с уведомлением гол�
 - Изменить: `src/routes/pages.js`, `public/app.js`, `public/styles.css`
 
 **Интерфейсы:**
-- Отдаёт дальше: `GET /идеи` — борд с формой предложения и кнопками голосования.
+- Отдаёт дальше: `GET /ideas` — борд с формой предложения и кнопками голосования.
 
 - [ ] **Шаг 1: Написать падающий тест**
 
@@ -6009,7 +6014,7 @@ test('борд виден гостю, но форма ему не предлаг
     await createIdea(pool, { userId: rows[0].id, title: 'Урок про очереди', body: '' });
     const app = finalize(createApp({ config, pool }));
     await withServer(app, async (base) => {
-      const html = await (await fetch(`${base}/идеи`)).text();
+      const html = await (await fetch(`${base}/ideas`)).text();
       assert.match(html, /Урок про очереди/);
       assert.match(html, /Войдите/);
       assert.ok(!html.includes('id="форма-идеи"'));
@@ -6023,7 +6028,7 @@ test('вошедшему показывается форма', skipWithoutDb, as
     const app = finalize(createApp({ config, pool }));
     await withServer(app, async (base) => {
       const html = await (
-        await fetch(`${base}/идеи`, {
+        await fetch(`${base}/ideas`, {
           headers: {
             Authorization: `Bearer ${signSession({ userId: rows[0].id, role: 'user' }, config.jwtSecret)}`
           }
@@ -6040,7 +6045,7 @@ test('тема идеи с разметкой экранируется', skipWit
     await createIdea(pool, { userId: rows[0].id, title: '<img src=x onerror=alert(1)>', body: '' });
     const app = finalize(createApp({ config, pool }));
     await withServer(app, async (base) => {
-      const html = await (await fetch(`${base}/идеи`)).text();
+      const html = await (await fetch(`${base}/ideas`)).text();
       assert.ok(!html.includes('<img src=x'));
       assert.match(html, /&lt;img/);
     });
@@ -6051,7 +6056,7 @@ test('тема идеи с разметкой экранируется', skipWit
 - [ ] **Шаг 2: Убедиться, что тест падает**
 
 Выполнить: `node --test test/ideas-page.test.js`
-Ожидается: FAIL — 404 на `/идеи`.
+Ожидается: FAIL — 404 на `/ideas`.
 
 - [ ] **Шаг 3: Написать `src/views/ideas.js`**
 
@@ -6059,7 +6064,7 @@ test('тема идеи с разметкой экранируется', skipWit
 // Страница борда идей. Задача — показать список тем с голосами и дать
 // вошедшему предложить свою. Зачем статус подписывается словами: «accepted»
 // в списке ничего не говорит человеку, который зашёл проголосовать.
-// Вызывается из src/routes/pages.js по маршруту /идеи.
+// Вызывается из src/routes/pages.js по маршруту /ideas.
 import { escapeHtml } from '../lib/html.js';
 import { layout } from './layout.js';
 
@@ -6072,7 +6077,7 @@ const ПОДПИСИ_СТАТУСОВ = {
 
 function карточкаИдеи(idea) {
   const ссылкаНаУрок = idea.lessonSlug
-    ? ` — <a href="/урок/${encodeURIComponent(idea.lessonSlug)}">смотреть урок</a>`
+    ? ` — <a href="/lesson/${encodeURIComponent(idea.lessonSlug)}">смотреть урок</a>`
     : '';
   return `<li class="идея" data-идея="${idea.id}">
   <button class="голос${idea.votedByViewer ? ' отдан' : ''}" data-голос="${idea.id}">
@@ -6118,7 +6123,7 @@ ${
 import { listIdeas } from '../services/ideas.js';
 import { ideasPage } from '../views/ideas.js';
 
-router.get('/идеи', async (req, res) => {
+router.get('/ideas', async (req, res) => {
   const user = await текущий(pool, req);
   const ideas = await listIdeas(pool, { viewerId: req.user?.id ?? null });
   res.type('html').send(ideasPage({ config, ideas, user }));
