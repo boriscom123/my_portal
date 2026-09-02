@@ -1,0 +1,40 @@
+# Проверка каждого коммита: линтер, тесты, сборка образа.
+# Зачем: репозиторий публичный и учебный — зелёная галочка в нём это доверие,
+# а красная видна раньше, чем зритель успеет повторить ошибку за автором.
+# Запускается GitHub на push и pull request в main.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      # Тесты ходят в настоящий postgres: половина логики портала — это
+      # ограничения самой базы (уникальность привязок, один голос на идею),
+      # и на заглушке они не проверяются.
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: portal_test
+          POSTGRES_USER: portal
+          POSTGRES_PASSWORD: portal
+        options: >-
+          --health-cmd "pg_isready -U portal"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+        ports: ['5432:5432']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+        env:
+          TEST_DATABASE_URL: postgres://portal:portal@localhost:5432/portal_test
+      - run: docker build -t my-portal:ci .

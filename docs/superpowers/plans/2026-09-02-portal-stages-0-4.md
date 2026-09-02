@@ -29,7 +29,9 @@ JS, без сборки.
 Действуют в каждой задаче, повторяться в них не будут.
 
 - **Node 24 LTS**, **Express 5**, модули только **ESM** (`"type": "module"`).
-- Тесты — встроенный **`node:test`**, запуск `node --test`. Сторонних
+- Тесты — встроенный **`node:test`**, запуск `npm test`. Каталог тест-раннеру
+  передаётся шаблоном (`node --test "test/**/*.test.js"`): голый путь к каталогу
+  Node 24 принимает за файл и падает с `Cannot find module`. Сторонних
   тест-раннеров и `supertest` не добавляем: HTTP проверяется через `app.listen(0)`
   и глобальный `fetch`.
 - **ESLint 9 flat config + Prettier**, единый стиль. `npm run lint` — часть CI.
@@ -174,7 +176,7 @@ VPS всё поднялось само.
   `.github/workflows/ci.yml`, `src/version.js`, `test/version.test.js`
 
 **Интерфейсы:**
-- Отдаёт дальше: `npm test` (запускает `node --test test/`), `npm run lint`.
+- Отдаёт дальше: `npm test` (запускает `npm test`), `npm run lint`.
 
 - [ ] **Шаг 1: Написать падающий тест**
 
@@ -200,7 +202,7 @@ test('версия проекта совпадает с package.json', async () 
 
 - [ ] **Шаг 2: Убедиться, что тест падает**
 
-Выполнить: `node --test test/`
+Выполнить: `npm test`
 Ожидается: FAIL — `Cannot find module .../src/version.js`.
 
 - [ ] **Шаг 3: Написать `package.json`**
@@ -215,7 +217,7 @@ test('версия проекта совпадает с package.json', async () 
   "engines": { "node": ">=24" },
   "scripts": {
     "start": "node src/server.js",
-    "test": "node --test test/",
+    "test": "node --test \"test/**/*.test.js\"",
     "lint": "eslint .",
     "format": "prettier --write ."
   },
@@ -2358,7 +2360,7 @@ app.use('/api/auth', authRoutes(config, pool));
 
 - [ ] **Шаг 7: Убедиться, что тесты проходят**
 
-Выполнить: `node --test test/` (все тесты, не только новые)
+Выполнить: `npm test` (все тесты, не только новые)
 Ожидается: все PASS.
 
 - [ ] **Шаг 8: Коммит**
@@ -3740,7 +3742,7 @@ app.use('/api', feedbackRoutes(config, pool));
 
 - [ ] **Шаг 5: Убедиться, что тесты проходят**
 
-Выполнить: `node --test test/`
+Выполнить: `npm test`
 Ожидается: все PASS.
 
 - [ ] **Шаг 6: Коммит**
