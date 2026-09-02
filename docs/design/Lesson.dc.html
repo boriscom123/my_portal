@@ -1,0 +1,174 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Onest:wght@400;500;700&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #AA5EFF; text-decoration: none; }
+    a:hover { color: #C48CFF; }
+    [data-theme="dark"] {
+      --bg: #0C0A20; --bg-far: #131432; --bg-top: #09071C;
+      --surface: #171334; --surface-2: #201A44; --line: #2E2757;
+      --fg: #F2F0FA; --muted: #A9A2C9;
+      --brand-1: #8482FD; --brand-2: #AA5EFF; --brand-3: #E060B4;
+      --teal: #6CA6BA; --cyan: #4FC3DC; --flame: #E56F55;
+      --on-accent: #0C0A20; --card-line: 1px solid #2E2757;
+    }
+    [data-theme="light"] {
+      --bg: #F8F7FE; --bg-far: #F1EEFB; --bg-top: #FFFFFF;
+      --surface: #FFFFFF; --surface-2: #F1EEFB; --line: #E0DBF2;
+      --fg: #14122A; --muted: #5C5680;
+      --brand-1: #5B58E0; --brand-2: #8A2FE0; --brand-3: #C42F85;
+      --teal: #2C7C90; --cyan: #0E7FA8; --flame: #C4482E;
+      --on-accent: #FFFFFF; --card-line: 1px solid #E0DBF2;
+    }
+    .знак {
+      font-family: Unbounded, system-ui, sans-serif;
+      font-weight: 800;
+      background: linear-gradient(96deg, var(--brand-1) 0%, var(--brand-2) 52%, var(--brand-3) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+  </style>
+</helmet>
+
+<div data-theme="{{theme}}" style="background: linear-gradient(160deg, var(--bg-top) 0%, var(--bg) 45%, var(--bg-far) 100%); color: var(--fg); font-family: Onest, system-ui, sans-serif; min-height: 1000px;">
+
+  <header style="display: flex; align-items: center; justify-content: space-between; padding: 20px 48px; border-bottom: 1px solid var(--line);">
+    <div style="display: flex; align-items: center; gap: 14px;">
+      <img src="logo.jpg" alt="" style="width: 36px; height: 36px; border-radius: 50%;">
+      <div style="display: flex; align-items: baseline; gap: 9px;">
+        <span class="знак" style="font-size: 16px; letter-spacing: 0.02em;">SOLO AI</span>
+        <span style="font-family: Unbounded, system-ui, sans-serif; font-weight: 400; font-size: 14px; letter-spacing: 0.30em; color: var(--fg);">JOURNEY</span>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <span style="font-size: 14px; color: var(--muted);">Пётр</span>
+      <div style="width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(120deg, #8482FD, #E060B4);"></div>
+    </div>
+  </header>
+
+  <div style="padding: 40px 48px 56px; display: flex; gap: 40px; align-items: flex-start;">
+
+    <main style="flex-grow: 1; max-width: 700px;">
+      <div style="display: flex; gap: 8px; margin-bottom: 18px;">
+        <span style="min-height: 28px; display: flex; align-items: center; padding: 0 12px; border-radius: 999px; background: var(--surface-2); font-size: 12px; color: var(--muted);">инфраструктура</span>
+        <span style="min-height: 28px; display: flex; align-items: center; padding: 0 12px; border-radius: 999px; background: var(--surface-2); font-size: 12px; color: var(--muted);">docker</span>
+      </div>
+
+      <h1 style="font-family: Unbounded, system-ui, sans-serif; font-weight: 800; font-size: 36px; line-height: 1.18; margin: 0 0 14px; text-wrap: pretty;">Портал с нуля: каркас на VPS</h1>
+      <p style="font-size: 17px; line-height: 1.65; color: var(--muted); margin: 0 0 26px;">Собираем скелет, на который дальше вешается всё остальное: три контейнера, миграции при старте, маршрут в общем nginx и сертификат. К концу урока адрес открывается по https и переживает перезагрузку сервера.</p>
+
+      <div style="height: 300px; border-radius: 16px; background: linear-gradient(120deg, #8482FD 0%, #AA5EFF 55%, #E060B4 100%); display: flex; align-items: center; justify-content: center; margin-bottom: 22px;">
+        <div style="width: 68px; height: 68px; border-radius: 50%; background: rgba(11,10,26,0.55); display: flex; align-items: center; justify-content: center;">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="#FFFFFF"><path d="M8 5.5v13l11-6.5-11-6.5Z"/></svg>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 34px;">
+        <a href="#" style="display: flex; align-items: center; gap: 8px; min-height: 46px; padding: 0 20px; border-radius: 11px; background: linear-gradient(96deg, var(--brand-1), var(--brand-2) 60%, var(--brand-3)); color: #FFFFFF; font-size: 15px; font-weight: 500;">Смотреть на YouTube</a>
+        <a href="#" style="display: flex; align-items: center; min-height: 46px; padding: 0 20px; border-radius: 11px; border: 1px solid var(--line); color: var(--fg); font-size: 15px;">VK Видео</a>
+        <a href="#" style="display: flex; align-items: center; min-height: 46px; padding: 0 20px; border-radius: 11px; border: 1px solid var(--line); color: var(--fg); font-size: 15px;">Telegram</a>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 10px; padding-bottom: 28px; border-bottom: 1px solid var(--line); margin-bottom: 28px;">
+        <span style="min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 18px; border-radius: 11px; background: var(--brand-2); color: var(--on-accent); font-size: 15px;">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v10"/><path d="M14 4.5 12.5 10H19a2 2 0 0 1 1.9 2.6l-1.7 5.4A2 2 0 0 1 17.3 20H7V10l3.6-6.4a1.6 1.6 0 0 1 3 .9Z"/></svg>
+          34
+        </span>
+        <span style="min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 18px; border-radius: 11px; border: 1px solid var(--line); font-size: 15px; color: var(--fg);">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--brand-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.6-7-9.4A4 4 0 0 1 12 8a4 4 0 0 1 7 2.6C19 15.4 12 20 12 20Z"/></svg>
+          12
+        </span>
+        <span style="margin-left: auto; font-size: 14px; color: var(--muted);">2 сентября 2026 · 41 минута</span>
+      </div>
+
+      <h2 style="font-family: Unbounded, system-ui, sans-serif; font-weight: 600; font-size: 20px; margin: 0 0 18px;">Отзывы</h2>
+
+      <div style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 22px;">
+        <sc-for list="{{comments}}" as="c" hint-placeholder-count="2">
+          <div style="display: flex; gap: 14px; padding: 16px; border-radius: 14px; background: var(--surface);">
+            <div style="width: 36px; height: 36px; flex-shrink: 0; border-radius: 50%; background: {{c.avatar}};"></div>
+            <div style="flex-grow: 1;">
+              <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+                <span style="font-weight: 500; font-size: 15px;">{{c.name}}</span>
+                <sc-if value="{{c.pending}}" hint-placeholder-val="{{true}}">
+                  <span style="min-height: 22px; display: flex; align-items: center; padding: 0 8px; border-radius: 5px; background: var(--surface-2); font-size: 11px; color: var(--muted);">ждёт проверки автором</span>
+                </sc-if>
+              </div>
+              <p style="margin: 0; font-size: 15px; line-height: 1.6; color: var(--muted);">{{c.text}}</p>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="padding: 18px; border-radius: 14px; border: 1px dashed var(--line);">
+        <div style="min-height: 74px; font-size: 15px; color: var(--muted);">Что осталось непонятным?</div>
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px;">
+          <span style="font-size: 13px; color: var(--muted);">Отзыв появится после проверки автором.</span>
+          <span style="min-height: 44px; display: flex; align-items: center; padding: 0 22px; border-radius: 11px; background: var(--brand-2); color: var(--on-accent); font-size: 15px;">Отправить</span>
+        </div>
+      </div>
+    </main>
+
+    <aside style="width: 300px; flex-shrink: 0; display: flex; flex-direction: column; gap: 16px;">
+      <div style="padding: 20px; border-radius: 16px; background: var(--surface); border: var(--card-line);">
+        <div style="font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px;">Из этого урока</div>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <sc-for list="{{chapters}}" as="ch" hint-placeholder-count="4">
+            <div style="display: flex; gap: 12px; font-size: 14px;">
+              <span style="color: var(--cyan); font-variant-numeric: tabular-nums;">{{ch.time}}</span>
+              <span style="color: var(--fg);">{{ch.title}}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="padding: 20px; border-radius: 16px; background: var(--surface-2);">
+        <div style="font-size: 15px; line-height: 1.55; margin-bottom: 14px;">Хотите урок на свою тему?</div>
+        <a href="#" style="display: flex; align-items: center; justify-content: center; min-height: 44px; border-radius: 11px; border: 1px solid var(--brand-2); color: var(--brand-2); font-size: 15px;">Предложить идею</a>
+      </div>
+    </aside>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark","section":"Тема"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      theme: this.props.theme ?? 'dark',
+      comments: [
+        {
+          name: 'Анна',
+          text: 'Наконец-то кто-то показал общий nginx целиком, а не кусок конфига без контекста. Повторила у себя за вечер.',
+          avatar: 'linear-gradient(135deg, #E8547C, #9048D8)',
+          pending: false
+        },
+        {
+          name: 'Пётр',
+          text: 'А что делать, если A-запись домена ещё не переехала? У меня certbot ругается.',
+          avatar: 'linear-gradient(135deg, #24A8D8, #846CF0)',
+          pending: true
+        }
+      ],
+      chapters: [
+        { time: '00:00', title: 'Что собираем и зачем' },
+        { time: '04:12', title: 'Компоуз и переменные окружения' },
+        { time: '15:30', title: 'Миграции при старте' },
+        { time: '28:05', title: 'Маршрут в общем nginx' },
+        { time: '36:40', title: 'Сертификат и проверка' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,131 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Onest:wght@400;500;600&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #24A8D8; text-decoration: none; }
+    a:hover { color: #5FC6EC; }
+
+    /* Направление В — утилитарное: моноширинный акцент, плотная сетка,
+       рамки вместо теней. Тема репозитория и терминала, а не витрины. */
+    [data-theme="dark"] {
+      --bg: #0D0C16;
+      --surface: #131226;
+      --line: #272341;
+      --fg: #E6E3F5;
+      --muted: #8F89AD;
+      --violet: #9048D8;
+      --cyan: #24A8D8;
+      --pink: #E8547C;
+      --on-accent: #0D0C16;
+    }
+    [data-theme="light"] {
+      --bg: #FAFAFC;
+      --surface: #FFFFFF;
+      --line: #DDDAE8;
+      --fg: #14121F;
+      --muted: #5C5775;
+      --violet: #6B2FBE;
+      --cyan: #0E7FA8;
+      --pink: #C62F58;
+      --on-accent: #FFFFFF;
+    }
+  </style>
+</helmet>
+
+<div data-theme="{{theme}}" style="background: var(--bg); color: var(--fg); font-family: Onest, system-ui, sans-serif; min-height: 900px; display: flex; flex-direction: column;">
+
+  <header style="display: flex; align-items: center; justify-content: space-between; padding: 14px 32px; border-bottom: 1px solid var(--line); font-family: 'JetBrains Mono', monospace; font-size: 13px;">
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <img src="logo.jpg" alt="" style="width: 28px; height: 28px; border-radius: 4px;">
+      <span style="font-weight: 700;">solo<span style="color: var(--pink);">_</span>ai<span style="color: var(--pink);">_</span>journey</span>
+      <span style="color: var(--muted);">v0.1.0</span>
+    </div>
+    <nav style="display: flex; align-items: center; gap: 22px;">
+      <a href="#" style="color: var(--fg);">./уроки</a>
+      <a href="#" style="color: var(--muted);">./идеи</a>
+      <a href="#" style="display: flex; align-items: center; min-height: 44px; padding: 0 16px; border: 1px solid var(--cyan); color: var(--cyan);">войти</a>
+    </nav>
+  </header>
+
+  <section style="padding: 48px 32px 36px; border-bottom: 1px solid var(--line);">
+    <div style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--muted); margin-bottom: 16px;">
+      <span style="color: var(--cyan);">$</span> git log --oneline --author=&quot;solo&quot;
+    </div>
+    <h1 style="font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 40px; line-height: 1.2; margin: 0 0 18px; max-width: 780px; text-wrap: pretty;">Приложение, собранное в одиночку<span style="color: var(--pink);">.</span></h1>
+    <p style="font-size: 17px; line-height: 1.6; color: var(--muted); margin: 0 0 26px; max-width: 620px;">Claude Code, VPS, Telegram-бот. Каждый урок — коммит в открытом репозитории: видно и что сделано, и какой фразой это попросили.</p>
+    <div style="display: flex; gap: 10px;">
+      <a href="#" style="display: flex; align-items: center; min-height: 46px; padding: 0 22px; background: var(--cyan); color: var(--on-accent); font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 500;">смотреть уроки</a>
+      <a href="#" style="display: flex; align-items: center; min-height: 46px; padding: 0 22px; border: 1px solid var(--line); color: var(--fg); font-family: 'JetBrains Mono', monospace; font-size: 14px;">предложить тему</a>
+    </div>
+  </section>
+
+  <section style="padding: 32px; flex-grow: 1;">
+    <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 16px;">уроки / 3</div>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line);">
+      <sc-for list="{{lessons}}" as="lesson" hint-placeholder-count="3">
+        <article style="background: var(--surface); padding: 22px; display: flex; flex-direction: column; gap: 12px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--muted);">
+            <span>{{lesson.num}}</span>
+            <span>{{lesson.date}}</span>
+          </div>
+          <h3 style="font-family: 'JetBrains Mono', monospace; font-weight: 500; font-size: 17px; line-height: 1.35; margin: 0;">{{lesson.title}}</h3>
+          <p style="font-size: 14px; line-height: 1.6; color: var(--muted); margin: 0; flex-grow: 1;">{{lesson.text}}</p>
+          <div style="display: flex; gap: 8px; font-family: 'JetBrains Mono', monospace; font-size: 12px;">
+            <span style="min-height: 30px; display: flex; align-items: center; padding: 0 10px; border: 1px solid var(--line); color: var(--muted);">{{lesson.tag}}</span>
+            <a href="#" style="min-height: 30px; display: flex; align-items: center; padding: 0 10px; border: 1px solid var(--cyan); color: var(--cyan);">yt</a>
+            <a href="#" style="min-height: 30px; display: flex; align-items: center; padding: 0 10px; border: 1px solid var(--line); color: var(--muted);">vk</a>
+          </div>
+        </article>
+      </sc-for>
+    </div>
+  </section>
+
+  <footer style="padding: 16px 32px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--muted);">
+    <span>soloaijourney.online</span>
+    <span>github: открытый репозиторий</span>
+  </footer>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark","section":"Тема"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      theme: this.props.theme ?? 'dark',
+      lessons: [
+        {
+          num: '03',
+          date: '02.09',
+          title: 'Портал с нуля: каркас на VPS',
+          text: 'Компоуз, миграции, общий nginx, сертификат. Адрес открывается по https и переживает перезагрузку.',
+          tag: 'инфра'
+        },
+        {
+          num: '02',
+          date: '28.08',
+          title: 'Общий слой Docker на пять проектов',
+          text: 'Один nginx, один postgres, один redis и правило, что живёт в общем слое, а что в проекте.',
+          tag: 'docker'
+        },
+        {
+          num: '01',
+          date: '21.08',
+          title: 'Телеграм-бот как пульт к Claude Code',
+          text: 'Пишешь боту с телефона — задача уходит в сессию на сервере, ответ приходит в чат.',
+          tag: 'боты'
+        }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

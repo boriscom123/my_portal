@@ -1,0 +1,91 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Onest:wght@400;500;700&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #AA5EFF; text-decoration: none; }
+    a:hover { color: #C48CFF; }
+    [data-theme="dark"] {
+      --bg: #0C0A20; --bg-far: #131432; --bg-top: #09071C;
+      --surface: #171334; --surface-2: #201A44; --line: #2E2757;
+      --fg: #F2F0FA; --muted: #A9A2C9;
+      --brand-1: #8482FD; --brand-2: #AA5EFF; --brand-3: #E060B4;
+      --teal: #6CA6BA; --cyan: #4FC3DC; --flame: #E56F55;
+      --on-accent: #0C0A20; --card-line: 1px solid #2E2757;
+    }
+    [data-theme="light"] {
+      --bg: #F8F7FE; --bg-far: #F1EEFB; --bg-top: #FFFFFF;
+      --surface: #FFFFFF; --surface-2: #F1EEFB; --line: #E0DBF2;
+      --fg: #14122A; --muted: #5C5680;
+      --brand-1: #5B58E0; --brand-2: #8A2FE0; --brand-3: #C42F85;
+      --teal: #2C7C90; --cyan: #0E7FA8; --flame: #C4482E;
+      --on-accent: #FFFFFF; --card-line: 1px solid #E0DBF2;
+    }
+    .знак {
+      font-family: Unbounded, system-ui, sans-serif;
+      font-weight: 800;
+      background: linear-gradient(96deg, var(--brand-1) 0%, var(--brand-2) 52%, var(--brand-3) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+  </style>
+</helmet>
+
+<div data-theme="{{theme}}" style="background: linear-gradient(160deg, var(--bg-top) 0%, var(--bg) 45%, var(--bg-far) 100%); color: var(--fg); font-family: Onest, system-ui, sans-serif; min-height: 1000px; display: flex; align-items: center; justify-content: center; padding: 48px;">
+
+  <div style="width: 100%; max-width: 420px; display: flex; flex-direction: column; align-items: center;">
+
+    <img src="logo.jpg" alt="" style="width: 76px; height: 76px; border-radius: 50%; margin-bottom: 22px;">
+
+    <h1 style="font-family: Unbounded, system-ui, sans-serif; font-weight: 800; font-size: 26px; line-height: 1.25; margin: 0 0 12px; text-align: center;">Вход</h1>
+    <p style="font-size: 15px; line-height: 1.6; color: var(--muted); margin: 0 0 30px; text-align: center;">Любой способ ведёт в один и тот же аккаунт: войдите вторым — он привяжется к первому, история никуда не денется.</p>
+
+    <div style="width: 100%; padding: 26px; border-radius: 18px; background: var(--surface); border: var(--card-line); display: flex; flex-direction: column; gap: 12px;">
+
+      <a href="#" style="display: flex; align-items: center; justify-content: center; gap: 12px; min-height: 52px; border-radius: 12px; background: linear-gradient(96deg, var(--brand-1), var(--brand-2) 60%, var(--brand-3)); color: #FFFFFF; font-size: 16px; font-weight: 500;">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a14 14 0 0 0 0 18a14 14 0 0 0 0-18Z"/><path d="M3.5 9h17M3.5 15h17"/></svg>
+        Войти через Google
+      </a>
+
+      <a href="#" style="display: flex; align-items: center; justify-content: center; gap: 12px; min-height: 52px; border-radius: 12px; border: 1px solid var(--line); color: var(--fg); font-size: 16px;">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="1.8" stroke-linejoin="round"><path d="M21 4 3 11l5 2 2 6 3-4 5 4 3-15Z"/><path d="m8 13 9-6-6 8"/></svg>
+        Войти через Telegram
+      </a>
+
+      <div style="display: flex; align-items: center; gap: 12px; margin: 4px 0;">
+        <span style="height: 1px; flex-grow: 1; background: var(--line);"></span>
+        <span style="font-size: 12px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase;">скоро</span>
+        <span style="height: 1px; flex-grow: 1; background: var(--line);"></span>
+      </div>
+
+      <div style="display: flex; gap: 10px;">
+        <span style="flex-grow: 1; display: flex; align-items: center; justify-content: center; min-height: 46px; border-radius: 11px; background: var(--surface-2); color: var(--muted); font-size: 15px;">VK</span>
+        <span style="flex-grow: 1; display: flex; align-items: center; justify-content: center; min-height: 46px; border-radius: 11px; background: var(--surface-2); color: var(--muted); font-size: 15px;">Яндекс</span>
+        <span style="flex-grow: 1; display: flex; align-items: center; justify-content: center; min-height: 46px; border-radius: 11px; background: var(--surface-2); color: var(--muted); font-size: 15px;">MAX</span>
+      </div>
+    </div>
+
+    <p style="font-size: 13px; line-height: 1.6; color: var(--muted); margin: 22px 0 0; text-align: center; max-width: 340px;">Читать уроки можно и без входа. Он нужен, чтобы оставлять отзывы, голосовать за темы и получать уведомления о новых выпусках.</p>
+
+    <a href="#" style="margin-top: 26px; font-size: 14px; color: var(--muted);">← на главную</a>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark","section":"Тема"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { theme: this.props.theme ?? 'dark' };
+  }
+}
+</script>
+</body>
+</html>

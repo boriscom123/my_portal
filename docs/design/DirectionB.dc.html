@@ -1,0 +1,132 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;7..72,600;7..72,700&family=Onest:wght@400;500;600&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #6B2FBE; text-decoration: none; }
+    a:hover { color: #4E1F91; }
+
+    /* Направление Б живёт светлым: бумага, крупная серифная типографика,
+       фиолетовый работает точечно — в ссылках, тегах и одной кнопке. */
+    [data-theme="light"] {
+      --bg: #FBFAF7;
+      --surface: #FFFFFF;
+      --surface-2: #F2EFFA;
+      --line: #E4E0D8;
+      --fg: #1A1726;
+      --muted: #625D72;
+      --violet: #6B2FBE;
+      --cyan: #0E7FA8;
+      --on-accent: #FFFFFF;
+    }
+    [data-theme="dark"] {
+      --bg: #14121C;
+      --surface: #1C1927;
+      --surface-2: #262137;
+      --line: #322D42;
+      --fg: #F2EFE9;
+      --muted: #A29CB4;
+      --violet: #B182F5;
+      --cyan: #4FC0E8;
+      --on-accent: #14121C;
+    }
+  </style>
+</helmet>
+
+<div data-theme="{{theme}}" style="background: var(--bg); color: var(--fg); font-family: Onest, system-ui, sans-serif; min-height: 900px; display: flex; flex-direction: column;">
+
+  <header style="display: flex; align-items: center; justify-content: space-between; padding: 26px 64px;">
+    <div style="display: flex; align-items: center; gap: 14px;">
+      <img src="logo.jpg" alt="" style="width: 36px; height: 36px; border-radius: 50%;">
+      <span style="font-family: Literata, Georgia, serif; font-weight: 700; font-size: 19px;">Solo AI Journey</span>
+    </div>
+    <nav style="display: flex; align-items: center; gap: 30px; font-size: 15px;">
+      <a href="#" style="color: var(--fg);">Уроки</a>
+      <a href="#" style="color: var(--fg);">Идеи</a>
+      <a href="#" style="display: flex; align-items: center; min-height: 44px; padding: 0 18px; border-radius: 6px; border: 1px solid var(--fg); color: var(--fg);">Войти</a>
+    </nav>
+  </header>
+
+  <section style="padding: 40px 64px 48px; border-bottom: 1px solid var(--line);">
+    <div style="max-width: 720px;">
+      <div style="font-family: Literata, Georgia, serif; font-style: italic; font-size: 16px; color: var(--violet); margin-bottom: 18px;">выпуск за выпуском</div>
+      <h1 style="font-family: Literata, Georgia, serif; font-weight: 700; font-size: 56px; line-height: 1.12; letter-spacing: -0.01em; margin: 0 0 22px; text-wrap: pretty;">От идеи до продукта&nbsp;— с ИИ и без волшебства</h1>
+      <p style="font-size: 18px; line-height: 1.65; color: var(--muted); margin: 0 0 28px; max-width: 600px;">Разбираем, как в одиночку собрать работающий сервис: Claude Code, свой VPS, Telegram-бот. Всё, что показано в кадре, лежит в открытом репозитории — вместе с перепиской, из которой это выросло.</p>
+      <a href="#" style="display: inline-flex; align-items: center; min-height: 48px; padding: 0 28px; border-radius: 6px; background: var(--violet); color: var(--on-accent); font-size: 16px; font-weight: 500;">Начать с первого урока</a>
+    </div>
+  </section>
+
+  <section style="padding: 44px 64px 56px; flex-grow: 1;">
+    <div style="display: flex; align-items: baseline; gap: 20px; margin-bottom: 28px;">
+      <h2 style="font-family: Literata, Georgia, serif; font-weight: 600; font-size: 26px; margin: 0;">Все уроки</h2>
+      <span style="font-size: 14px; color: var(--muted);">3 выпуска</span>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 0;">
+      <sc-for list="{{lessons}}" as="lesson" hint-placeholder-count="3">
+        <article style="display: flex; gap: 32px; padding: 28px 0; border-top: 1px solid var(--line); align-items: flex-start;">
+          <div style="width: 132px; flex-shrink: 0; font-size: 14px; color: var(--muted); padding-top: 6px;">{{lesson.date}}</div>
+          <div style="flex-grow: 1; max-width: 620px;">
+            <h3 style="font-family: Literata, Georgia, serif; font-weight: 600; font-size: 24px; line-height: 1.3; margin: 0 0 10px;">{{lesson.title}}</h3>
+            <p style="font-size: 16px; line-height: 1.65; color: var(--muted); margin: 0 0 14px;">{{lesson.text}}</p>
+            <div style="display: flex; gap: 10px; align-items: center;">
+              <span style="min-height: 30px; display: flex; align-items: center; padding: 0 12px; border-radius: 4px; background: var(--surface-2); font-size: 13px; color: var(--violet);">{{lesson.tag}}</span>
+              <a href="#" style="font-size: 14px;">смотреть на YouTube</a>
+              <span style="color: var(--line);">·</span>
+              <a href="#" style="font-size: 14px;">VK</a>
+            </div>
+          </div>
+          <div style="width: 160px; height: 100px; flex-shrink: 0; border-radius: 4px; background: {{lesson.cover}};"></div>
+        </article>
+      </sc-for>
+    </div>
+  </section>
+
+  <footer style="padding: 22px 64px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; font-size: 13px; color: var(--muted);">
+    <span>soloaijourney.online</span>
+    <span>Код и переписка — открыты</span>
+  </footer>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light","section":"Тема"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      theme: this.props.theme ?? 'light',
+      lessons: [
+        {
+          date: '2 сентября 2026',
+          title: 'Портал с нуля: каркас на VPS',
+          text: 'Компоуз, миграции, общий nginx и сертификат. К концу урока адрес открывается по https, и это переживает перезагрузку сервера.',
+          tag: 'инфраструктура',
+          cover: 'linear-gradient(135deg, #6B2FBE 0%, #0E7FA8 100%)'
+        },
+        {
+          date: '28 августа 2026',
+          title: 'Общий слой Docker на пять проектов',
+          text: 'Один nginx, один postgres, один redis — и внятное правило, по которому решаешь, что живёт в общем слое, а что в проекте.',
+          tag: 'docker',
+          cover: 'linear-gradient(135deg, #9048D8 0%, #C62F58 100%)'
+        },
+        {
+          date: '21 августа 2026',
+          title: 'Телеграм-бот как пульт к Claude Code',
+          text: 'Пишешь боту с телефона — задача уходит в сессию на сервере, ответ приходит обратно в чат. Работа продолжается, пока ты в метро.',
+          tag: 'claude code',
+          cover: 'linear-gradient(135deg, #0E7FA8 0%, #6B2FBE 100%)'
+        }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

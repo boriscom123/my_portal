@@ -1,0 +1,134 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Onest:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #AA5EFF; }
+    a:hover { color: #C48CFF; }
+    .знак {
+      font-family: Unbounded, system-ui, sans-serif;
+      font-weight: 800;
+      background: linear-gradient(96deg, #8482FD 0%, #AA5EFF 52%, #E060B4 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+  </style>
+</helmet>
+
+<div style="background: linear-gradient(160deg, #09071C 0%, #0C0A20 45%, #131432 100%); color: #F2F0FA; font-family: Onest, system-ui, sans-serif; min-height: 900px; padding: 36px 40px;">
+
+  <div style="display: flex; gap: 28px; align-items: flex-start; margin-bottom: 30px;">
+    <img src="banner.jpg" alt="Фирменный блок Solo AI Journey" style="width: 340px; border-radius: 12px; border: 1px solid #2E2757;">
+    <div style="flex-grow: 1;">
+      <h1 style="font-family: Unbounded, system-ui, sans-serif; font-weight: 800; font-size: 21px; margin: 0 0 8px;">Фирменный стиль</h1>
+      <p style="margin: 0 0 18px; font-size: 14px; line-height: 1.6; color: #A9A2C9;">Все значения сняты пиксель за пикселем с этого баннера, а не подобраны на вкус. Фон страницы повторяет его градиент, написание — градиент по буквам.</p>
+      <div style="display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px;">
+        <span class="знак" style="font-size: 30px;">SOLO AI</span>
+        <span style="font-family: Unbounded, system-ui, sans-serif; font-weight: 400; font-size: 25px; letter-spacing: 0.30em;">JOURNEY</span>
+      </div>
+      <div style="font-size: 11px; letter-spacing: 0.28em; text-transform: uppercase; color: #6CA6BA;">от идеи до продукта · шаг за шагом</div>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 26px;">
+
+    <div>
+      <div style="font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: #A9A2C9; margin-bottom: 12px;">Тёмная тема — родная для знака</div>
+      <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px;">
+        <sc-for list="{{dark}}" as="c" hint-placeholder-count="8">
+          <div style="display: flex; flex-direction: column; gap: 5px;">
+            <div style="height: 48px; border-radius: 9px; background: {{c.hex}}; border: 1px solid #2E2757;"></div>
+            <span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #F2F0FA;">{{c.hex}}</span>
+            <span style="font-size: 10px; color: #A9A2C9;">{{c.name}}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div>
+      <div style="font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: #A9A2C9; margin-bottom: 12px;">Светлая — выведена из той же палитры</div>
+      <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px;">
+        <sc-for list="{{light}}" as="c" hint-placeholder-count="8">
+          <div style="display: flex; flex-direction: column; gap: 5px;">
+            <div style="height: 48px; border-radius: 9px; background: {{c.hex}}; border: 1px solid #2E2757;"></div>
+            <span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #F2F0FA;">{{c.hex}}</span>
+            <span style="font-size: 10px; color: #A9A2C9;">{{c.name}}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top: 26px; padding: 18px 20px; border-radius: 12px; background: #171334; border: 1px solid #2E2757;">
+    <div style="font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: #A9A2C9; margin-bottom: 12px;">Градиент написания и кнопок</div>
+    <div style="height: 40px; border-radius: 9px; background: linear-gradient(96deg, #8482FD 0%, #AA5EFF 52%, #E060B4 100%); margin-bottom: 10px;"></div>
+    <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #A9A2C9;">linear-gradient(96deg, #8482FD 0%, #AA5EFF 52%, #E060B4 100%)</div>
+    <p style="margin: 12px 0 0; font-size: 13px; line-height: 1.6; color: #A9A2C9;">В светлой теме тот же градиент затемняется до #5B58E0 → #8A2FE0 → #C42F85: исходный на белом не даёт контраста для текста, хотя на кнопке с белыми буквами работает.</p>
+  </div>
+
+  <div style="margin-top: 24px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px;">
+    <div>
+      <div style="font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: #A9A2C9; margin-bottom: 10px;">Заголовки</div>
+      <div style="font-family: Unbounded, system-ui, sans-serif; font-weight: 800; font-size: 26px; line-height: 1.15;">Unbounded</div>
+      <p style="margin: 8px 0 0; font-size: 12px; color: #A9A2C9; line-height: 1.55;">Геометрический гротеск с кириллицей — тот же характер, что у надписи на баннере.</p>
+    </div>
+    <div>
+      <div style="font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: #A9A2C9; margin-bottom: 10px;">Текст</div>
+      <div style="font-size: 26px; font-weight: 500; line-height: 1.15;">Onest</div>
+      <p style="margin: 8px 0 0; font-size: 12px; color: #A9A2C9; line-height: 1.55;">Спокойный, хорошо читается с телефона, полная кириллица.</p>
+    </div>
+    <div>
+      <div style="font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: #A9A2C9; margin-bottom: 10px;">Код и время</div>
+      <div style="font-family: 'JetBrains Mono', monospace; font-size: 22px; line-height: 1.2;">JetBrains Mono</div>
+      <p style="margin: 8px 0 0; font-size: 12px; color: #A9A2C9; line-height: 1.55;">Таймкоды, команды, номера версий.</p>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      dark: [
+        { hex: '#09071C', name: 'фон, верх' },
+        { hex: '#0C0A20', name: 'фон' },
+        { hex: '#131432', name: 'фон, даль' },
+        { hex: '#171334', name: 'карточка' },
+        { hex: '#2E2757', name: 'линия' },
+        { hex: '#F2F0FA', name: 'текст' },
+        { hex: '#A9A2C9', name: 'текст тише' },
+        { hex: '#8482FD', name: 'знак, начало' },
+        { hex: '#AA5EFF', name: 'знак, середина' },
+        { hex: '#E060B4', name: 'знак, конец' },
+        { hex: '#6CA6BA', name: 'подпись' },
+        { hex: '#E56F55', name: 'пламя, редкий акцент' }
+      ],
+      light: [
+        { hex: '#FFFFFF', name: 'фон, верх' },
+        { hex: '#F8F7FE', name: 'фон' },
+        { hex: '#F1EEFB', name: 'фон, даль' },
+        { hex: '#FFFFFF', name: 'карточка' },
+        { hex: '#E0DBF2', name: 'линия' },
+        { hex: '#14122A', name: 'текст' },
+        { hex: '#5C5680', name: 'текст тише' },
+        { hex: '#5B58E0', name: 'знак, начало' },
+        { hex: '#8A2FE0', name: 'знак, середина' },
+        { hex: '#C42F85', name: 'знак, конец' },
+        { hex: '#2C7C90', name: 'подпись' },
+        { hex: '#C4482E', name: 'пламя, редкий акцент' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

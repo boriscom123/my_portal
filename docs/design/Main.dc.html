@@ -1,0 +1,196 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Onest:wght@400;500;700&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #A87CF0; text-decoration: none; }
+    a:hover { color: #C6A6FF; }
+
+    /* Цвета сняты пиксель за пикселем с фирменного баннера канала.
+       Тёмная тема — родная: баннер построен на градиенте от почти чёрного
+       синего слева к сливовому справа. */
+    [data-theme="dark"] {
+      --bg: #0C0A20;
+      --bg-far: #131432;
+      --bg-top: #09071C;
+      --surface: #171334;
+      --surface-2: #201A44;
+      --line: #2E2757;
+      --fg: #F2F0FA;
+      --muted: #A9A2C9;
+      --brand-1: #8482FD;
+      --brand-2: #AA5EFF;
+      --brand-3: #E060B4;
+      --teal: #6CA6BA;
+      --cyan: #4FC3DC;
+      --flame: #E56F55;
+      --on-accent: #0C0A20;
+      --card-line: 1px solid #2E2757;
+    }
+    /* Светлая выведена из той же палитры: фирменный градиент остаётся как
+       есть — это знак, — а фон, текст и линии перевёрнуты. Интерактивные
+       цвета затемнены до читаемых на белом. */
+    [data-theme="light"] {
+      --bg: #F8F7FE;
+      --bg-far: #F1EEFB;
+      --bg-top: #FFFFFF;
+      --surface: #FFFFFF;
+      --surface-2: #F1EEFB;
+      --line: #E0DBF2;
+      --fg: #14122A;
+      --muted: #5C5680;
+      --brand-1: #5B58E0;
+      --brand-2: #8A2FE0;
+      --brand-3: #C42F85;
+      --teal: #2C7C90;
+      --cyan: #0E7FA8;
+      --flame: #C4482E;
+      --on-accent: #FFFFFF;
+      --card-line: 1px solid #E0DBF2;
+    }
+
+    /* Фирменное написание: градиент по буквам, как на баннере. */
+    .знак {
+      font-family: Unbounded, system-ui, sans-serif;
+      font-weight: 800;
+      background: linear-gradient(96deg, var(--brand-1) 0%, var(--brand-2) 52%, var(--brand-3) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+  </style>
+</helmet>
+
+<div data-theme="{{theme}}" style="background: linear-gradient(160deg, var(--bg-top) 0%, var(--bg) 45%, var(--bg-far) 100%); color: var(--fg); font-family: Onest, system-ui, sans-serif; min-height: 900px; display: flex; flex-direction: column;">
+
+  <header style="display: flex; align-items: center; justify-content: space-between; padding: 18px 48px; border-bottom: 1px solid var(--line);">
+    <div style="display: flex; align-items: center; gap: 13px;">
+      <img src="logo.jpg" alt="" style="width: 38px; height: 38px; border-radius: 50%;">
+      <div style="display: flex; align-items: baseline; gap: 9px;">
+        <span class="знак" style="font-size: 17px; letter-spacing: 0.02em;">SOLO AI</span>
+        <span style="font-family: Unbounded, system-ui, sans-serif; font-weight: 400; font-size: 15px; letter-spacing: 0.30em; color: var(--fg);">JOURNEY</span>
+      </div>
+    </div>
+    <nav style="display: flex; align-items: center; gap: 26px; font-size: 15px;">
+      <a href="#" style="color: var(--fg);">Уроки</a>
+      <a href="#" style="color: var(--muted);">Идеи</a>
+      <a href="#" style="display: flex; align-items: center; min-height: 44px; padding: 0 20px; border-radius: 10px; background: linear-gradient(96deg, var(--brand-1), var(--brand-2)); color: #FFFFFF; font-weight: 500;">Войти</a>
+    </nav>
+  </header>
+
+  <section style="position: relative; padding: 68px 48px 52px; overflow: hidden;">
+    <!-- Звёздное поле и след ракеты — мотив со знака, а не украшение ради
+         украшения: он же связывает страницу с обложками на площадках. -->
+    <div style="position: absolute; inset: 0; background-image: radial-gradient(1.5px 1.5px at 12% 22%, var(--muted), transparent), radial-gradient(1.5px 1.5px at 78% 14%, var(--muted), transparent), radial-gradient(2px 2px at 92% 62%, var(--teal), transparent), radial-gradient(1.5px 1.5px at 30% 78%, var(--muted), transparent), radial-gradient(1.5px 1.5px at 62% 88%, var(--brand-2), transparent); opacity: 0.55;"></div>
+    <svg viewBox="0 0 900 400" style="position: absolute; right: 0; top: 0; width: 620px; height: 400px; opacity: 0.5;" fill="none">
+      <path d="M60 380 C 320 330, 560 190, 840 30" stroke="var(--brand-2)" stroke-width="1.5" stroke-dasharray="5 9" stroke-linecap="round"/>
+      <circle cx="60" cy="380" r="3.5" fill="var(--teal)"/>
+      <circle cx="840" cy="30" r="4" fill="var(--brand-3)"/>
+    </svg>
+
+    <div style="position: relative; display: flex; gap: 52px; align-items: flex-start;">
+      <div style="flex-grow: 1; max-width: 660px;">
+        <div style="font-size: 12px; letter-spacing: 0.28em; text-transform: uppercase; color: var(--teal); margin-bottom: 24px;">от идеи до продукта · шаг за шагом</div>
+        <h1 style="font-family: Unbounded, system-ui, sans-serif; font-weight: 800; font-size: 50px; line-height: 1.1; margin: 0 0 20px; text-wrap: pretty;">Реальные приложения<br>с ИИ, <span class="знак" style="font-size: 50px;">в одиночку</span></h1>
+        <p style="font-size: 18px; line-height: 1.6; color: var(--muted); margin: 0 0 32px; max-width: 530px;">Claude Code, свой VPS и Telegram-бот. Каждый урок — работающий кусок системы, а не пример из документации. Код и переписка с заказчиком лежат в открытом репозитории.</p>
+        <div style="display: flex; gap: 12px; align-items: center;">
+          <a href="#" style="display: flex; align-items: center; min-height: 48px; padding: 0 26px; border-radius: 12px; background: linear-gradient(96deg, var(--brand-1), var(--brand-2) 60%, var(--brand-3)); color: #FFFFFF; font-weight: 500; font-size: 16px;">Смотреть уроки</a>
+          <a href="#" style="display: flex; align-items: center; min-height: 48px; padding: 0 26px; border-radius: 12px; border: 1px solid var(--line); color: var(--fg); font-size: 16px;">Предложить тему</a>
+        </div>
+      </div>
+
+      <div style="width: 272px; flex-shrink: 0; padding: 22px; border-radius: 18px; background: var(--surface); border: var(--card-line);">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px;">
+          <span style="width: 7px; height: 7px; border-radius: 50%; background: var(--flame);"></span>
+          <span style="font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--flame);">скоро</span>
+        </div>
+        <div style="font-family: Unbounded, system-ui, sans-serif; font-weight: 600; font-size: 17px; line-height: 1.32; margin-bottom: 11px;">Вход шестью способами и один аккаунт</div>
+        <p style="font-size: 14px; line-height: 1.55; color: var(--muted); margin: 0 0 18px;">Google, Telegram, VK — и человек не расползается на три профиля с разной историей.</p>
+        <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--cyan);">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          <span>на этой неделе</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section style="padding: 0 48px 52px;">
+    <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 22px;">
+      <h2 style="font-family: Unbounded, system-ui, sans-serif; font-weight: 600; font-size: 23px; margin: 0;">Уроки</h2>
+      <div style="display: flex; gap: 8px;">
+        <span style="min-height: 32px; display: flex; align-items: center; padding: 0 14px; border-radius: 999px; background: var(--surface-2); color: var(--fg); font-size: 13px;">все</span>
+        <span style="min-height: 32px; display: flex; align-items: center; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); font-size: 13px;">docker</span>
+        <span style="min-height: 32px; display: flex; align-items: center; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); font-size: 13px;">claude code</span>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px;">
+      <sc-for list="{{lessons}}" as="lesson" hint-placeholder-count="3">
+        <article style="border-radius: 18px; background: var(--surface); border: var(--card-line); overflow: hidden; display: flex; flex-direction: column;">
+          <div style="height: 128px; background: {{lesson.cover}};"></div>
+          <div style="padding: 19px; display: flex; flex-direction: column; gap: 9px; flex-grow: 1;">
+            <div style="font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted);">{{lesson.date}}</div>
+            <h3 style="font-family: Unbounded, system-ui, sans-serif; font-weight: 600; font-size: 16px; line-height: 1.32; margin: 0;">{{lesson.title}}</h3>
+            <p style="font-size: 14px; line-height: 1.55; color: var(--muted); margin: 0; flex-grow: 1;">{{lesson.text}}</p>
+            <div style="display: flex; gap: 8px; align-items: center; padding-top: 5px;">
+              <span style="min-height: 34px; display: flex; align-items: center; padding: 0 13px; border-radius: 9px; background: var(--surface-2); font-size: 13px; color: var(--fg);">YouTube</span>
+              <span style="min-height: 34px; display: flex; align-items: center; padding: 0 13px; border-radius: 9px; background: var(--surface-2); font-size: 13px; color: var(--fg);">VK</span>
+              <span style="margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted);">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v10"/><path d="M14 4.5 12.5 10H19a2 2 0 0 1 1.9 2.6l-1.7 5.4A2 2 0 0 1 17.3 20H7V10l3.6-6.4a1.6 1.6 0 0 1 3 .9Z"/></svg>
+                {{lesson.likes}}
+              </span>
+            </div>
+          </div>
+        </article>
+      </sc-for>
+    </div>
+  </section>
+
+  <footer style="margin-top: auto; padding: 22px 48px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--muted);">
+    <span>soloaijourney.online</span>
+    <span style="letter-spacing: 0.18em; text-transform: uppercase; color: var(--teal); font-size: 11px;">от идеи до продукта</span>
+  </footer>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark","section":"Тема"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      theme: this.props.theme ?? 'dark',
+      lessons: [
+        {
+          date: '2 сентября',
+          title: 'Портал с нуля: каркас на VPS',
+          text: 'Компоуз, миграции, общий nginx и сертификат. К концу урока адрес открывается по https.',
+          cover: 'linear-gradient(120deg, #8482FD 0%, #AA5EFF 55%, #E060B4 100%)',
+          likes: 34
+        },
+        {
+          date: '28 августа',
+          title: 'Общий слой Docker на пять проектов',
+          text: 'Один nginx, один postgres, один redis — и правило, по которому решаешь, что куда класть.',
+          cover: 'linear-gradient(120deg, #6CA6BA 0%, #8482FD 60%, #AA5EFF 100%)',
+          likes: 51
+        },
+        {
+          date: '21 августа',
+          title: 'Телеграм-бот как пульт к Claude Code',
+          text: 'Пишешь боту с телефона — задача уходит в сессию на сервере, ответ приходит обратно.',
+          cover: 'linear-gradient(120deg, #AA5EFF 0%, #E060B4 60%, #E56F55 100%)',
+          likes: 78
+        }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
