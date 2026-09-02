@@ -1,0 +1,33 @@
+# Портал видеоуроков.
+#
+# Файл самодостаточен: на чистой машине `docker compose --profile standalone up -d`
+# поднимает приложение вместе со своей базой и публикует порт наружу.
+#
+# На этом VPS профиль standalone не включается: база живёт в общем слое
+# (ClaudeDocker), порт наружу не публикуется, вход держит общий nginx.
+# Оверлей подключается строкой COMPOSE_FILE в .env — см. .env.example.
+services:
+  api:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: 3004
+    ports:
+      - "${APP_PORT:-3004}:3004"
+
+  # Своя база — только для запуска на отдельной машине. На VPS её заменяет
+  # общий postgres: держать второй экземпляр на 3.8 ГБ памяти незачем.
+  db:
+    image: postgres:18-alpine
+    profiles: [standalone]
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+    volumes:
+      - portal_db:/var/lib/postgresql
+    restart: unless-stopped
+
+volumes:
+  portal_db:
