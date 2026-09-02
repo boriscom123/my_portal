@@ -14,6 +14,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY package.json ./
 COPY src ./src
 COPY migrations ./migrations
+COPY public ./public
 # Рабочий буфер: каталог создаётся заранее и отдаётся пользователю node,
 # иначе процесс без прав root не сможет писать в него на этапе 5.
 RUN mkdir -p /app/media && chown -R node:node /app/media

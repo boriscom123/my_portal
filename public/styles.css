@@ -1,0 +1,388 @@
+/* Оформление портала.
+ *
+ * Задача — один набор значений на весь сайт: цвета, шрифты, отступы. Зачем
+ * переменными, а не значениями по месту: тем две, и без переменных каждый
+ * цвет пришлось бы писать дважды, а забытый — светиться чёрным на чёрном.
+ * Все значения сняты с фирменного баннера канала, а не подобраны на вкус;
+ * светлая тема выведена из тёмной затемнением до читаемого контраста.
+ * Подключается из src/views/layout.js на каждой странице.
+ */
+
+@import url('/fonts/fonts.css');
+
+/* Светлая тема — база. Тёмная включается системной настройкой или кнопкой:
+   так страница выглядит правильно ещё до того, как отработает скрипт. */
+:root {
+  --bg: #f8f7fe;
+  --bg-far: #f1eefb;
+  --bg-top: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f1eefb;
+  --line: #e0dbf2;
+  --fg: #14122a;
+  --muted: #5c5680;
+  --brand-1: #5b58e0;
+  --brand-2: #8a2fe0;
+  --brand-3: #c42f85;
+  --teal: #2c7c90;
+  --cyan: #0e7fa8;
+  --flame: #c4482e;
+
+  --поле: 16px;
+  --скругление: 12px;
+  /* Минимальная цель нажатия. Ниже 44 пикселей на телефоне промахиваются. */
+  --цель: 44px;
+  --ширина-текста: 46rem;
+}
+
+/* Тёмная — родная для знака: баннер построен на почти чёрном синем.
+   :not([data-theme="light"]) нужен, чтобы ручной выбор светлой темы победил
+   системную настройку, а не спорил с ней. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #0c0a20;
+    --bg-far: #131432;
+    --bg-top: #09071c;
+    --surface: #171334;
+    --surface-2: #201a44;
+    --line: #2e2757;
+    --fg: #f2f0fa;
+    --muted: #a9a2c9;
+    --brand-1: #8482fd;
+    --brand-2: #aa5eff;
+    --brand-3: #e060b4;
+    --teal: #6ca6ba;
+    --cyan: #4fc3dc;
+    --flame: #e56f55;
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #0c0a20;
+  --bg-far: #131432;
+  --bg-top: #09071c;
+  --surface: #171334;
+  --surface-2: #201a44;
+  --line: #2e2757;
+  --fg: #f2f0fa;
+  --muted: #a9a2c9;
+  --brand-1: #8482fd;
+  --brand-2: #aa5eff;
+  --brand-3: #e060b4;
+  --teal: #6ca6ba;
+  --cyan: #4fc3dc;
+  --flame: #e56f55;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font: 16px/1.6 Onest, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: var(--fg);
+  background: linear-gradient(160deg, var(--bg-top) 0%, var(--bg) 45%, var(--bg-far) 100%);
+  background-attachment: fixed;
+}
+
+a {
+  color: var(--brand-2);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+h1,
+h2,
+h3 {
+  font-family: Unbounded, system-ui, sans-serif;
+  line-height: 1.15;
+  text-wrap: pretty;
+  margin: 0 0 0.6em;
+}
+h1 {
+  font-weight: 800;
+  font-size: clamp(28px, 5vw, 50px);
+}
+h2 {
+  font-weight: 600;
+  font-size: clamp(20px, 3vw, 24px);
+}
+h3 {
+  font-weight: 600;
+  font-size: 17px;
+}
+
+/* --- Фирменные градиенты -------------------------------------------------
+ * Оба живые по требованию заказчика. Градиент растянут втрое по ширине и
+ * ездит сдвигом фона: это рисует видеокарта, JS не участвует и телефон не
+ * греется. */
+.знак,
+.кнопка-знак {
+  background: linear-gradient(
+    96deg,
+    var(--brand-1) 0%,
+    var(--brand-2) 25%,
+    var(--brand-3) 50%,
+    var(--brand-2) 75%,
+    var(--brand-1) 100%
+  );
+  background-size: 300% 100%;
+  animation: перелив 9s ease-in-out infinite;
+}
+
+.знак {
+  font-family: Unbounded, system-ui, sans-serif;
+  font-weight: 800;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Пламя ракеты — второй живой акцент, быстрее знака: в такт они выглядели бы
+   одним мигающим блоком. */
+.пламя,
+.пламя-точка {
+  background: linear-gradient(
+    96deg,
+    var(--flame) 0%,
+    #f0a15c 30%,
+    var(--brand-3) 60%,
+    var(--flame) 100%
+  );
+  background-size: 300% 100%;
+  animation: перелив 6s ease-in-out infinite;
+}
+.пламя {
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-weight: 600;
+}
+.пламя-точка {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+@keyframes перелив {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* Постоянное движение на экране у части людей вызывает головную боль и
+   тошноту — системная настройка существует ровно для этого случая. */
+@media (prefers-reduced-motion: reduce) {
+  .знак,
+  .кнопка-знак,
+  .пламя,
+  .пламя-точка {
+    animation: none;
+    background-position: 30% 50%;
+  }
+}
+
+/* --- Каркас страницы ----------------------------------------------------- */
+
+.шапка {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--поле);
+  padding: 14px clamp(var(--поле), 4vw, 48px);
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+.лого {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+}
+.лого img {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+}
+.лого .написание {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.лого .journey {
+  font-family: Unbounded, system-ui, sans-serif;
+  font-weight: 400;
+  font-size: 13px;
+  letter-spacing: 0.3em;
+  color: var(--fg);
+}
+
+.меню {
+  display: flex;
+  align-items: center;
+  gap: clamp(12px, 2vw, 26px);
+  font-size: 15px;
+}
+.меню a {
+  color: var(--fg);
+}
+
+main {
+  max-width: 68rem;
+  margin: 0 auto;
+  padding: clamp(24px, 5vw, 56px) clamp(var(--поле), 4vw, 48px);
+}
+
+.подпись-бренда {
+  font-size: 12px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--teal);
+}
+
+.подсказка {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* --- Элементы управления ------------------------------------------------- */
+
+.кнопка,
+.кнопка-знак {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: var(--цель);
+  padding: 0 22px;
+  border: 0;
+  border-radius: var(--скругление);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+}
+.кнопка-знак {
+  color: #ffffff;
+}
+.кнопка-знак:hover {
+  text-decoration: none;
+  filter: brightness(1.08);
+}
+.кнопка {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--fg);
+}
+.кнопка:hover {
+  text-decoration: none;
+  border-color: var(--brand-2);
+}
+
+.тема {
+  min-height: var(--цель);
+  min-width: var(--цель);
+  border: 1px solid var(--line);
+  border-radius: var(--скругление);
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+  font-size: 17px;
+  line-height: 1;
+}
+
+.карточка {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: clamp(20px, 3vw, 26px);
+}
+
+footer {
+  padding: 20px clamp(var(--поле), 4vw, 48px);
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--поле);
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* --- Страница входа ------------------------------------------------------ */
+
+.вход {
+  max-width: 26rem;
+  margin: 0 auto;
+  text-align: center;
+}
+.вход .знак-крупно {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  margin-bottom: 20px;
+}
+.вход .способы {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: left;
+}
+.вход .способы .кнопка,
+.вход .способы .кнопка-знак {
+  width: 100%;
+  min-height: 52px;
+}
+.разделитель {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.разделитель::before,
+.разделитель::after {
+  content: '';
+  height: 1px;
+  flex-grow: 1;
+  background: var(--line);
+}
+.скоро {
+  display: flex;
+  gap: 10px;
+}
+.скоро span {
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  border-radius: var(--скругление);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 15px;
+}
+
+/* Виджет Telegram — чужой iframe, выровнять его по нашей сетке можно только
+   снаружи. */
+#виджет-telegram {
+  display: flex;
+  justify-content: center;
+  min-height: 52px;
+}

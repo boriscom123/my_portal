@@ -9,6 +9,7 @@ import { notFound, errorHandler } from './middleware/errors.js';
 import { stubPage } from './views/stub.js';
 import { sessionMiddleware } from './middleware/session.js';
 import { authRoutes } from './routes/auth.js';
+import { pageRoutes } from './routes/pages.js';
 
 /**
  * Собирает приложение: прослойки и маршруты.
@@ -37,7 +38,12 @@ export function createApp({ config, pool }) {
   app.get('/healthz', (req, res) => res.json({ status: 'ok', version }));
 
   // Заглушка до этапа 2. Заменится настоящей витриной вместе с src/views/stub.js.
-  app.get('/', (req, res) => res.type('html').send(stubPage()));
+  app.get('/', (req, res) => res.type('html').send(stubPage(config)));
+
+  // Статика раньше страниц: файл с диска не должен попадать в обработчик
+  // маршрута, а /styles.css и /fonts/ нужны каждой странице.
+  app.use(express.static(new URL('../public', import.meta.url).pathname, { maxAge: '1h' }));
+  app.use('/', pageRoutes(config, pool));
 
   return app;
 }
