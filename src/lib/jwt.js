@@ -43,7 +43,7 @@ export function signShortLived(payload, secret, seconds) {
 /** Обратная сторона signShortLived. Возвращает null на любой неудаче. */
 export function verifyShortLived(token, secret) {
   try {
-    const { iat: _iat, exp: _exp, ...payload } = jwt.verify(token, secret);
+    const { iat, exp, ...payload } = jwt.verify(token, secret);
     return payload;
   } catch {
     return null;

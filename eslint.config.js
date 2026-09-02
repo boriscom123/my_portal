@@ -16,7 +16,16 @@ export default [
       globals: { ...globals.node }
     },
     rules: {
-      'no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      // Неиспользуемые переменные — ошибка, но с двумя исключениями.
+      // Подчёркивание в начале имени говорит «знаю, что не используется»
+      // (обязательные аргументы вроде next в обработчике ошибок Express).
+      // ignoreRestSiblings разрешает выбрасывать поля через деструктуризацию:
+      // `const { iat, exp, ...payload } = ...` — это способ убрать лишнее, а
+      // не забытая переменная.
+      'no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', ignoreRestSiblings: true }
+      ],
       eqeqeq: 'error',
       'no-console': 'off'
     }
