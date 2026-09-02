@@ -9,6 +9,8 @@ import { notFound, errorHandler } from './middleware/errors.js';
 import { sessionMiddleware } from './middleware/session.js';
 import { authRoutes } from './routes/auth.js';
 import { pageRoutes } from './routes/pages.js';
+import { lessonRoutes } from './routes/lessons.js';
+import { feedbackRoutes } from './routes/feedback.js';
 
 /**
  * Собирает приложение: прослойки и маршруты.
@@ -31,6 +33,8 @@ export function createApp({ config, pool }) {
   // везде, в том числе у страниц — им нужно знать, показывать «Войти» или имя.
   app.use(sessionMiddleware(config));
   app.use('/api/auth', authRoutes(config, pool));
+  app.use('/api', lessonRoutes(config, pool));
+  app.use('/api', feedbackRoutes(config, pool));
 
   // Проба живости для docker и для человека: адрес открылся — значит дошло до
   // приложения, а не остановилось на nginx.
