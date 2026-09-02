@@ -11,8 +11,19 @@ import { assetUrl } from '../lib/assets.js';
  * body вставляется как есть — это разметка, которую собрал вызывающий вид;
  * всё пользовательское он обязан прогнать через escapeHtml сам.
  */
-export function layout({ config, title, description, body, image = null, user = null }) {
-  const адрес = config.publicBaseUrl;
+export function layout({
+  config,
+  title,
+  description,
+  body,
+  path = '/',
+  image = null,
+  user = null
+}) {
+  // Полный адрес страницы. Нужен дважды: поисковику — как канонический, чтобы
+  // один урок не считался тремя страницами из-за меток в ссылках; мессенджеру —
+  // в превью, где относительный адрес не разворачивается.
+  const адресСтраницы = `${config.publicBaseUrl}${path}`;
   return `<!doctype html>
 <html lang="ru">
 <head>
@@ -24,9 +35,10 @@ export function layout({ config, title, description, body, image = null, user = 
 <meta property="og:title" content="${escapeHtml(title)}">
 <meta property="og:description" content="${escapeHtml(description)}">
 <meta property="og:type" content="website">
+<meta property="og:url" content="${escapeHtml(адресСтраницы)}">
+<link rel="canonical" href="${escapeHtml(адресСтраницы)}">
 ${image ? `<meta property="og:image" content="${escapeHtml(image)}">\n` : ''}<meta name="theme-color" content="#0c0a20">
 <link rel="icon" href="/icons/icon-192.png">
-<link rel="manifest" href="${escapeHtml(адрес)}/manifest.webmanifest">
 <link rel="stylesheet" href="${assetUrl('/styles.css')}">
 </head>
 <body>
@@ -42,7 +54,8 @@ ${image ? `<meta property="og:image" content="${escapeHtml(image)}">\n` : ''}<me
     <a href="/ideas">Идеи</a>
     ${
       user
-        ? `<span title="Вы вошли">${escapeHtml(user.displayName)}</span>`
+        ? `<span title="Вы вошли">${escapeHtml(user.displayName)}</span>
+       <button class="кнопка" type="button" data-выход>Выйти</button>`
         : '<a class="кнопка-знак" href="/login">Войти</a>'
     }
     <button class="тема" type="button" data-тема title="Светлая или тёмная тема">◐</button>

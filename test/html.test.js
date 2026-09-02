@@ -44,6 +44,12 @@ test('гостю показывается вход, вошедшему — ег�
   assert.ok(!свой.includes('>Войти<'));
 });
 
+test('канонический адрес собирается из адреса портала и пути', () => {
+  const html = layout({ config, title: 'Т', description: 'о', body: '', path: '/login' });
+  assert.match(html, /<link rel="canonical" href="https:\/\/soloaijourney\.online\/login">/);
+  assert.match(html, /og:url" content="https:\/\/soloaijourney\.online\/login"/);
+});
+
 test('цвет строки браузера — одна метка, её правит скрипт', () => {
   const html = layout({ config, title: 'Т', description: 'о', body: '' });
   // Ровно одна метка: варианты с media часть версий Safari игнорирует и

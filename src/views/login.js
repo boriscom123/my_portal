@@ -30,6 +30,7 @@ export function loginPage({ config, user = null }) {
   return layout({
     config,
     user,
+    path: '/login',
     title: 'Вход — Solo AI Journey',
     description:
       'Войдите, чтобы оставлять отзывы, голосовать за темы будущих уроков и получать уведомления о новых выпусках.',

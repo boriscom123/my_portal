@@ -6,7 +6,6 @@
 import express from 'express';
 import { version } from './version.js';
 import { notFound, errorHandler } from './middleware/errors.js';
-import { stubPage } from './views/stub.js';
 import { sessionMiddleware } from './middleware/session.js';
 import { authRoutes } from './routes/auth.js';
 import { pageRoutes } from './routes/pages.js';
@@ -36,9 +35,6 @@ export function createApp({ config, pool }) {
   // Проба живости для docker и для человека: адрес открылся — значит дошло до
   // приложения, а не остановилось на nginx.
   app.get('/healthz', (req, res) => res.json({ status: 'ok', version }));
-
-  // Заглушка до этапа 2. Заменится настоящей витриной вместе с src/views/stub.js.
-  app.get('/', (req, res) => res.type('html').send(stubPage(config)));
 
   // Статика раньше страниц: файл с диска не должен попадать в обработчик
   // маршрута, а /styles.css и /fonts/ нужны каждой странице.

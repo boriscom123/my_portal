@@ -3,6 +3,7 @@
 // Подключается в src/app.js после маршрутов API.
 import { Router } from 'express';
 import { loginPage } from '../views/login.js';
+import { stubPage } from '../views/stub.js';
 
 /**
  * Текущий пользователь для шаблона: только имя и роль.
@@ -20,6 +21,19 @@ async function текущийПользователь(pool, req) {
 
 export function pageRoutes(config, pool) {
   const router = Router();
+
+  // Содержимое страниц зависит от того, кто смотрит: вошедший видит своё имя.
+  // Без этого заголовка общий кеш по дороге может отдать страницу одного
+  // человека другому. no-cache не запрещает хранить, а требует переспросить.
+  router.use((req, res, next) => {
+    res.set('Cache-Control', 'private, no-cache');
+    next();
+  });
+
+  router.get('/', async (req, res) => {
+    const user = await текущийПользователь(pool, req);
+    res.type('html').send(stubPage(config, user));
+  });
 
   router.get('/login', async (req, res) => {
     const user = await текущийПользователь(pool, req);
