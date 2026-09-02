@@ -23,7 +23,8 @@ export function layout({ config, title, description, body, image = null, user = 
 <meta property="og:title" content="${escapeHtml(title)}">
 <meta property="og:description" content="${escapeHtml(description)}">
 <meta property="og:type" content="website">
-${image ? `<meta property="og:image" content="${escapeHtml(image)}">\n` : ''}<meta name="theme-color" content="#0c0a20">
+${image ? `<meta property="og:image" content="${escapeHtml(image)}">\n` : ''}<meta name="theme-color" content="#f8f7fe" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0c0a20" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="/icons/icon-192.png">
 <link rel="manifest" href="${escapeHtml(адрес)}/manifest.webmanifest">
 <link rel="stylesheet" href="/styles.css">

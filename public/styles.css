@@ -13,6 +13,12 @@
 /* Светлая тема — база. Тёмная включается системной настройкой или кнопкой:
    так страница выглядит правильно ещё до того, как отработает скрипт. */
 :root {
+  /* Говорит браузеру, какие темы поддерживает страница. Без этого он красит
+     своим цветом всё, что вне страницы: полосы прокрутки, поля ввода и —
+     самое заметное на телефоне — область, куда страница оттягивается при
+     прокрутке за край. Отсюда и брались белые полосы сверху и снизу. */
+  color-scheme: light;
+
   --bg: #f8f7fe;
   --bg-far: #f1eefb;
   --bg-top: #ffffff;
@@ -40,6 +46,7 @@
    системную настройку, а не спорил с ней. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
+    color-scheme: dark;
     --bg: #0c0a20;
     --bg-far: #131432;
     --bg-top: #09071c;
@@ -57,7 +64,12 @@
   }
 }
 
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
 :root[data-theme='dark'] {
+  color-scheme: dark;
   --bg: #0c0a20;
   --bg-far: #131432;
   --bg-top: #09071c;
@@ -78,13 +90,23 @@
   box-sizing: border-box;
 }
 
+/* Фон холста красит именно html: то, что видно при оттягивании страницы за
+   край на телефоне, берётся отсюда, а не из body. Сплошной цвет, а не
+   градиент, — растягивать градиент на бесконечную область незачем. */
+html {
+  background-color: var(--bg);
+}
+
 body {
   margin: 0;
   min-height: 100vh;
   font: 16px/1.6 Onest, system-ui, -apple-system, 'Segoe UI', sans-serif;
   color: var(--fg);
-  background: linear-gradient(160deg, var(--bg-top) 0%, var(--bg) 45%, var(--bg-far) 100%);
-  background-attachment: fixed;
+  /* background-attachment: fixed убран намеренно: на мобильном Safari он
+     заметно тормозит прокрутку и всё равно не закрывает область оттягивания. */
+  background: linear-gradient(160deg, var(--bg-top) 0%, var(--bg) 45%, var(--bg-far) 100%)
+    no-repeat;
+  background-color: var(--bg);
 }
 
 a {

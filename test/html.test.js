@@ -44,6 +44,14 @@ test('гостю показывается вход, вошедшему — ег�
   assert.ok(!свой.includes('>Войти<'));
 });
 
+test('цвет строки браузера задан для обеих тем', () => {
+  const html = layout({ config, title: 'Т', description: 'о', body: '' });
+  // Одно значение на обе темы красит строку браузера на телефоне не в тот
+  // цвет — ровно та же болезнь, что давала белые полосы по краям страницы.
+  assert.match(html, /theme-color" content="#f8f7fe" media="\(prefers-color-scheme: light\)"/);
+  assert.match(html, /theme-color" content="#0c0a20" media="\(prefers-color-scheme: dark\)"/);
+});
+
 test('имя пользователя экранируется', () => {
   const html = layout({
     config,
