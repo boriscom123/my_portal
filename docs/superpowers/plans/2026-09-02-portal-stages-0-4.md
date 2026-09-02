@@ -51,6 +51,15 @@ JS, без сборки.
   `chore:`, `docs:`), тело — зачем, если это не очевидно. Коммит после каждой
   задачи, не реже.
 - Порт приложения — **3004** (3001 занят game, 3002 devbot, 3003 myproject).
+- **Домены проекта** (зарегистрированы 2026-09-02): `soloaijourney.online` и
+  `soloaijourney.ru`. Основной — тот, что стоит в `PUBLIC_BASE_URL`; второй
+  отвечает редиректом на первый. Установленная PWA и подписки Web Push
+  привязаны к origin, поэтому основной домен выбирается один раз и больше не
+  меняется. Адрес по-прежнему нигде не хардкодится.
+- **Бот** `@solo_ai_journey_bot` — один на всё: виджет входа на сайте, подпись
+  мини-приложения, отправка уведомлений и, с этапа 8, публикация в канал
+  `t.me/solo_ai_journey`, где он администратор. Для MAX предусмотрено то же
+  самое; бот там появится позже.
 
 ## Расхождения со спекой
 
@@ -5136,6 +5145,283 @@ Web Push работает только у установленного прил�
 git add src/app.js src/routes/lessons.js test/lesson-published.test.js
 git commit -m "feat: уведомление о новом уроке подписчикам"
 ```
+
+### Задача 21а: Уведомления об ответе на отзыв и о модерации
+
+Добавлена 2026-09-02 по замечанию заказчика. Спека (§7) требует уведомлять
+человека, когда ему **ответили на его комментарий**, а автора портала — когда
+**пришёл комментарий на модерацию**. В первой редакции плана задачи под это не
+было: этап 3 закрывал только «вышел новый урок». Пропуск закрывается здесь.
+
+**Файлы:**
+- Изменить: `src/routes/feedback.js`
+- Создать: `test/comment-notify.test.js`
+
+**Интерфейсы:**
+- Потребляет: `notify` задачи 20, `addComment` задачи 15.
+- Отдаёт дальше: при ответе на отзыв уведомление уходит автору родительского
+  отзыва; при любом новом отзыве — каждому администратору.
+
+- [ ] **Шаг 1: Написать падающий тест**
+
+`test/comment-notify.test.js`:
+
+```js
+// Проверка второго и третьего поводов уведомить из спеки: ответили на отзыв —
+// узнал автор отзыва; пришёл отзыв — узнал автор портала. Это тот сценарий,
+// который заказчик описал словами «заполнил форму обратной связи, при ответе
+// на его запрос пришло уведомление».
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createApp, finalize } from '../src/app.js';
+import { signSession } from '../src/lib/jwt.js';
+import { saveLesson } from '../src/services/lessons.js';
+import { withServer } from './helpers/http.js';
+import { withTestDb, skipWithoutDb } from './helpers/db.js';
+
+const config = {
+  publicBaseUrl: 'https://portal.example.online',
+  jwtSecret: 'x'.repeat(32),
+  adminIdentities: [],
+  telegram: { botToken: '', channelId: '', botUsername: '' },
+  google: { clientId: '', clientSecret: '' },
+  vapid: { publicKey: '', privateKey: '', subject: 'mailto:a@b' }
+};
+
+function as(userId, role = 'user') {
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${signSession({ userId, role }, config.jwtSecret)}`
+  };
+}
+
+/** Три человека, урок и подписки на пуш у всех: канал должен найтись. */
+async function seed(pool) {
+  const lesson = await saveLesson(pool, {
+    slug: 'docker-1',
+    title: 'Docker',
+    status: 'published',
+    publishedAt: new Date()
+  });
+  const { rows } = await pool.query(
+    `INSERT INTO users (display_name, role)
+     VALUES ('Пётр', 'user'), ('Анна', 'user'), ('Автор', 'admin') RETURNING id`
+  );
+  const [petr, anna, admin] = rows.map((r) => Number(r.id));
+  for (const [i, id] of [petr, anna, admin].entries()) {
+    await pool.query(
+      `INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth)
+       VALUES ($1, $2, 'k', 's')`,
+      [id, `https://push.example/${i}`]
+    );
+  }
+  return { lessonId: lesson.id, petr, anna, admin };
+}
+
+/** Приложение с подменёнными каналами: тест не ходит в сеть. */
+function приложение(pool, отправлено) {
+  const app = createApp({ config, pool });
+  app.locals.channels = {
+    webpush: async (подписки, message) =>
+      отправлено.push({ endpoint: подписки[0].endpoint, message })
+  };
+  return finalize(app);
+}
+
+test('автор отзыва узнаёт об ответе на него', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const { lessonId, petr, admin } = await seed(pool);
+    const отправлено = [];
+    const app = приложение(pool, отправлено);
+
+    await withServer(app, async (base) => {
+      const первый = await (
+        await fetch(`${base}/api/comments`, {
+          method: 'POST',
+          headers: as(petr),
+          body: JSON.stringify({ objectType: 'lesson', objectId: lessonId, body: 'Вопрос' })
+        })
+      ).json();
+
+      отправлено.length = 0; // Уведомления о самом отзыве проверяются отдельно.
+
+      await fetch(`${base}/api/comments`, {
+        method: 'POST',
+        headers: as(admin, 'admin'),
+        body: JSON.stringify({
+          objectType: 'lesson',
+          objectId: lessonId,
+          parentId: первый.comment.id,
+          body: 'Ответ'
+        })
+      });
+
+      // Ушло автору вопроса, а не Анне, которая тут вообще ни при чём.
+      const адресаты = отправлено.map((о) => о.endpoint);
+      assert.ok(адресаты.includes('https://push.example/0'));
+      assert.ok(!адресаты.includes('https://push.example/1'));
+    });
+  });
+});
+
+test('ответ самому себе не будит автора', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const { lessonId, petr } = await seed(pool);
+    const отправлено = [];
+    const app = приложение(pool, отправлено);
+
+    await withServer(app, async (base) => {
+      const первый = await (
+        await fetch(`${base}/api/comments`, {
+          method: 'POST',
+          headers: as(petr),
+          body: JSON.stringify({ objectType: 'lesson', objectId: lessonId, body: 'Вопрос' })
+        })
+      ).json();
+      отправлено.length = 0;
+
+      await fetch(`${base}/api/comments`, {
+        method: 'POST',
+        headers: as(petr),
+        body: JSON.stringify({
+          objectType: 'lesson',
+          objectId: lessonId,
+          parentId: первый.comment.id,
+          body: 'Сам себе'
+        })
+      });
+
+      assert.ok(!отправлено.some((о) => о.endpoint === 'https://push.example/0'));
+    });
+  });
+});
+
+test('новый отзыв уведомляет автора портала о модерации', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const { lessonId, petr } = await seed(pool);
+    const отправлено = [];
+    const app = приложение(pool, отправлено);
+
+    await withServer(app, async (base) => {
+      await fetch(`${base}/api/comments`, {
+        method: 'POST',
+        headers: as(petr),
+        body: JSON.stringify({ objectType: 'lesson', objectId: lessonId, body: 'Вопрос' })
+      });
+    });
+
+    assert.ok(отправлено.some((о) => о.endpoint === 'https://push.example/2'));
+    assert.match(отправлено.find((о) => о.endpoint === 'https://push.example/2').message.title, /модерац/i);
+  });
+});
+
+test('свой отзыв не зовёт автора портала на модерацию самого себя', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const { lessonId, admin } = await seed(pool);
+    const отправлено = [];
+    const app = приложение(pool, отправлено);
+
+    await withServer(app, async (base) => {
+      await fetch(`${base}/api/comments`, {
+        method: 'POST',
+        headers: as(admin, 'admin'),
+        body: JSON.stringify({ objectType: 'lesson', objectId: lessonId, body: 'Заметка' })
+      });
+    });
+
+    assert.equal(отправлено.length, 0);
+  });
+});
+```
+
+- [ ] **Шаг 2: Убедиться, что тест падает**
+
+Выполнить: `node --test test/comment-notify.test.js`
+Ожидается: FAIL — массив уведомлений пуст, никто ничего не получил.
+
+- [ ] **Шаг 3: Дописать `src/routes/feedback.js`**
+
+```js
+import { notify } from '../services/notify/index.js';
+
+/**
+ * Разбирает, кого затронул новый отзыв, и уведомляет их.
+ *
+ * Двое: автор отзыва, на который ответили, и автор портала — ему отзыв пришёл
+ * на модерацию. Зачем в одной функции: оба уведомления рождаются из одного
+ * события, и разнесённые по разным местам они разойдутся при первой же правке.
+ * Себя не уведомляем ни в одной роли: человек знает, что он сейчас написал.
+ * Вызывается из обработчика POST /api/comments.
+ */
+async function разослатьОбОтзыве(pool, channels, comment, объект) {
+  if (comment.parentId) {
+    const { rows } = await pool.query('SELECT user_id FROM comments WHERE id = $1', [
+      comment.parentId
+    ]);
+    const адресат = rows.length ? Number(rows[0].user_id) : null;
+    if (адресат && адресат !== comment.userId) {
+      await notify(
+        pool,
+        {
+          userId: адресат,
+          kind: 'comment_reply',
+          dedupKey: `comment:${comment.id}:reply:${адресат}`,
+          title: 'Вам ответили',
+          body: comment.body.slice(0, 200),
+          url: объект.url
+        },
+        channels
+      );
+    }
+  }
+
+  const { rows: админы } = await pool.query(`SELECT id FROM users WHERE role = 'admin'`);
+  for (const { id } of админы) {
+    if (Number(id) === comment.userId) continue;
+    await notify(
+      pool,
+      {
+        userId: Number(id),
+        kind: 'comment_moderation',
+        dedupKey: `comment:${comment.id}:moderation:${id}`,
+        title: 'Отзыв на модерацию',
+        body: comment.body.slice(0, 200),
+        url: объект.url
+      },
+      channels
+    );
+  }
+}
+```
+
+В обработчике `POST /api/comments`, после создания комментария и до ответа:
+
+```js
+    // Адрес объекта нужен, чтобы нажатие на уведомление открыло ту самую
+    // страницу, а не главную. Для урока это его карточка, для идеи — борд.
+    const объект =
+      objectType === 'lesson'
+        ? await (async () => {
+            const { rows } = await pool.query('SELECT slug FROM lessons WHERE id = $1', [objectId]);
+            return { url: rows.length ? `/урок/${rows[0].slug}` : '/' };
+          })()
+        : { url: '/идеи' };
+
+    await разослатьОбОтзыве(pool, req.app.locals.channels, comment, объект);
+```
+
+- [ ] **Шаг 4: Убедиться, что тесты проходят**
+
+Выполнить: `node --test test/comment-notify.test.js`
+Ожидается: 4 теста PASS.
+
+- [ ] **Шаг 5: Коммит**
+
+```bash
+git add src/routes/feedback.js test/comment-notify.test.js
+git commit -m "feat: уведомления об ответе на отзыв и о новом отзыве на модерацию"
+```
+
 
 ---
 
