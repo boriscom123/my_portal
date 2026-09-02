@@ -16,3 +16,9 @@ node_modules/
 npm-debug.log*
 
 .remember/
+
+# Симлинки обратной связи ClaudeService: создаются автоматически при
+# переключении проекта и указывают на абсолютный путь на VPS — в публичном
+# репозитории они бесполезны (см. ClaudeService/scripts/projects.sh).
+/scripts/tg-ask.sh
+/scripts/tg-send.sh
