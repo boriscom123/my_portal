@@ -28,13 +28,47 @@
       --teal: #2C7C90; --cyan: #0E7FA8; --flame: #C4482E;
       --on-accent: #FFFFFF; --card-line: 1px solid #E0DBF2;
     }
+    /* Фирменное написание: градиент по буквам, как на баннере, и он живой —
+       требование заказчика. Градиент растянут втрое и ездит по ширине: это
+       рисует видеокарта, дешевле любого варианта на JS.
+       prefers-reduced-motion уважаем: постоянное движение в интерфейсе для
+       части людей — не украшение, а причина головной боли и тошноты. */
     .знак {
       font-family: Unbounded, system-ui, sans-serif;
       font-weight: 800;
-      background: linear-gradient(96deg, var(--brand-1) 0%, var(--brand-2) 52%, var(--brand-3) 100%);
+      background: linear-gradient(96deg, var(--brand-1) 0%, var(--brand-2) 25%, var(--brand-3) 50%, var(--brand-2) 75%, var(--brand-1) 100%);
+      background-size: 300% 100%;
       -webkit-background-clip: text;
       background-clip: text;
       color: transparent;
+      animation: перелив 9s ease-in-out infinite;
+    }
+    /* Пламя ракеты — второй живой акцент: от оранжевого к розовому и обратно. */
+    .пламя {
+      background: linear-gradient(96deg, var(--flame) 0%, #F0A15C 30%, var(--brand-3) 60%, var(--flame) 100%);
+      background-size: 300% 100%;
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      animation: перелив 6s ease-in-out infinite;
+    }
+    .пламя-точка {
+      background: linear-gradient(96deg, var(--flame) 0%, #F0A15C 30%, var(--brand-3) 60%, var(--flame) 100%);
+      background-size: 300% 100%;
+      animation: перелив 6s ease-in-out infinite;
+    }
+    .кнопка-знак {
+      background: linear-gradient(96deg, var(--brand-1) 0%, var(--brand-2) 25%, var(--brand-3) 50%, var(--brand-2) 75%, var(--brand-1) 100%);
+      background-size: 300% 100%;
+      animation: перелив 9s ease-in-out infinite;
+    }
+    @keyframes перелив {
+      0%   { background-position: 0% 50%; }
+      50%  { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .знак, .пламя, .пламя-точка, .кнопка-знак { animation: none; background-position: 30% 50%; }
     }
   </style>
 </helmet>
@@ -73,7 +107,7 @@
       </div>
 
       <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 34px;">
-        <a href="#" style="display: flex; align-items: center; gap: 8px; min-height: 46px; padding: 0 20px; border-radius: 11px; background: linear-gradient(96deg, var(--brand-1), var(--brand-2) 60%, var(--brand-3)); color: #FFFFFF; font-size: 15px; font-weight: 500;">Смотреть на YouTube</a>
+        <a href="#" class="кнопка-знак" style="display: flex; align-items: center; gap: 8px; min-height: 46px; padding: 0 20px; border-radius: 11px; color: #FFFFFF; font-size: 15px; font-weight: 500;">Смотреть на YouTube</a>
         <a href="#" style="display: flex; align-items: center; min-height: 46px; padding: 0 20px; border-radius: 11px; border: 1px solid var(--line); color: var(--fg); font-size: 15px;">VK Видео</a>
         <a href="#" style="display: flex; align-items: center; min-height: 46px; padding: 0 20px; border-radius: 11px; border: 1px solid var(--line); color: var(--fg); font-size: 15px;">Telegram</a>
       </div>

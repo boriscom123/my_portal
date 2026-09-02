@@ -12,13 +12,35 @@
     body { margin: 0; }
     a { color: #AA5EFF; }
     a:hover { color: #C48CFF; }
+    /* Оба фирменных градиента живые: написание и пламя переливаются
+       постоянно. Движение рисует видеокарта сдвигом фона, не JS. */
     .знак {
       font-family: Unbounded, system-ui, sans-serif;
       font-weight: 800;
-      background: linear-gradient(96deg, #8482FD 0%, #AA5EFF 52%, #E060B4 100%);
+      background: linear-gradient(96deg, #8482FD 0%, #AA5EFF 25%, #E060B4 50%, #AA5EFF 75%, #8482FD 100%);
+      background-size: 300% 100%;
       -webkit-background-clip: text;
       background-clip: text;
       color: transparent;
+      animation: перелив 9s ease-in-out infinite;
+    }
+    .полоса-знак {
+      background: linear-gradient(96deg, #8482FD 0%, #AA5EFF 25%, #E060B4 50%, #AA5EFF 75%, #8482FD 100%);
+      background-size: 300% 100%;
+      animation: перелив 9s ease-in-out infinite;
+    }
+    .полоса-пламя {
+      background: linear-gradient(96deg, #E56F55 0%, #F0A15C 30%, #E060B4 60%, #E56F55 100%);
+      background-size: 300% 100%;
+      animation: перелив 6s ease-in-out infinite;
+    }
+    @keyframes перелив {
+      0%   { background-position: 0% 50%; }
+      50%  { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .знак, .полоса-знак, .полоса-пламя { animation: none; background-position: 30% 50%; }
     }
   </style>
 </helmet>
@@ -69,9 +91,12 @@
 
   <div style="margin-top: 26px; padding: 18px 20px; border-radius: 12px; background: #171334; border: 1px solid #2E2757;">
     <div style="font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: #A9A2C9; margin-bottom: 12px;">Градиент написания и кнопок</div>
-    <div style="height: 40px; border-radius: 9px; background: linear-gradient(96deg, #8482FD 0%, #AA5EFF 52%, #E060B4 100%); margin-bottom: 10px;"></div>
-    <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #A9A2C9;">linear-gradient(96deg, #8482FD 0%, #AA5EFF 52%, #E060B4 100%)</div>
-    <p style="margin: 12px 0 0; font-size: 13px; line-height: 1.6; color: #A9A2C9;">В светлой теме тот же градиент затемняется до #5B58E0 → #8A2FE0 → #C42F85: исходный на белом не даёт контраста для текста, хотя на кнопке с белыми буквами работает.</p>
+    <div class="полоса-знак" style="height: 40px; border-radius: 9px; margin-bottom: 10px;"></div>
+    <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #A9A2C9; margin-bottom: 16px;">#8482FD → #AA5EFF → #E060B4 · сдвиг фона, 9 с, бесконечно</div>
+    <div style="font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: #A9A2C9; margin-bottom: 10px;">Пламя ракеты — второй живой акцент</div>
+    <div class="полоса-пламя" style="height: 28px; border-radius: 9px; margin-bottom: 10px;"></div>
+    <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #A9A2C9;">#E56F55 → #F0A15C → #E060B4 · 6 с</div>
+    <p style="margin: 12px 0 0; font-size: 13px; line-height: 1.6; color: #A9A2C9;">Оба перелива останавливаются, если в системе включено «уменьшить движение»: постоянное движение в интерфейсе для части людей — причина головной боли, а не украшение. В светлой теме градиент написания затемняется до #5B58E0 → #8A2FE0 → #C42F85: исходный на белом не даёт контраста для текста, хотя на кнопке с белыми буквами работает.</p>
   </div>
 
   <div style="margin-top: 24px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px;">
