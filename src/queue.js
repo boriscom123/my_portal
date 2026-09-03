@@ -20,7 +20,10 @@ export const JOBS = {
   generateTexts: 'generateTexts',
   makeClips: 'makeClips',
   makeCover: 'makeCover',
-  cleanupMedia: 'cleanupMedia'
+  cleanupMedia: 'cleanupMedia',
+  // Скачивание исходника по ссылке с Яндекс Диска: второй путь загрузки
+  // наравне с браузером.
+  fetchSource: 'fetchSource'
 };
 
 /** Одна очередь на весь конвейер: шаги идут по порядку, а не наперегонки. */

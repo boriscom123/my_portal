@@ -67,7 +67,7 @@
 
 | Вопрос | Решение | Почему |
 |---|---|---|
-| Как исходник попадает на сервер | **Загрузка из браузера с компьютера**, кусками по 8 МБ, с продолжением после обрыва | Решение заказчика от 2026-09-03. Файл уже лежит там, где идёт монтаж. Загрузка целиком одним запросом на гигабайтном файле рвётся и начинается заново |
+| Как исходник попадает на сервер | **Два пути: ссылка на Яндекс Диск и загрузка из браузера.** Кусками по 8 МБ, с продолжением после обрыва | Решение заказчика от 2026-09-03, оба пути. Ссылка снимает главное узкое место — домашний исходящий канал: сервер забирает файл из дата-центра, а не с домашнего интернета. Она же даёт архив исходников, которого у портала нет и быть не должно, и делает автоудаление буфера безопасным — оригинал остаётся у заказчика. Загрузка из браузера остаётся запасным путём: для мелких файлов и когда Диска под рукой нет |
 | Чем расшифровывать | **Яндекс SpeechKit** асинхронным распознаванием | Умолчание спеки: сервер российский, оплата рублями, качество на русской речи хорошее. Заказчик подтвердил 2026-09-03: «подключим что-то по API» |
 | Как сервис получает звук | Временная ссылка на наш же сервер, живёт час | SpeechKit забирает файл по HTTPS сам. Иначе понадобилось бы Object Storage — лишний сервис ради одного файла |
 | Чем генерировать тексты | **YandexGPT** | Тот же аккаунт и тот же ключ, что у расшифровки |
@@ -193,7 +193,8 @@ export const JOBS = {
   generateTexts: 'generateTexts',
   makeClips: 'makeClips',
   makeCover: 'makeCover',
-  cleanupMedia: 'cleanupMedia'
+  cleanupMedia: 'cleanupMedia',
+  fetchSource: 'fetchSource'
 };
 
 /** Одна очередь на весь конвейер: шаги идут по очереди, а не наперегонки. */
@@ -1328,6 +1329,214 @@ router.get('/admin/upload', requireAdmin, async (req, res) => {
 git add src/views/admin-upload.js public/admin.js src/routes/pages.js \
         public/styles.css test/admin-upload.test.js
 git commit -m "feat: страница загрузки исходника в кабинете"
+```
+
+### Задача 5а: Загрузка по ссылке с Яндекс Диска
+
+Добавлена 2026-09-03 по решению заказчика: путей загрузки два.
+
+**Файлы:**
+- Создать: `src/services/disk.js`, `src/jobs/fetch-source.js`, `test/disk.test.js`
+- Изменить: `src/routes/upload.js`, `src/views/admin-upload.js`, `public/admin.js`
+
+**Интерфейсы:**
+- Отдаёт дальше: `resolvePublicLink(url, fetchImpl)` → прямой адрес файла и
+  имя; `POST /api/upload/from-link` → ставит задачу `fetchSource`;
+  обработчик `fetchSource({ lessonId, url })` — качает файл в буфер и ставит
+  `extractAudio`.
+
+- [ ] **Шаг 1: Написать падающий тест**
+
+`test/disk.test.js`:
+
+```js
+// Публичная ссылка Яндекс Диска — это страница, а не файл. Прямой адрес
+// выдаёт открытый API по ключу ссылки; ключом служит она сама.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { resolvePublicLink, isDiskLink } from '../src/services/disk.js';
+
+test('ссылка Диска узнаётся, чужая — нет', () => {
+  assert.equal(isDiskLink('https://disk.yandex.ru/i/abc123'), true);
+  assert.equal(isDiskLink('https://yadi.sk/i/abc123'), true);
+  assert.equal(isDiskLink('https://example.com/file.mp4'), false);
+});
+
+test('публичная ссылка превращается в прямую', async () => {
+  const fetchStub = async (url) => {
+    assert.match(String(url), /cloud-api\.yandex\.net/);
+    // Ключом служит сама публичная ссылка — так устроен их API.
+    assert.match(String(url), /public_key=https%3A%2F%2Fdisk\.yandex\.ru%2Fi%2Fabc123/);
+    return { ok: true, json: async () => ({ href: 'https://downloader/файл.mp4?token=1' }) };
+  };
+  const direct = await resolvePublicLink('https://disk.yandex.ru/i/abc123', fetchStub);
+  assert.equal(direct.url, 'https://downloader/файл.mp4?token=1');
+});
+
+test('прямая ссылка на файл берётся как есть', async () => {
+  // Не всё лежит на Диске: обычный адрес файла тоже должен работать, без
+  // похода в чужой API.
+  const direct = await resolvePublicLink('https://example.com/урок.mp4', async () => {
+    throw new Error('в сеть ходить не должны');
+  });
+  assert.equal(direct.url, 'https://example.com/урок.mp4');
+});
+
+test('отказ Диска объясняется, а не глотается', async () => {
+  const fetchStub = async () => ({ ok: false, status: 404, text: async () => 'not found' });
+  await assert.rejects(
+    resolvePublicLink('https://disk.yandex.ru/i/нет', fetchStub),
+    /404|Диск/
+  );
+});
+```
+
+- [ ] **Шаг 2: Убедиться, что тест падает**
+
+Выполнить: `node --test test/disk.test.js`
+Ожидается: FAIL — модуль не найден.
+
+- [ ] **Шаг 3: Написать `src/services/disk.js`**
+
+```js
+// Получение исходника по публичной ссылке.
+//
+// Задача — превратить ссылку, которой заказчик поделился из Яндекс Диска, в
+// прямой адрес файла. Зачем: гигабайтный файл с домашнего канала идёт
+// десятками минут и рвётся, а из дата-центра в дата-центр — минуты. Плюс у
+// заказчика остаётся архив исходников, которого у портала нет и быть не
+// должно — автоудаление буфера от этого перестаёт быть страшным.
+//
+// Зачем без OAuth: публичная ссылка разворачивается открытым API, и доступа
+// ко всему диску для этого не нужно. Просить у человека доступ ко всему
+// хранилищу ради одного файла — плохой размен.
+// Вызывается из src/jobs/fetch-source.js.
+
+const RESOLVE_URL = 'https://cloud-api.yandex.net/v1/disk/public/resources/download';
+
+/** Похожа ли ссылка на публичную ссылку Яндекс Диска. */
+export function isDiskLink(url) {
+  return /^https:\/\/(disk\.yandex\.[a-z]+|yadi\.sk)\//.test(String(url));
+}
+
+/**
+ * Возвращает прямой адрес файла.
+ * Для ссылки Диска спрашивает у их API, для любой другой — отдаёт как есть:
+ * не всё лежит на Диске, и обычный адрес файла тоже должен работать.
+ */
+export async function resolvePublicLink(url, fetchImpl = fetch) {
+  if (!isDiskLink(url)) return { url: String(url) };
+
+  const response = await fetchImpl(`${RESOLVE_URL}?public_key=${encodeURIComponent(url)}`);
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    throw new Error(`Диск не отдал файл: ${response.status} ${body.slice(0, 200)}`);
+  }
+  const body = await response.json();
+  if (!body.href) throw new Error('Диск не вернул прямой ссылки');
+  return { url: body.href };
+}
+```
+
+- [ ] **Шаг 4: Написать `src/jobs/fetch-source.js`**
+
+```js
+// Шаг конвейера: скачать исходник по ссылке.
+//
+// Задача — положить файл в буфер и запустить обработку. Зачем отдельным
+// шагом, а не прямо в маршруте: скачивание гигабайтного файла идёт минутами,
+// а HTTP-запрос столько не живёт — человек закроет вкладку и не узнает, чем
+// кончилось.
+// Вызывается воркером по имени JOBS.fetchSource.
+import { createWriteStream } from 'node:fs';
+import { mkdir, stat } from 'node:fs/promises';
+import { pipeline } from 'node:stream/promises';
+import { Readable } from 'node:stream';
+import { mediaPath, registerAsset } from '../services/media.js';
+import { resolvePublicLink } from '../services/disk.js';
+
+export function makeFetchSource(config, pool, queue, fetchImpl = fetch) {
+  return async ({ lessonId, url }) => {
+    const direct = await resolvePublicLink(url, fetchImpl);
+    const response = await fetchImpl(direct.url);
+    if (!response.ok) throw new Error(`Файл не скачался: ${response.status}`);
+
+    const dir = `lesson-${lessonId}`;
+    await mkdir(mediaPath(config, dir), { recursive: true });
+    const relative = `${dir}/source.mp4`;
+
+    // Потоком: гигабайтный файл в память не помещается, а её здесь полтора
+    // гигабайта на всю машину.
+    await pipeline(Readable.fromWeb(response.body), createWriteStream(mediaPath(config, relative)));
+
+    const { size } = await stat(mediaPath(config, relative));
+    const asset = await registerAsset(pool, config, {
+      lessonId,
+      kind: 'source',
+      relativePath: relative,
+      bytes: size
+    });
+    await pool.query(
+      `UPDATE lessons SET source_asset_id = $1, pipeline_state = 'processing' WHERE id = $2`,
+      [asset.id, lessonId]
+    );
+
+    await queue.add('extractAudio', { lessonId });
+    return { bytes: size };
+  };
+}
+```
+
+- [ ] **Шаг 5: Маршрут и поле в кабинете**
+
+В `src/routes/upload.js`:
+
+```js
+  // Загрузка по ссылке. Работа идёт в воркере, поэтому маршрут только ставит
+  // задачу и сразу отвечает: скачивание гигабайта в запрос не укладывается.
+  router.post('/from-link', async (req, res) => {
+    const { lessonId, url } = req.body ?? {};
+    if (!lessonId || !url) throw new PublicError('Не указан урок или ссылка');
+    await pool.query(`UPDATE lessons SET pipeline_state = 'uploading' WHERE id = $1`, [lessonId]);
+    await req.app.locals.queue.add('fetchSource', { lessonId, url: String(url) });
+    res.json({ ok: true });
+  });
+```
+
+В `src/views/admin-upload.js` — второе поле рядом с выбором файла:
+
+```html
+<fieldset>
+  <legend>Откуда брать файл</legend>
+  <label>Ссылка с Яндекс Диска
+    <input name="link" type="url" placeholder="https://disk.yandex.ru/i/…">
+    <span class="hint">Быстрее: сервер заберёт файл сам, ноутбук можно закрыть.</span>
+  </label>
+  <label>Или файл с компьютера
+    <input type="file" name="file" accept="video/*">
+  </label>
+</fieldset>
+```
+
+В `public/admin.js` — при заполненной ссылке отправляем её, иначе грузим файл.
+
+- [ ] **Шаг 6: Убедиться, что тесты проходят**
+
+Выполнить: `npm test`
+Ожидается: все PASS.
+
+- [ ] **Шаг 7: Проверить на настоящей ссылке**
+
+Положить короткий ролик на Яндекс Диск, открыть доступ по ссылке, вставить её
+в кабинете. В журнале воркера — «Задача fetchSource выполнена», файл появился
+в буфере, конвейер пошёл дальше.
+
+- [ ] **Шаг 8: Коммит**
+
+```bash
+git add src/services/disk.js src/jobs/fetch-source.js src/routes/upload.js \
+        src/views/admin-upload.js public/admin.js test/disk.test.js
+git commit -m "feat: загрузка исходника по ссылке с Яндекс Диска"
 ```
 
 ### Задача 6: Запуск ffmpeg и извлечение звука
