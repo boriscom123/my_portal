@@ -15,6 +15,7 @@ import { createWebPushChannel } from './services/notify/webpush.js';
 import { createTelegramChannel } from './services/notify/telegram.js';
 import { lessonRoutes } from './routes/lessons.js';
 import { feedbackRoutes } from './routes/feedback.js';
+import { ideaRoutes } from './routes/ideas.js';
 
 /**
  * Собирает приложение: прослойки и маршруты.
@@ -47,6 +48,7 @@ export function createApp({ config, pool }) {
   app.use('/api/auth', authRoutes(config, pool));
   app.use('/api', lessonRoutes(config, pool));
   app.use('/api', feedbackRoutes(config, pool));
+  app.use('/api', ideaRoutes(config, pool));
   app.use('/api/push', pushRoutes(config, pool));
 
   // Проба живости для docker и для человека: адрес открылся — значит дошло до
