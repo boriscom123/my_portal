@@ -213,6 +213,12 @@ h3 {
     animation: none;
     background-position: 30% 50%;
   }
+  .ракета.живая .ракета-пламя,
+  .ракета.живая .пламя-верх,
+  .ракета.живая .пламя-середина,
+  .ракета.живая .пламя-низ {
+    animation: none;
+  }
 }
 
 /* --- Каркас страницы ----------------------------------------------------- */
@@ -244,11 +250,61 @@ h3 {
 .лого:focus {
   text-decoration: none;
 }
-.лого img {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
+.лого .ракета {
   flex-shrink: 0;
+  display: block;
+}
+
+/* Пламя живёт своей жизнью: цвет переливается, само пламя чуть дышит.
+   Дыхание — от нижней точки корпуса, иначе ракета выглядит подпрыгивающей.
+   Скорость не совпадает с переливом знака (9 с) намеренно: в такт они
+   читались бы как одна мигающая деталь. */
+.ракета.живая .ракета-пламя {
+  transform-origin: 24px 88px;
+  animation: пламя-дышит 2.4s ease-in-out infinite;
+}
+.ракета.живая .пламя-верх {
+  animation: пламя-верх 3.2s ease-in-out infinite alternate;
+}
+.ракета.живая .пламя-середина {
+  animation: пламя-середина 3.2s ease-in-out infinite alternate;
+}
+.ракета.живая .пламя-низ {
+  animation: пламя-низ 3.2s ease-in-out infinite alternate;
+}
+
+@keyframes пламя-дышит {
+  0%,
+  100% {
+    transform: scaleY(1) scaleX(1);
+  }
+  50% {
+    transform: scaleY(1.18) scaleX(0.92);
+  }
+}
+@keyframes пламя-верх {
+  from {
+    stop-color: #ff6b3d;
+  }
+  to {
+    stop-color: #e060b4;
+  }
+}
+@keyframes пламя-середина {
+  from {
+    stop-color: #ffb336;
+  }
+  to {
+    stop-color: #ff7a4d;
+  }
+}
+@keyframes пламя-низ {
+  from {
+    stop-color: #ffe08a;
+  }
+  to {
+    stop-color: #ffc46b;
+  }
 }
 .лого .написание {
   display: flex;

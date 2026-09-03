@@ -5,6 +5,7 @@
 // Вызывается из всех остальных файлов src/views/.
 import { escapeHtml } from '../lib/html.js';
 import { assetUrl } from '../lib/assets.js';
+import { ракета } from './rocket.js';
 
 /**
  * Собирает полную страницу.
@@ -47,7 +48,7 @@ ${image ? `<meta property="og:image" content="${escapeHtml(image)}">\n` : ''}<me
 <body>
 <header class="шапка">
   <a class="лого" href="/">
-    <img src="/icons/icon-192.png" alt="">
+    ${ракета({ height: 34, id: 'шапка' })}
     <span class="написание">
       <span class="знак" style="font-size:16px">SOLO AI</span>
       <span class="journey">JOURNEY</span>

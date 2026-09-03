@@ -9,7 +9,9 @@ export default [
   { ignores: ['node_modules/', 'public/vendor/'] },
   js.configs.recommended,
   {
-    files: ['**/*.js'],
+    // .mjs тоже наш код: скрипты сборки написаны с явным расширением, чтобы
+    // их нельзя было спутать с модулями приложения.
+    files: ['**/*.js', '**/*.mjs'],
     languageOptions: {
       ecmaVersion: 2024,
       sourceType: 'module',

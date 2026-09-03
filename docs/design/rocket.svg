@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 116" width="48" height="116">
+  <!-- Ракета Solo AI Journey, перерисованная вектором со знака канала.
+       Разделена на части намеренно: пламя на сайте переливается отдельно от
+       корпуса, а на иконке ракета живёт без круга вокруг. -->
+  <defs>
+    <linearGradient id="нос" x1="0" y1="0" x2="1" y2="0.4">
+      <stop offset="0" stop-color="#8A4BD6"/>
+      <stop offset="0.55" stop-color="#B45CE8"/>
+      <stop offset="1" stop-color="#E88A7A"/>
+    </linearGradient>
+    <linearGradient id="корпус" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#29BDE8"/>
+      <stop offset="0.5" stop-color="#5B9BE0"/>
+      <stop offset="1" stop-color="#A38DE2"/>
+    </linearGradient>
+    <linearGradient id="крыло" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#9B5CF0"/>
+      <stop offset="1" stop-color="#7B3BC4"/>
+    </linearGradient>
+    <linearGradient id="пламя" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FF6B3D"/>
+      <stop offset="0.55" stop-color="#FFB336"/>
+      <stop offset="1" stop-color="#FFE08A"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Крылья идут первыми: корпус ложится поверх них. -->
+  <path class="ракета-крыло" d="M16.5 57 Q4.5 69 4.5 88 Q10 76 16.5 72 Z" fill="url(#крыло)"/>
+  <path class="ракета-крыло" d="M31.5 57 Q43.5 69 43.5 88 Q38 76 31.5 72 Z" fill="url(#крыло)"/>
+
+  <path class="ракета-корпус" d="M19 26 H29 V79 Q29 87 24 90 Q19 87 19 79 Z" fill="url(#корпус)"/>
+
+  <!-- Нос — дротик: два острия по краям и вогнутая нижняя кромка. -->
+  <path class="ракета-нос" d="M24 2 L35.5 35 Q24 25.5 12.5 35 Z" fill="url(#нос)"/>
+
+  <path class="ракета-пламя" d="M24 88 Q28.5 95 26 102 Q24.8 107 24 109 Q23.2 107 22 102 Q19.5 95 24 88 Z" fill="url(#пламя)"/>
+</svg>
