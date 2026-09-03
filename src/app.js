@@ -9,6 +9,7 @@ import { notFound, errorHandler } from './middleware/errors.js';
 import { sessionMiddleware } from './middleware/session.js';
 import { authRoutes } from './routes/auth.js';
 import { pageRoutes } from './routes/pages.js';
+import { pwaRoutes } from './routes/pwa.js';
 import { lessonRoutes } from './routes/lessons.js';
 import { feedbackRoutes } from './routes/feedback.js';
 
@@ -39,6 +40,10 @@ export function createApp({ config, pool }) {
   // Проба живости для docker и для человека: адрес открылся — значит дошло до
   // приложения, а не остановилось на nginx.
   app.get('/healthz', (req, res) => res.json({ status: 'ok', version }));
+
+  // Манифест и service worker — раньше статики: оба отдаются кодом, а не
+  // файлом с диска, и по своим правилам кеширования.
+  app.use('/', pwaRoutes(config));
 
   // Статика раньше страниц: файл с диска не должен попадать в обработчик
   // маршрута, а /styles.css и /fonts/ нужны каждой странице.

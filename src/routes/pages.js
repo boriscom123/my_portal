@@ -4,6 +4,7 @@
 import { Router } from 'express';
 import { loginPage } from '../views/login.js';
 import { stubPage } from '../views/stub.js';
+import { offlinePage } from '../views/offline.js';
 import { feedPage } from '../views/feed.js';
 import { lessonPage } from '../views/lesson.js';
 import { listLessons, getLessonBySlug, listNews } from '../services/lessons.js';
@@ -79,6 +80,10 @@ export function pageRoutes(config, pool) {
       userId: req.user?.id ?? null
     });
     res.type('html').send(lessonPage({ config, lesson, comments, user, viewerReaction, rating }));
+  });
+
+  router.get('/offline', (req, res) => {
+    res.type('html').send(offlinePage(config));
   });
 
   router.get('/login', async (req, res) => {
