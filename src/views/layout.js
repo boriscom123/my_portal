@@ -38,7 +38,13 @@ export function layout({
 <meta property="og:type" content="website">
 <meta property="og:url" content="${escapeHtml(pageUrl)}">
 <link rel="canonical" href="${escapeHtml(pageUrl)}">
-${image ? `<meta property="og:image" content="${escapeHtml(image)}">\n` : ''}<meta name="theme-color" content="#0c0a20">
+${
+  image
+    ? `<meta property="og:image" content="${escapeHtml(
+        image.startsWith('http') ? image : `${config.publicBaseUrl}${image}`
+      )}">\n`
+    : ''
+}<meta name="theme-color" content="#0c0a20">
 <!-- Значок вкладки — одна ракета на прозрачном: во вкладке он ложится на
      цвет темы браузера, и тёмный квадрат смотрелся бы заплаткой. SVG для тех,
      кто умеет, растр запасным. Иконка приложения при этом с фоном: iOS кладёт

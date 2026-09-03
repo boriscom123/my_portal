@@ -13,6 +13,7 @@ import { pwaRoutes } from './routes/pwa.js';
 import { pushRoutes } from './routes/push.js';
 import { uploadRoutes } from './routes/upload.js';
 import { integrationRoutes } from './routes/integrations.js';
+import { mediaRoutes } from './routes/media.js';
 import { clientErrorRoutes } from './routes/client-errors.js';
 import { createWebPushChannel } from './services/notify/webpush.js';
 import { createTelegramChannel } from './services/notify/telegram.js';
@@ -66,6 +67,11 @@ export function createApp({ config, pool, fetchImpl, queue = null }) {
 
   app.use('/api/auth', authRoutes(config, pool));
   app.use('/api/integrations', integrationRoutes(config, pool, fetchImpl));
+  // Обложки и временные ссылки на файлы буфера. Один маршрут: обложка лежит
+  // под /media/asset/<номер>, временная ссылка — под /media/<токен>. Две точки
+  // подключения одного роутера означали бы, что номер обложки принимается за
+  // токен, — на этом обложка и отдавала 403.
+  app.use('/media', mediaRoutes(config, pool));
   app.use('/api', lessonRoutes(config, pool));
   app.use('/api', feedbackRoutes(config, pool));
   app.use('/api', ideaRoutes(config, pool));

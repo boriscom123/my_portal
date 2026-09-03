@@ -9,6 +9,8 @@ import { createPool } from './db.js';
 import { createQueue, createWorker, JOBS } from './queue.js';
 import { makeFetchSource } from './jobs/fetch-source.js';
 import { makeExtractAudio } from './jobs/extract-audio.js';
+import { makeSubtitles } from './jobs/subtitles.js';
+import { makeMakeCover } from './jobs/make-cover.js';
 
 const config = loadConfig();
 const pool = createPool(config.db);
@@ -17,7 +19,9 @@ const queue = createQueue(config);
 // Обработчики шагов конвейера. Добавляются по мере готовности.
 const handlers = {
   [JOBS.fetchSource]: makeFetchSource(config, pool, queue),
-  [JOBS.extractAudio]: makeExtractAudio(config, pool, queue)
+  [JOBS.extractAudio]: makeExtractAudio(config, pool, queue),
+  [JOBS.subtitles]: makeSubtitles(config, pool, queue),
+  [JOBS.makeCover]: makeMakeCover(config, pool)
 };
 
 const worker = createWorker(config, handlers);

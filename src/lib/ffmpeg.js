@@ -30,6 +30,25 @@ export function ffmpegArgsForAudio(input, output) {
   ];
 }
 
+/** Аргументы для кадра на обложку. */
+export function ffmpegArgsForCover({ input, atSeconds, output }) {
+  return [
+    '-hide_banner',
+    '-loglevel', 'error',
+    // Перемотка ДО -i: иначе ffmpeg читает часовой файл с начала ради одного
+    // кадра из середины.
+    '-ss', String(atSeconds),
+    '-i', input,
+    '-frames:v', '1',
+    // 1280 по ширине — то, что просят площадки для превью; -2 сохраняет
+    // пропорции и держит высоту чётной, иначе кодек ругается.
+    '-vf', 'scale=1280:-2',
+    '-q:v', '3',
+    '-y',
+    output
+  ];
+}
+
 /** Разбирает вывод ffprobe. null, если длительность неизвестна. */
 export function parseDuration(text) {
   const value = Number.parseFloat(String(text).trim());

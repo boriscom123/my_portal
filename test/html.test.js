@@ -44,6 +44,13 @@ test('гостю показывается вход, вошедшему — ег�
   assert.ok(!mine.includes('>Войти<'));
 });
 
+test('картинка превью отдаётся полным адресом', () => {
+  // Мессенджеры и поисковики относительный адрес не разворачивают: превью
+  // ссылки осталось бы без картинки.
+  const html = layout({ config, title: 'Т', description: 'о', body: '', image: '/media/asset/4' });
+  assert.match(html, /og:image" content="https:\/\/soloaijourney\.online\/media\/asset\/4"/);
+});
+
 test('значок вкладки — ракета без фона, с запасным растром', () => {
   const html = layout({ config, title: 'Т', description: 'о', body: '' });
   assert.match(html, /rel="icon" type="image\/svg\+xml" href="\/icons\/favicon\.svg"/);
