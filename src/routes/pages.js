@@ -7,6 +7,8 @@ import { stubPage } from '../views/stub.js';
 import { offlinePage } from '../views/offline.js';
 import { feedPage } from '../views/feed.js';
 import { lessonPage } from '../views/lesson.js';
+import { ideasPage } from '../views/ideas.js';
+import { listIdeas } from '../services/ideas.js';
 import { listLessons, getLessonBySlug, listNews } from '../services/lessons.js';
 import {
   listComments,
@@ -80,6 +82,12 @@ export function pageRoutes(config, pool) {
       userId: req.user?.id ?? null
     });
     res.type('html').send(lessonPage({ config, lesson, comments, user, viewerReaction, rating }));
+  });
+
+  router.get('/ideas', async (req, res) => {
+    const user = await текущийПользователь(pool, req);
+    const ideas = await listIdeas(pool, { viewerId: req.user?.id ?? null });
+    res.type('html').send(ideasPage({ config, ideas, user }));
   });
 
   router.get('/offline', (req, res) => {

@@ -201,3 +201,34 @@ if (карточкаУрока) {
     }
   });
 }
+
+/* --- Борд идей ----------------------------------------------------------- */
+
+// Счётчик правим на месте, без перезагрузки: голосуют подряд за несколько идей,
+// и перезагрузка на каждый голос сбрасывала бы прокрутку к началу списка.
+for (const кнопка of document.querySelectorAll('[data-голос]')) {
+  кнопка.addEventListener('click', async () => {
+    const отдан = кнопка.classList.contains('отдан');
+    const ответ = await запрос(`/api/ideas/${кнопка.dataset.голос}/vote`, {
+      method: отдан ? 'DELETE' : 'POST'
+    });
+    if (!ответ) return;
+    const счётчик = кнопка.querySelector('span');
+    счётчик.textContent = Number(счётчик.textContent) + (отдан ? -1 : 1);
+    кнопка.classList.toggle('отдан');
+    кнопка.setAttribute('aria-label', отдан ? 'Проголосовать' : 'Отозвать голос');
+  });
+}
+
+const формаИдеи = document.querySelector('#форма-идеи');
+формаИдеи?.addEventListener('submit', async (событие) => {
+  событие.preventDefault();
+  const данные = new FormData(формаИдеи);
+  const ответ = await запрос('/api/ideas', {
+    method: 'POST',
+    body: JSON.stringify({ title: данные.get('title'), body: данные.get('body') })
+  });
+  // Здесь перезагрузка уместна: идея видна сразу, и человек должен увидеть её
+  // в списке на своём месте — по числу голосов, а не там, где он ожидал.
+  if (ответ) location.reload();
+});
