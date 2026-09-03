@@ -40,10 +40,6 @@ export function layout({
 ${image ? `<meta property="og:image" content="${escapeHtml(image)}">\n` : ''}<meta name="theme-color" content="#0c0a20">
 <link rel="icon" href="/icons/icon-192.png">
 <link rel="manifest" href="/manifest.webmanifest">
-<!-- Имя под иконкой на iPhone. short_name из манифеста Safari игнорирует: он
-     берёт эту метку, а если её нет — заголовок страницы, обрезая его на своё
-     усмотрение. Именно поэтому в диалоге «На экран Домой» стояло «Solo AI» —
-     первые слова из <title>, а не имя из манифеста. -->
 <meta name="apple-mobile-web-app-title" content="Solo">
 <link rel="apple-touch-icon" href="/icons/icon-180.png">
 <link rel="stylesheet" href="${assetUrl('/styles.css')}">

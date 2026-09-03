@@ -35,9 +35,17 @@ test('манифест собран из адреса портала', async () 
   assert.equal(manifest.lang, 'ru');
   // Имя под иконкой на телефоне: длинное обрезается многоточием.
   assert.equal(manifest.short_name, 'Solo');
+  // Полное имя тоже короткое: разные версии iOS подставляют под иконку то
+  // одно, то другое, и длинное вылезало на домашний экран целиком.
+  assert.equal(manifest.name, 'Solo AI Journey');
   assert.ok(manifest.icons.some((i) => i.sizes === '512x512'));
   // maskable нужен Android: без него иконку обрежут в круг по-своему.
   assert.ok(manifest.icons.some((i) => i.purpose === 'maskable'));
+});
+
+test('манифест перечитывается, а не живёт в кеше сутками', async () => {
+  const { res } = await получить('/manifest.webmanifest');
+  assert.match(res.headers.get('cache-control'), /no-cache|max-age=0/);
 });
 
 test('service worker отдаётся с корня, иначе не увидит весь сайт', async () => {

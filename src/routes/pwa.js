@@ -14,8 +14,14 @@ export function pwaRoutes(config) {
   const router = Router();
 
   router.get('/manifest.webmanifest', (req, res) => {
+    // Манифест задаёт имя и иконку приложения. Без указания кеша браузер
+    // хранит его по своему усмотрению — иногда сутками, и правка имени не
+    // доезжает до человека. no-cache не запрещает хранить, а требует спросить.
+    res.set('Cache-Control', 'no-cache');
     res.type('application/manifest+json').json({
-      name: 'Solo AI Journey — портал видеоуроков',
+      // Полное имя. Держим коротким: разные версии iOS подставляют под иконку
+      // то short_name, то name, и длинное здесь вылезало на домашний экран.
+      name: 'Solo AI Journey',
       // Имя под иконкой на домашнем экране. iOS обрезает его примерно на
       // двенадцати знаках, поэтому короче некуда — и так лучше.
       short_name: 'Solo',
