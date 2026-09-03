@@ -60,7 +60,16 @@ export function jobKey(name, lessonId) {
  * сдаваться, и клиент не должен обрывать долгое ожидание задачи.
  */
 function connection(config) {
-  return new IORedis(config.redis.url, { maxRetriesPerRequest: null });
+  const client = new IORedis(config.redis.url, { maxRetriesPerRequest: null });
+  // Печатаем, КУДА подключились. На этом сервере короткое имя `redis` носят
+  // два разных сервера, и приложение с воркером однажды подключились к
+  // разным: задачи уходили в один, исполнитель слушал другой, и обработка
+  // молча не начиналась. Адрес в журнале делает это расхождение видимым.
+  client.once('ready', () => {
+    const { host, port } = client.options;
+    console.log(`Redis: подключено к ${host}:${port}`);
+  });
+  return client;
 }
 
 /**
