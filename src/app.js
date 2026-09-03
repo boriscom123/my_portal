@@ -10,6 +10,7 @@ import { sessionMiddleware } from './middleware/session.js';
 import { authRoutes } from './routes/auth.js';
 import { pageRoutes } from './routes/pages.js';
 import { pwaRoutes } from './routes/pwa.js';
+import { pushRoutes } from './routes/push.js';
 import { lessonRoutes } from './routes/lessons.js';
 import { feedbackRoutes } from './routes/feedback.js';
 
@@ -36,6 +37,7 @@ export function createApp({ config, pool }) {
   app.use('/api/auth', authRoutes(config, pool));
   app.use('/api', lessonRoutes(config, pool));
   app.use('/api', feedbackRoutes(config, pool));
+  app.use('/api/push', pushRoutes(config, pool));
 
   // Проба живости для docker и для человека: адрес открылся — значит дошло до
   // приложения, а не остановилось на nginx.
