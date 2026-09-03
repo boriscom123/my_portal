@@ -893,3 +893,26 @@ footer {
     animation: none;
   }
 }
+
+/* Ошибка ждёт, пока её прочитают: закрывает человек, а не таймер. */
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.toast-close {
+  flex: 0 0 auto;
+  min-width: 32px;
+  min-height: 32px;
+  margin: -4px -6px -4px 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.toast-close:hover {
+  color: var(--fg);
+}

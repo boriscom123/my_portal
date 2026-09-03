@@ -11,6 +11,7 @@ import { authRoutes } from './routes/auth.js';
 import { pageRoutes } from './routes/pages.js';
 import { pwaRoutes } from './routes/pwa.js';
 import { pushRoutes } from './routes/push.js';
+import { clientErrorRoutes } from './routes/client-errors.js';
 import { createWebPushChannel } from './services/notify/webpush.js';
 import { createTelegramChannel } from './services/notify/telegram.js';
 import { lessonRoutes } from './routes/lessons.js';
@@ -50,6 +51,7 @@ export function createApp({ config, pool }) {
   app.use('/api', feedbackRoutes(config, pool));
   app.use('/api', ideaRoutes(config, pool));
   app.use('/api/push', pushRoutes(config, pool));
+  app.use('/api', clientErrorRoutes());
 
   // Проба живости для docker и для человека: адрес открылся — значит дошло до
   // приложения, а не остановилось на nginx.

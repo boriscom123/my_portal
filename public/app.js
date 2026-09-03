@@ -18,10 +18,48 @@
 export function toast(text, isError = false) {
   const box = document.createElement('div');
   box.className = `toast${isError ? ' error' : ''}`;
-  box.textContent = text;
-  box.setAttribute('role', 'status');
+  // role="alert" заставляет программу чтения с экрана прочитать сообщение
+  // сразу, а не дождаться паузы: ошибка нужна человеку немедленно.
+  box.setAttribute('role', isError ? 'alert' : 'status');
+
+  const line = document.createElement('span');
+  line.textContent = text;
+  box.append(line);
+
+  if (isError) {
+    // Ошибку не прячем по таймеру: её надо успеть прочитать, а иногда и
+    // переписать. Закрывает человек, когда прочитал.
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'toast-close';
+    close.textContent = '×';
+    close.setAttribute('aria-label', 'Закрыть сообщение');
+    close.addEventListener('click', () => box.remove());
+    box.append(close);
+  } else {
+    setTimeout(() => box.remove(), 6000);
+  }
+
   document.body.append(box);
-  setTimeout(() => box.remove(), 7000);
+}
+
+/**
+ * Отправляет текст сбоя в журнал сервера.
+ * Зачем: отказы браузера видит только человек у экрана, и он пересказывает их
+ * по памяти. Пусть точный текст лежит там, где его можно прочитать. Шлём
+ * только от вошедших — на публичный маршрут иначе полился бы мусор.
+ * Вызывается там, где сбой невиден серверу.
+ */
+async function reportError(where, error) {
+  try {
+    await fetch('/api/client-error', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ where, message: String(error?.message ?? error) })
+    });
+  } catch {
+    // Не дошло — не беда: человеку сообщение уже показано.
+  }
 }
 
 /**
@@ -112,7 +150,15 @@ async function enableNotifications(button) {
       return;
     }
 
-    const registration = await navigator.serviceWorker.ready;
+    // navigator.serviceWorker.ready никогда не отклоняется: если worker не
+    // зарегистрировался, обещание просто висит вечно — человек нажал кнопку и
+    // не получил ни ответа, ни ошибки. Ограничиваем ожидание.
+    const registration = await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('приложение не подготовилось к уведомлениям')), 8000)
+      )
+    ]);
     const subscription =
       (await registration.pushManager.getSubscription()) ??
       (await registration.pushManager.subscribe({
@@ -128,8 +174,9 @@ async function enableNotifications(button) {
     toast('Готово — уведомления о новых уроках будут приходить сюда.');
   } catch (error) {
     // Показываем текст браузера как есть: он часто объясняет причину точнее,
-    // чем любая наша догадка.
+    // чем любая наша догадка. И тот же текст уходит в журнал сервера.
     toast(`Не удалось включить уведомления: ${error.message}`, true);
+    reportError('push-subscribe', error);
   }
 }
 
@@ -148,6 +195,12 @@ if (notificationsButton && 'Notification' in window && 'serviceWorker' in naviga
     .catch(() => {
       // Ключей нет или сервер недоступен — кнопка так и остаётся скрытой.
     });
+
+  // Отдельно сообщаем, если worker так и не поднялся: без него уведомлений не
+  // будет, и человек должен узнать это до того, как нажмёт кнопку.
+  navigator.serviceWorker.getRegistration().then((registration) => {
+    if (!registration) notificationsButton.title = 'Приложение ещё готовится, подождите секунду';
+  });
 
   notificationsButton.addEventListener('click', () => enableNotifications(notificationsButton));
 }
