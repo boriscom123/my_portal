@@ -15,7 +15,7 @@ import { layout } from './layout.js';
  * Вызывается из loginPage.
  */
 function telegramLoginUrl(config) {
-  const параметры = new URLSearchParams({
+  const params = new URLSearchParams({
     bot_id: config.telegram.botId,
     origin: config.publicBaseUrl,
     // Разрешение писать нужно, чтобы бот мог доставлять уведомления тем,
@@ -23,7 +23,7 @@ function telegramLoginUrl(config) {
     request_access: 'write',
     return_to: `${config.publicBaseUrl}/auth/telegram/return`
   });
-  return `https://oauth.telegram.org/auth?${параметры}`;
+  return `https://oauth.telegram.org/auth?${params}`;
 }
 
 export function loginPage({ config, user = null }) {

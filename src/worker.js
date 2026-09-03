@@ -6,11 +6,12 @@
 // Запускается командой `node src/worker.js` из CMD контейнера worker.
 import { loadConfig } from './config.js';
 import { createPool } from './db.js';
-import { createQueue, createWorker, JOBS } from './queue.js';
+import { createQueue, createWorker, scheduleCleanup, JOBS } from './queue.js';
 import { makeFetchSource } from './jobs/fetch-source.js';
 import { makeExtractAudio } from './jobs/extract-audio.js';
 import { makeSubtitles } from './jobs/subtitles.js';
 import { makeMakeCover } from './jobs/make-cover.js';
+import { makeCleanupMedia } from './jobs/cleanup-media.js';
 
 const config = loadConfig();
 const pool = createPool(config.db);
@@ -21,7 +22,8 @@ const handlers = {
   [JOBS.fetchSource]: makeFetchSource(config, pool, queue),
   [JOBS.extractAudio]: makeExtractAudio(config, pool, queue),
   [JOBS.subtitles]: makeSubtitles(config, pool, queue),
-  [JOBS.makeCover]: makeMakeCover(config, pool)
+  [JOBS.makeCover]: makeMakeCover(config, pool),
+  [JOBS.cleanupMedia]: makeCleanupMedia(config, pool)
 };
 
 const worker = createWorker(config, handlers);
@@ -36,13 +38,23 @@ worker.on('failed', async (job, err) => {
   // до журнала не добраться, а понять, почему урок застрял, нужно именно там.
   if (job?.data?.lessonId) {
     await pool
-      .query(`UPDATE lessons SET pipeline_state = 'failed', pipeline_error = $1 WHERE id = $2`, [
-        `${job.name}: ${err.message}`.slice(0, 500),
-        job.data.lessonId
-      ])
+      .query(
+        `UPDATE lessons SET pipeline_state = 'failed', pipeline_error = $1, pipeline_job = $2
+          WHERE id = $3`,
+        [
+          `${job.name}: ${err.message}`.slice(0, 500),
+          // Упавшая задача целиком: кнопка «Повторить» в кабинете ставит
+          // ровно её. Разбирать имя шага из текста ошибки нельзя — текст
+          // писан для человека и однажды поменяется.
+          JSON.stringify({ name: job.name, data: job.data }),
+          job.data.lessonId
+        ]
+      )
       .catch((dbError) => console.error('Не удалось записать ошибку в урок:', dbError.message));
   }
 });
+
+await scheduleCleanup(queue);
 
 console.log(`Воркер поднят, известные шаги: ${Object.values(JOBS).join(', ')}`);
 

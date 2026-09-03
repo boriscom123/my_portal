@@ -2,7 +2,7 @@
 //
 // Виджет Telegram дважды подводил: в приложении с домашнего экрана он то
 // появлялся, то нет, а починить чужой iframe снаружи нельзя. Здесь проверяется
-// ссылка входа и страница возврата — то, чем виджет заменён.
+// link входа и страница возврата — то, чем виджет заменён.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { loginPage } from '../src/views/login.js';
@@ -13,12 +13,12 @@ const config = {
   telegram: { botToken: '123456789:секрет', botId: '123456789', botUsername: 'solo_ai_journey_bot' }
 };
 
-test('ссылка входа несёт номер бота, наш адрес и путь возврата', () => {
+test('link входа несёт номер бота, наш адрес и путь возврата', () => {
   const html = loginPage({ config });
-  const ссылка = html.match(/href="(https:\/\/oauth\.telegram\.org[^"]+)"/)?.[1];
-  assert.ok(ссылка, 'на странице нет ссылки входа через Telegram');
+  const link = html.match(/href="(https:\/\/oauth\.telegram\.org[^"]+)"/)?.[1];
+  assert.ok(link, 'на странице нет ссылки входа через Telegram');
 
-  const url = new URL(ссылка.replaceAll('&amp;', '&'));
+  const url = new URL(link.replaceAll('&amp;', '&'));
   assert.equal(url.searchParams.get('bot_id'), '123456789');
   assert.equal(url.searchParams.get('origin'), 'https://soloaijourney.online');
   assert.equal(

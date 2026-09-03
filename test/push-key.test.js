@@ -20,8 +20,8 @@ test('ключ VAPID разворачивается в 65 байт несжат�
 test('дополнение base64 восстанавливается', () => {
   // Строки длиной 86, 87 и 88 знаков требуют разного дополнения; ошибка в этом
   // месте даёт исключение прямо в браузере.
-  for (const длина of [86, 87, 88]) {
-    const key = 'B'.repeat(длина);
-    assert.doesNotThrow(() => keyToBytes(key), `не разобралась строка из ${длина} знаков`);
+  for (const length of [86, 87, 88]) {
+    const key = 'B'.repeat(length);
+    assert.doesNotThrow(() => keyToBytes(key), `не разобралась строка из ${length} знаков`);
   }
 });

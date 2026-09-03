@@ -13,6 +13,7 @@ import { pwaRoutes } from './routes/pwa.js';
 import { pushRoutes } from './routes/push.js';
 import { uploadRoutes } from './routes/upload.js';
 import { integrationRoutes } from './routes/integrations.js';
+import { adminRoutes } from './routes/admin.js';
 import { mediaRoutes } from './routes/media.js';
 import { clientErrorRoutes } from './routes/client-errors.js';
 import { createWebPushChannel } from './services/notify/webpush.js';
@@ -72,6 +73,7 @@ export function createApp({ config, pool, fetchImpl, queue = null }) {
   // подключения одного роутера означали бы, что номер обложки принимается за
   // токен, — на этом обложка и отдавала 403.
   app.use('/media', mediaRoutes(config, pool));
+  app.use('/api/admin', adminRoutes(config, pool));
   app.use('/api', lessonRoutes(config, pool));
   app.use('/api', feedbackRoutes(config, pool));
   app.use('/api', ideaRoutes(config, pool));

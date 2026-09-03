@@ -6,6 +6,7 @@
 // зависшей — человек закрывает вкладку и теряет уже загруженное.
 // Вызывается из src/routes/pages.js по адресу /admin/upload.
 import { escapeHtml } from '../lib/html.js';
+import { assetUrl } from '../lib/assets.js';
 import { layout } from './layout.js';
 
 export function adminUploadPage({ config, user, lessons, diskConnected = false }) {
@@ -72,6 +73,6 @@ ${
   }
 </section>
 
-<script src="/admin.js" type="module"></script>`
+<script src="${assetUrl('/admin.js')}" type="module"></script>`
   });
 }

@@ -1027,3 +1027,74 @@ footer {
 .hint.danger {
   color: var(--flame);
 }
+
+/* --- Экран проверки урока ------------------------------------------------ */
+
+/* Строка «слева что, справа сколько». Была объявлена только внутри формы
+   отзыва, а размечена ею и в списке файлов Диска, и здесь — из-за чего там
+   она не работала вовсе. */
+.form-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.review-cover {
+  margin: var(--gap) 0;
+}
+.review-cover img {
+  width: 100%;
+  max-width: 640px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  display: block;
+}
+
+/* Карточка упавшего шага: она должна выделяться, а не теряться среди
+   остальных — с телефона автор ищет глазами именно её. */
+.danger-card {
+  border-color: var(--flame);
+  margin-bottom: var(--gap);
+}
+
+#review-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 14px;
+}
+#review-form input,
+#review-form textarea {
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px;
+  min-height: var(--tap-target);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Расшифровка длинная: даём ей прокрутку, иначе она вытеснит со страницы всё
+   остальное, включая кнопку публикации. */
+.transcript {
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Разделы экрана проверки идут стопкой: на телефоне они иначе слипаются. */
+main > .card + .card {
+  margin-top: var(--gap);
+}

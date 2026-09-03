@@ -51,13 +51,14 @@ export async function registerAsset(pool, config, { lessonId, kind, relativePath
 /** Файлы, пережившие свой срок. Их удаляет задача cleanupMedia. */
 export async function listExpired(pool) {
   const { rows } = await pool.query(
-    'SELECT id, lesson_id, kind, path FROM assets WHERE expires_at < now() ORDER BY id'
+    'SELECT id, lesson_id, kind, path, bytes FROM assets WHERE expires_at < now() ORDER BY id'
   );
   return rows.map((row) => ({
     id: Number(row.id),
     lessonId: Number(row.lesson_id),
     kind: row.kind,
-    path: row.path
+    path: row.path,
+    bytes: Number(row.bytes)
   }));
 }
 

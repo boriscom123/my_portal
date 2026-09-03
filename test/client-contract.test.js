@@ -9,10 +9,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 
-const читать = (имя) => readFile(new URL(`../public/${имя}`, import.meta.url), 'utf8');
+const readPublic = (name) => readFile(new URL(`../public/${name}`, import.meta.url), 'utf8');
 
 test('клиент регистрирует service worker', async () => {
-  const app = await читать('app.js');
+  const app = await readPublic('app.js');
   assert.match(
     app,
     /navigator\.serviceWorker\.register\('\/sw\.js'\)/,
@@ -21,7 +21,7 @@ test('клиент регистрирует service worker', async () => {
 });
 
 test('ошибка регистрации не глушится', async () => {
-  const app = await читать('app.js');
+  const app = await readPublic('app.js');
   // Пустой catch здесь означает, что причина сбоя останется невидимой и нам,
   // и человеку у экрана.
   assert.ok(
@@ -32,7 +32,7 @@ test('ошибка регистрации не глушится', async () => {
 });
 
 test('worker принимает уведомления и открывает страницу по нажатию', async () => {
-  const sw = await читать('sw.js');
+  const sw = await readPublic('sw.js');
   assert.match(sw, /addEventListener\('push'/);
   assert.match(sw, /showNotification/);
   assert.match(sw, /addEventListener\('notificationclick'/);
@@ -51,8 +51,8 @@ test('у каждой зацепки в разметке есть обработ
   }
 
   const client = [
-    await читать('app.js'),
-    await читать('admin.js')
+    await readPublic('app.js'),
+    await readPublic('admin.js')
   ].join('\n');
 
   for (const hook of hooks) {
@@ -64,7 +64,7 @@ test('у каждой зацепки в разметке есть обработ
 });
 
 test('worker не кеширует ответы API', async () => {
-  const sw = await читать('sw.js');
+  const sw = await readPublic('sw.js');
   // Ответ /api/ зависит от того, кто спрашивает: закешированный отдал бы
   // одному человеку страницу другого.
   assert.match(sw, /startsWith\('\/api\/'\)/);

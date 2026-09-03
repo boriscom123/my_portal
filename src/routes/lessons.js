@@ -13,41 +13,7 @@ import {
 import { countReactions, ratingSummary } from '../services/feedback.js';
 import { requireAdmin } from '../middleware/guards.js';
 import { PublicError } from '../middleware/errors.js';
-import { notify } from '../services/notify/index.js';
-
-/**
- * Рассылает уведомление о вышедшем уроке всем, до кого есть чем достучаться.
- * Зачем отдельной функцией: то же самое понадобится воркеру на этапе 5, когда
- * урок будет публиковаться не руками, а концом конвейера.
- * Вызывается из обработчика PUT /api/lessons/:slug.
- */
-async function notifyAboutLesson(pool, channels, lesson) {
-  // Берём только тех, кому есть чем доставить: остальным запись в журнале
-  // ничего не даст, а строк наплодит.
-  const { rows } = await pool.query(
-    `SELECT u.id FROM users u
-      WHERE EXISTS (SELECT 1 FROM push_subscriptions p WHERE p.user_id = u.id)
-         OR EXISTS (SELECT 1 FROM identities i
-                     WHERE i.user_id = u.id
-                       AND i.provider IN ('tg_widget', 'tg_miniapp', 'max_miniapp'))`
-  );
-  for (const { id } of rows) {
-    await notify(
-      pool,
-      {
-        userId: Number(id),
-        kind: 'lesson_published',
-        // Ключ несёт и урок, и человека: повторное сохранение карточки не
-        // разбудит людей во второй раз.
-        dedupKey: `lesson:${lesson.id}:published:${id}`,
-        title: 'Новый урок',
-        body: lesson.title,
-        url: `/lesson/${lesson.slug}`
-      },
-      channels
-    );
-  }
-}
+import { notifyAboutLesson } from '../services/notify/lesson.js';
 
 export function lessonRoutes(config, pool) {
   const router = Router();

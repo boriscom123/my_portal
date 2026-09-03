@@ -8,6 +8,8 @@ import { offlinePage } from '../views/offline.js';
 import { telegramReturnPage } from '../views/telegram-return.js';
 import { adminUploadPage } from '../views/admin-upload.js';
 import { adminHomePage } from '../views/admin-home.js';
+import { adminReviewPage } from '../views/admin-review.js';
+import { mediaLink } from '../lib/media-token.js';
 import { requireAdmin } from '../middleware/guards.js';
 import { feedPage } from '../views/feed.js';
 import { lessonPage } from '../views/lesson.js';
@@ -114,6 +116,48 @@ export function pageRoutes(config, pool) {
     // кнопку подключения — решается здесь, а не мельканием в браузере.
     res.type('html').send(
       adminUploadPage({ config, user, lessons, diskConnected: await diskConnected() })
+    );
+  });
+
+  // Экран проверки урока: обязательный ручной шаг перед публикацией.
+  router.get('/admin/lesson/:slug', requireAdmin, async (req, res) => {
+    const user = await currentUser(pool, req);
+    const lesson = await getLessonBySlug(pool, req.params.slug, { includeDrafts: true });
+    if (!lesson) throw new PublicError('Урок не найден', 404);
+
+    const { rows: assets } = await pool.query(
+      `SELECT id, kind, path, bytes, expires_at FROM assets
+        WHERE lesson_id = $1 ORDER BY kind, id`,
+      [lesson.id]
+    );
+    const { rows: transcript } = await pool.query(
+      'SELECT text FROM transcripts WHERE lesson_id = $1',
+      [lesson.id]
+    );
+
+    res.type('html').send(
+      adminReviewPage({
+        config,
+        user,
+        lesson,
+        assets: assets.map((row) => ({
+          kind: row.kind,
+          path: row.path,
+          bytes: Number(row.bytes),
+          expiresLabel: new Date(row.expires_at).toLocaleDateString('ru-RU')
+        })),
+        transcript: transcript[0]?.text ?? null,
+        links: {
+          // Субтитры лежат в буфере и по прямому адресу наружу не смотрят:
+          // автору они выдаются подписанной ссылкой на час.
+          subtitles: assets
+            .filter((row) => row.kind === 'subtitles')
+            .map((row) => ({
+              name: row.path.split('/').pop(),
+              url: mediaLink(config, Number(row.id))
+            }))
+        }
+      })
     );
   });
 

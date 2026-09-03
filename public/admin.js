@@ -148,3 +148,52 @@ if (diskFiles) {
     if (answer) toast('Файл забирается с Диска. Обработка начнётся сама.');
   });
 }
+
+/* --- Экран проверки урока ------------------------------------------------ */
+
+// Публикация и сохранение черновика — одна форма с двумя кнопками: тексты
+// автор правит одни и те же, разница только в том, видит ли их зритель.
+const reviewForm = document.querySelector('[data-approve]');
+reviewForm?.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const publish = event.submitter?.value === 'yes';
+  const data = new FormData(reviewForm);
+  const buttons = reviewForm.querySelectorAll('button');
+  buttons.forEach((button) => (button.disabled = true));
+
+  try {
+    const answer = await request(`/api/admin/lessons/${reviewForm.dataset.approve}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({
+        title: data.get('title'),
+        description: data.get('description'),
+        tags: data.get('tags'),
+        publish
+      })
+    });
+    if (answer) {
+      toast(publish ? 'Урок опубликован, подписчики получат уведомление.' : 'Черновик сохранён.');
+      if (publish) location.href = `/lesson/${answer.lesson.slug}`;
+    }
+  } finally {
+    buttons.forEach((button) => (button.disabled = false));
+  }
+});
+
+// Повтор упавшего шага. Что именно повторяется, решает сервер по записанной
+// упавшей задаче — клиент не угадывает имя шага.
+const retryButton = document.querySelector('[data-retry]');
+retryButton?.addEventListener('click', async () => {
+  retryButton.disabled = true;
+  const answer = await request(`/api/admin/lessons/${retryButton.dataset.retry}/retry`, {
+    method: 'POST'
+  });
+  if (answer) {
+    toast(`Шаг «${answer.step}» запущен заново.`);
+    // Состояние урока меняет воркер, а не браузер: перечитываем страницу,
+    // чтобы автор увидел «обрабатывается», а не старую надпись про падение.
+    setTimeout(() => location.reload(), 1500);
+  } else {
+    retryButton.disabled = false;
+  }
+});

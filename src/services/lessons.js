@@ -24,6 +24,9 @@ function toLesson(row) {
     // состояние — только автор в кабинете.
     pipelineState: row.pipeline_state ?? 'idle',
     pipelineError: row.pipeline_error ?? null,
+    // Упавшая задача целиком: имя шага и его данные. Ими живёт кнопка
+    // «Повторить» на экране проверки.
+    pipelineJob: row.pipeline_job ?? null,
     tags: row.tags ?? []
   };
 }
