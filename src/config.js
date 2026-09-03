@@ -70,6 +70,13 @@ export function loadConfig(env = process.env) {
       apiKey: env.YANDEX_CLOUD_API_KEY ?? '',
       folderId: env.YANDEX_CLOUD_FOLDER_ID ?? ''
     },
+    yandexOauth: {
+      clientId: env.YANDEX_OAUTH_CLIENT_ID ?? '',
+      clientSecret: env.YANDEX_OAUTH_CLIENT_SECRET ?? ''
+    },
+    // Ключ шифрования чужих токенов в базе. Без него подключить Диск и
+    // площадки нельзя, но портал работает: витрина и вход от него не зависят.
+    tokenEncryptionKey: env.TOKEN_ENCRYPTION_KEY ?? '',
     adminIdentities: parseAdminIdentities(env.ADMIN_IDENTITIES ?? ''),
     telegram: {
       botToken: env.TELEGRAM_BOT_TOKEN ?? '',

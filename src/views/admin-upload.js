@@ -56,7 +56,19 @@ ${
          <ul id="disk-files"><li class="hint">Читаю список…</li></ul>`
       : `<p class="hint">Быстрее, чем с компьютера: сервер заберёт файл напрямую,
          минуя ваш домашний канал. Исходники при этом остаются у вас на Диске.</p>
-         <p><a class="button-brand" href="/api/integrations/yandex-disk/connect">Подключить Диск</a></p>`
+         <ol class="steps">
+           <li><a class="button-brand" href="/api/integrations/yandex-disk/connect"
+                  target="_blank" rel="noopener">Открыть согласие Яндекса</a></li>
+           <li>Разрешить доступ и скопировать код, который покажет Яндекс.</li>
+           <li>Вставить код сюда:
+             <form id="disk-code-form" class="form-row">
+               <input name="code" inputmode="numeric" autocomplete="off"
+                      placeholder="код подтверждения" required>
+               <button class="button" type="submit">Подключить</button>
+             </form>
+           </li>
+         </ol>
+         <p class="hint">Код живёт несколько минут: если не успели — возьмите новый.</p>`
   }
 </section>
 

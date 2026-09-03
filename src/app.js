@@ -12,6 +12,7 @@ import { pageRoutes } from './routes/pages.js';
 import { pwaRoutes } from './routes/pwa.js';
 import { pushRoutes } from './routes/push.js';
 import { uploadRoutes } from './routes/upload.js';
+import { integrationRoutes } from './routes/integrations.js';
 import { clientErrorRoutes } from './routes/client-errors.js';
 import { createWebPushChannel } from './services/notify/webpush.js';
 import { createTelegramChannel } from './services/notify/telegram.js';
@@ -24,7 +25,7 @@ import { ideaRoutes } from './routes/ideas.js';
  * Возвращает приложение БЕЗ замыкающих обработчиков — их ставит finalize,
  * чтобы тест мог дописать свой маршрут после сборки.
  */
-export function createApp({ config, pool }) {
+export function createApp({ config, pool, fetchImpl, queue = null }) {
   const app = express();
 
   // За общим nginx настоящий адрес клиента приходит заголовком; без этого в
@@ -38,6 +39,12 @@ export function createApp({ config, pool }) {
   // Каналы собираются один раз на приложение: web-push настраивается
   // глобально, а повторная настройка на каждый запрос — лишняя работа и
   // лишний повод разойтись конфигурациям. Тест подменяет app.locals.channels.
+  // Очередь приходит снаружи, а не создаётся здесь: она открывает соединение
+  // с Redis, и приложение, создающее его само, невозможно поднять в тесте —
+  // соединения копятся и процесс не завершается. Исполняет задачи воркер,
+  // приложение только ставит.
+  app.locals.queue = queue;
+
   app.locals.channels = {
     webpush: createWebPushChannel(config, pool),
     telegram: createTelegramChannel(config)
@@ -58,6 +65,7 @@ export function createApp({ config, pool }) {
   app.use(express.json({ limit: '64kb' }));
 
   app.use('/api/auth', authRoutes(config, pool));
+  app.use('/api/integrations', integrationRoutes(config, pool, fetchImpl));
   app.use('/api', lessonRoutes(config, pool));
   app.use('/api', feedbackRoutes(config, pool));
   app.use('/api', ideaRoutes(config, pool));

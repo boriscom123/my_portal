@@ -157,3 +157,30 @@ test('чужое имя файла не уводит запись за пред�
     });
   });
 });
+
+test('файл с Диска ставится в очередь, а не качается в запросе', skipWithoutDb, async () => {
+  const config = await makeConfig();
+  await withTestDb(async (pool) => {
+    const { lessonId, adminId } = await seed(pool);
+    // Заглушка очереди: проверяем, что маршрут именно ставит задачу и сразу
+    // отвечает — скачивание гигабайта в HTTP-запрос не укладывается.
+    const added = [];
+    const queue = { add: async (name, data) => added.push({ name, data }) };
+    const app = finalize(createApp({ config, pool, queue }));
+    await withServer(app, async (base) => {
+      const res = await fetch(`${base}/api/upload/from-disk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...asAdmin(config, adminId) },
+        body: JSON.stringify({ lessonId, diskPath: 'disk:/video/urok.mp4' })
+      });
+      assert.equal(res.status, 200);
+    });
+    assert.deepEqual(added, [
+      { name: 'fetchSource', data: { lessonId, diskPath: 'disk:/video/urok.mp4' } }
+    ]);
+    const { rows } = await pool.query('SELECT pipeline_state FROM lessons WHERE id = $1', [
+      lessonId
+    ]);
+    assert.equal(rows[0].pipeline_state, 'uploading');
+  });
+});

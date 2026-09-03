@@ -77,3 +77,74 @@ form?.addEventListener('submit', async (event) => {
     button.disabled = false;
   }
 });
+
+/* --- Подключение Яндекс Диска ------------------------------------------- */
+
+// Подключение идёт копированием кода, а не возвратом на наш адрес: в
+// приложении заказчика адрес возврата поменять нельзя. Для одного человека
+// это одно копирование раз в несколько месяцев.
+const diskCodeForm = document.querySelector('#disk-code-form');
+diskCodeForm?.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const code = new FormData(diskCodeForm).get('code');
+  const button = diskCodeForm.querySelector('button');
+  button.disabled = true;
+  try {
+    const answer = await request('/api/integrations/yandex-disk/code', {
+      method: 'POST',
+      body: JSON.stringify({ code })
+    });
+    if (answer) {
+      toast('Диск подключён.');
+      location.reload();
+    }
+  } catch (error) {
+    toast(`Не подключилось: ${error.message}`, true);
+  } finally {
+    button.disabled = false;
+  }
+});
+
+/* --- Выбор файла с Диска ------------------------------------------------- */
+
+const diskFiles = document.querySelector('#disk-files');
+if (diskFiles) {
+  /** Размер человеку: гигабайты, а не байты. */
+  const humanSize = (bytes) => `${(bytes / 1024 / 1024 / 1024).toFixed(2)} ГБ`;
+
+  request('/api/integrations/yandex-disk/files?path=disk:/')
+    .then((answer) => {
+      if (!answer) return;
+      if (!answer.files.length) {
+        diskFiles.innerHTML = '<li class="hint">В корне Диска видео не нашлось.</li>';
+        return;
+      }
+      diskFiles.innerHTML = answer.files
+        .map(
+          (file) => `<li class="form-row">
+            <span>${file.name} <span class="meta">${humanSize(file.bytes)}</span></span>
+            <button class="button" type="button" data-disk-path="${file.path}">В обработку</button>
+          </li>`
+        )
+        .join('');
+    })
+    .catch((error) => {
+      diskFiles.innerHTML = `<li class="hint">Список не читается: ${error.message}</li>`;
+    });
+
+  diskFiles.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-disk-path]');
+    if (!button) return;
+    const lessonId = Number(document.querySelector('#upload-form select').value);
+    if (!lessonId) {
+      toast('Сначала выберите урок.', true);
+      return;
+    }
+    button.disabled = true;
+    const answer = await request('/api/upload/from-disk', {
+      method: 'POST',
+      body: JSON.stringify({ lessonId, diskPath: button.dataset.diskPath })
+    });
+    if (answer) toast('Файл забирается с Диска. Обработка начнётся сама.');
+  });
+}

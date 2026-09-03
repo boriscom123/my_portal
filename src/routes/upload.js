@@ -78,6 +78,18 @@ export function uploadRoutes(config, pool) {
     res.json({ uploadId, chunkSize: CHUNK_SIZE, fileName: name, received: [] });
   });
 
+  router.post('/from-disk', async (req, res) => {
+    const { lessonId, diskPath } = req.body ?? {};
+    if (!lessonId || !diskPath) throw new PublicError('Не указан урок или файл');
+
+    await pool.query(`UPDATE lessons SET pipeline_state = 'uploading' WHERE id = $1`, [lessonId]);
+    // Работа идёт в воркере: скачивание гигабайтного файла занимает минуты, а
+    // HTTP-запрос столько не живёт — человек закроет вкладку и не узнает, чем
+    // кончилось.
+    await req.app.locals.queue.add('fetchSource', { lessonId, diskPath: String(diskPath) });
+    res.json({ ok: true });
+  });
+
   router.get('/:uploadId', async (req, res) => {
     res.json({ received: await receivedChunks(config, req.params.uploadId) });
   });
