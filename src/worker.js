@@ -7,14 +7,16 @@
 import { loadConfig } from './config.js';
 import { createPool } from './db.js';
 import { createQueue, createWorker, JOBS } from './queue.js';
+import { makeFetchSource } from './jobs/fetch-source.js';
 
 const config = loadConfig();
 const pool = createPool(config.db);
 const queue = createQueue(config);
 
-// Обработчики добавляются по мере готовности шагов. Пустой список означает,
-// что воркер поднят и слушает очередь, но делать ему пока нечего.
-const handlers = {};
+// Обработчики шагов конвейера. Добавляются по мере готовности.
+const handlers = {
+  [JOBS.fetchSource]: makeFetchSource(config, pool, queue)
+};
 
 const worker = createWorker(config, handlers);
 
