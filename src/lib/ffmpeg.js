@@ -30,6 +30,27 @@ export function ffmpegArgsForAudio(input, output) {
   ];
 }
 
+/**
+ * Аргументы для распаковки звука в wav под whisper.cpp.
+ * Зачем отдельно от ffmpegArgsForAudio: в буфере звук лежит в opus — час урока
+ * весит пару мегабайт, — а whisper.cpp читает только несжатый wav 16 кГц моно,
+ * и это уже сто мегабайт в час. Поэтому wav делается временно, на время счёта,
+ * и удаляется сразу после.
+ */
+export function ffmpegArgsForWav(input, output) {
+  return [
+    '-hide_banner',
+    '-loglevel', 'error',
+    '-i', input,
+    '-vn',
+    '-ar', '16000',
+    '-ac', '1',
+    '-c:a', 'pcm_s16le',
+    '-y',
+    output
+  ];
+}
+
 /** Аргументы для кадра на обложку. */
 export function ffmpegArgsForCover({ input, atSeconds, output }) {
   return [

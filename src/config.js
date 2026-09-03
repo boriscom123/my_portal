@@ -98,6 +98,20 @@ export function loadConfig(env = process.env) {
       privateKey: env.VAPID_PRIVATE ?? '',
       subject: env.VAPID_SUBJECT ?? 'mailto:admin@example.com'
     },
+    // Распознавание речи считается на самом сервере. Пути задаются
+    // окружением, потому что в образе бинарник и модель лежат в разных местах:
+    // бинарник в образе, модель — в томе, чтобы не качать её каждой сборкой.
+    whisper: {
+      bin: env.WHISPER_BIN ?? 'whisper-cli',
+      model: env.WHISPER_MODEL ?? '/app/models/ggml-small-q5_1.bin',
+      modelUrl:
+        env.WHISPER_MODEL_URL ??
+        'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q5_1.bin',
+      language: env.WHISPER_LANGUAGE ?? 'ru',
+      // Два потока — все ядра машины. Приоритет при этом понижен, иначе портал
+      // перестаёт открываться на всё время счёта.
+      threads: Number(env.WHISPER_THREADS ?? 2)
+    },
     media: {
       dir: env.MEDIA_DIR ?? '/app/media',
       ttlHours: Number(env.MEDIA_TTL_HOURS ?? DEFAULT_MEDIA_TTL_HOURS)

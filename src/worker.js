@@ -13,6 +13,9 @@ import { makeExtractAudio } from './jobs/extract-audio.js';
 import { makeSubtitles } from './jobs/subtitles.js';
 import { makeMakeCover } from './jobs/make-cover.js';
 import { makeCleanupMedia } from './jobs/cleanup-media.js';
+import { makeTranscribe } from './jobs/transcribe.js';
+import { createSpeech } from './services/speech.js';
+import { ensureModel } from './lib/whisper.js';
 
 const config = loadConfig();
 const pool = createPool(config.db);
@@ -25,10 +28,22 @@ if (!schema.waited) {
   console.error(`Схема неполна, не хватает: ${schema.missing.join(', ')}. Работаем как есть.`);
 }
 
+// Модель качается один раз в том: класть 182 МБ в образ значило бы тянуть их
+// в каждой сборке на сборщике GitHub. Не скачалась — работаем без расшифровки:
+// остальные шаги конвейера от неё не зависят.
+const speech = createSpeech(config);
+try {
+  const { downloaded, bytes } = await ensureModel(config.whisper);
+  if (downloaded) console.log(`Модель распознавания скачана: ${bytes} байт`);
+} catch (error) {
+  console.error(`Модель распознавания недоступна: ${error.message}`);
+}
+
 // Обработчики шагов конвейера. Добавляются по мере готовности.
 const handlers = {
   [JOBS.fetchSource]: makeFetchSource(config, pool, queue),
   [JOBS.extractAudio]: makeExtractAudio(config, pool, queue),
+  [JOBS.transcribe]: makeTranscribe(config, pool, queue, speech),
   [JOBS.subtitles]: makeSubtitles(config, pool, queue),
   [JOBS.makeCover]: makeMakeCover(config, pool),
   [JOBS.cleanupMedia]: makeCleanupMedia(config, pool)

@@ -46,6 +46,9 @@ services:
         required: false
     volumes:
       - portal_media:/app/media
+      # Модель распознавания: 182 МБ, качаются один раз и переживают
+      # пересборку образа. В образ не кладём — иначе их тянула бы каждая сборка.
+      - portal_models:/app/models
 
   # Своя база и своя очередь — только для запуска на отдельной машине. На VPS
   # их заменяют общие postgres и redis из слоя ClaudeDocker: держать вторые
@@ -84,3 +87,4 @@ services:
 volumes:
   portal_db:
   portal_media:
+  portal_models:
