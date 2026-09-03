@@ -2,6 +2,7 @@
   "name": "my-portal",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "description": "Портал видеоуроков: витрина, обратная связь, публикация на площадки.",
   "engines": {
