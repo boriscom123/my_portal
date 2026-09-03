@@ -20,7 +20,7 @@ const ФОН = '#0C0A20';
  * @param {number} доля — какую часть высоты занимает ракета
  * @param {number} скругление — радиус углов; 0 для maskable, её режет система
  */
-function холст(доля, скругление, следВидно = true) {
+function холст(доля, скругление) {
   const сторона = 512;
   const высота = сторона * доля;
   const ширина = (высота * 48) / 116;
@@ -32,17 +32,8 @@ function холст(доля, скругление, следВидно = true) {
     .replace(/^<svg[^>]*>/, '')
     .replace('</svg>', '');
 
-  // След ракеты — мотив с фирменного баннера. Он же решает задачу композиции:
-  // ракета узкая, и без него углы квадрата остаются пустыми.
-  const след = следВидно
-    ? `<path d="M42 468 C 110 440, 165 400, 200 352" stroke="#6CA6BA" stroke-width="9"
-         stroke-linecap="round" stroke-dasharray="2 26" fill="none" opacity="0.75"/>
-       <circle cx="40" cy="470" r="13" fill="#6CA6BA" opacity="0.9"/>`
-    : '';
-
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${сторона} ${сторона}" width="${сторона}" height="${сторона}">
 <rect width="${сторона}" height="${сторона}" rx="${скругление}" fill="${ФОН}"/>
-${след}
 <g transform="translate(${x} ${y}) scale(${высота / 116})">${знак}</g>
 </svg>`;
 }
@@ -51,6 +42,5 @@ mkdirSync(ВЫХОД, { recursive: true });
 // Обычная иконка: ракета занимает две трети — так она читается на мелком
 // значке. Maskable: система обрежет края по своей маске, поэтому запас больше.
 writeFileSync(new URL('icon.svg', ВЫХОД), холст(0.86, 0));
-// Maskable без следа: система срежет углы, и от него останется огрызок.
-writeFileSync(new URL('icon-maskable.svg', ВЫХОД), холст(0.62, 0, false));
+writeFileSync(new URL('icon-maskable.svg', ВЫХОД), холст(0.62, 0));
 console.log('Векторы иконок собраны в public/icons/');
