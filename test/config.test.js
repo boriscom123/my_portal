@@ -43,6 +43,15 @@ test('имя бота читается и очищается от собаки',
   assert.equal(loadConfig(minimal).telegram.botUsername, '');
 });
 
+test('очередь и облако читаются с умолчаниями', () => {
+  const config = loadConfig(minimal);
+  assert.equal(config.redis.prefix, 'portal:');
+  assert.match(config.redis.url, /^redis:\/\//);
+  // Без ключей облака портал обязан подниматься: витрина и вход от них не
+  // зависят, а конвейер сам скажет, что не настроен.
+  assert.equal(config.yandex.apiKey, '');
+});
+
 test('номер бота выделяется из токена', () => {
   const config = loadConfig({ ...minimal, TELEGRAM_BOT_TOKEN: '123456789:AAA-секрет' });
   assert.equal(config.telegram.botId, '123456789');

@@ -15,6 +15,10 @@ COPY package.json ./
 COPY src ./src
 COPY migrations ./migrations
 COPY public ./public
+# ffmpeg нужен воркеру: извлечение звука, нарезка, кадр на обложку. В образе
+# api он лишний, но два разных образа ради 135 МБ — это вторая сборка, второй
+# слой в CI и второй повод им разойтись. Один образ, две команды запуска.
+RUN apk add --no-cache ffmpeg
 # Рабочий буфер: каталог создаётся заранее и отдаётся пользователю node,
 # иначе процесс без прав root не сможет писать в него на этапе 5.
 RUN mkdir -p /app/media && chown -R node:node /app/media

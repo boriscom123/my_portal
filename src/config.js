@@ -60,6 +60,16 @@ export function loadConfig(env = process.env) {
       password: required(env, 'DB_PASS')
     },
     jwtSecret: required(env, 'JWT_SECRET'),
+    redis: {
+      // Общий Redis сервера. Префикс обязателен: без него задачи портала
+      // смешались бы с ключами соседних проектов в одной базе.
+      url: env.REDIS_URL ?? 'redis://redis:6379',
+      prefix: env.REDIS_PREFIX ?? 'portal:'
+    },
+    yandex: {
+      apiKey: env.YANDEX_CLOUD_API_KEY ?? '',
+      folderId: env.YANDEX_CLOUD_FOLDER_ID ?? ''
+    },
     adminIdentities: parseAdminIdentities(env.ADMIN_IDENTITIES ?? ''),
     telegram: {
       botToken: env.TELEGRAM_BOT_TOKEN ?? '',

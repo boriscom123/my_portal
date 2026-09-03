@@ -15,6 +15,19 @@ services:
       PORT: 3004
     ports:
       - "${APP_PORT:-3004}:3004"
+    volumes:
+      # Буфер общий с воркером: api принимает загрузку, воркер её обрабатывает.
+      - portal_media:/app/media
+
+  # Обработка уроков: расшифровка, субтитры, нарезки. Тот же образ, другая
+  # команда — воркер не слушает порт, он разбирает очередь.
+  worker:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    command: ["node", "src/worker.js"]
+    volumes:
+      - portal_media:/app/media
 
   # Своя база — только для запуска на отдельной машине. На VPS её заменяет
   # общий postgres: держать второй экземпляр на 3.8 ГБ памяти незачем.
@@ -31,3 +44,4 @@ services:
 
 volumes:
   portal_db:
+  portal_media:
