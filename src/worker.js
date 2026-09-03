@@ -6,6 +6,7 @@
 // Запускается командой `node src/worker.js` из CMD контейнера worker.
 import { loadConfig } from './config.js';
 import { createPool } from './db.js';
+import { waitForSchema } from './migrate.js';
 import { createQueue, createWorker, scheduleCleanup, JOBS } from './queue.js';
 import { makeFetchSource } from './jobs/fetch-source.js';
 import { makeExtractAudio } from './jobs/extract-audio.js';
@@ -16,6 +17,13 @@ import { makeCleanupMedia } from './jobs/cleanup-media.js';
 const config = loadConfig();
 const pool = createPool(config.db);
 const queue = createQueue(config);
+
+// Схему накатывает api, воркер её только ждёт. Без ожидания первая же задача
+// на чистой машине падает на несуществующей таблице.
+const schema = await waitForSchema(pool, new URL('../migrations/', import.meta.url));
+if (!schema.waited) {
+  console.error(`Схема неполна, не хватает: ${schema.missing.join(', ')}. Работаем как есть.`);
+}
 
 // Обработчики шагов конвейера. Добавляются по мере готовности.
 const handlers = {

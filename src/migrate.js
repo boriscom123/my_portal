@@ -5,6 +5,10 @@
 // Вызывается из src/server.js и из тестового помощника test/helpers/db.js.
 import { readdir, readFile } from 'node:fs/promises';
 
+/** Сколько ждать схему и как часто переспрашивать, в миллисекундах. */
+const WAIT_TIMEOUT_MS = 60_000;
+const WAIT_STEP_MS = 1000;
+
 /**
  * Накатывает все ещё не применённые файлы из каталога миграций по порядку имён.
  * Каждый файл идёт в своей транзакции: упавшая миграция откатывается целиком,
@@ -40,4 +44,38 @@ export async function runMigrations(pool, dir) {
     }
   }
   return { applied };
+}
+
+/**
+ * Ждёт, пока схема станет полной.
+ * Миграции накатывает api при старте, а воркер поднимается рядом и сразу
+ * берётся за расписание уборки. На чистой машине он успевает раньше и падает
+ * на «relation assets does not exist»: в журнале первого запуска это выглядит
+ * поломкой, хотя через минуту всё работает.
+ * Ждём, а не накатываем сами: две гонки за одну таблицу хуже одного ожидания.
+ * Вызывается из src/worker.js перед созданием исполнителя очереди.
+ */
+export async function waitForSchema(pool, dir, { timeoutMs = WAIT_TIMEOUT_MS, stepMs = WAIT_STEP_MS, sleep } = {}) {
+  const wait = sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+  const expected = (await readdir(dir)).filter((file) => file.endsWith('.sql')).sort();
+  const deadline = Date.now() + timeoutMs;
+
+  for (;;) {
+    // Отсутствие самой таблицы учёта — тоже «схемы ещё нет», а не сбой:
+    // на чистой базе её создаёт та же миграция.
+    const { rows } = await pool
+      .query('SELECT name FROM schema_migrations')
+      .catch(() => ({ rows: null }));
+
+    if (rows) {
+      const done = new Set(rows.map((row) => row.name));
+      const missing = expected.filter((file) => !done.has(file));
+      if (!missing.length) return { waited: true, missing: [] };
+      if (Date.now() >= deadline) return { waited: false, missing };
+    } else if (Date.now() >= deadline) {
+      return { waited: false, missing: expected };
+    }
+
+    await wait(stepMs);
+  }
 }

@@ -13,6 +13,17 @@ services:
     env_file: .env
     environment:
       PORT: 3004
+    # Своя база и очередь, если они подняты этим же компоузом. На VPS обе
+    # внешние, профиль standalone не включён — и зависимость отключённого
+    # профиля compose пропускает. Без неё первый запуск гонится с базой: api
+    # падает и поднимается заново, а первая уборка буфера уходит в ошибку.
+    depends_on:
+      db:
+        condition: service_healthy
+        required: false
+      redis:
+        condition: service_started
+        required: false
     ports:
       - "${APP_PORT:-3004}:3004"
     volumes:
@@ -26,11 +37,19 @@ services:
     restart: unless-stopped
     env_file: .env
     command: ["node", "src/worker.js"]
+    depends_on:
+      db:
+        condition: service_healthy
+        required: false
+      redis:
+        condition: service_started
+        required: false
     volumes:
       - portal_media:/app/media
 
-  # Своя база — только для запуска на отдельной машине. На VPS её заменяет
-  # общий postgres: держать второй экземпляр на 3.8 ГБ памяти незачем.
+  # Своя база и своя очередь — только для запуска на отдельной машине. На VPS
+  # их заменяют общие postgres и redis из слоя ClaudeDocker: держать вторые
+  # экземпляры на 3.8 ГБ памяти незачем.
   db:
     image: postgres:18-alpine
     profiles: [standalone]
@@ -40,6 +59,26 @@ services:
       POSTGRES_PASSWORD: ${DB_PASS}
     volumes:
       - portal_db:/var/lib/postgresql
+    # Проверка готовности, а не факта запуска: контейнер поднимается за
+    # полсекунды, а принимать подключения postgres начинает через несколько.
+    # Без неё первый запуск гонится с базой — api падает и встаёт заново, а
+    # первая уборка буфера уходит в ошибку.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+    restart: unless-stopped
+
+  # Очередь конвейера. Без неё воркер не поднимается вовсе, поэтому в профиле
+  # standalone она обязана быть: иначе установка «с нуля» даёт работающую
+  # витрину и воркер в вечном перезапуске.
+  # Задачи хранить незачем — упавшую обработку повторяет автор кнопкой, а
+  # выключенное сохранение бережёт диск и не роняет запуск при пересборке.
+  redis:
+    image: redis:8-alpine
+    profiles: [standalone]
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
     restart: unless-stopped
 
 volumes:
