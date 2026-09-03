@@ -33,7 +33,6 @@ function telegramWidget(botUsername) {
     data-radius="12"
     data-onauth="onTelegramAuth(user)"
     data-request-access="write"></script>
-  <p class="login-error hint" hidden></p>
 </div>`;
 }
 

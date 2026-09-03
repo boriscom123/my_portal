@@ -9,6 +9,22 @@
  */
 
 /**
+ * Короткое сообщение внизу экрана.
+ * Зачем: без него отказ браузера остаётся между ним и нами, а человек видит
+ * кнопку, которая «ничего не делает». Именно так и вышло с уведомлениями:
+ * подписка падала молча.
+ * Вызывается отовсюду, где действие человека может не получиться.
+ */
+export function toast(text, isError = false) {
+  const box = document.createElement('div');
+  box.className = `toast${isError ? ' error' : ''}`;
+  box.textContent = text;
+  box.setAttribute('role', 'status');
+  document.body.append(box);
+  setTimeout(() => box.remove(), 7000);
+}
+
+/**
  * Запрос к своему API с общей обработкой отказов.
  * Зачем: «войдите» на 401 нужно во всех обработчиках без исключения, и
  * повторять это в каждом — верный способ где-нибудь забыть.
@@ -38,7 +54,6 @@ export async function request(url, options = {}) {
  * Вызывается из onTelegramAuth в src/views/login.js.
  */
 window.signInWithTelegram = async (user) => {
-  const message = document.querySelector('.login-error');
   try {
     const answer = await request('/api/auth/telegram', {
       method: 'POST',
@@ -46,10 +61,7 @@ window.signInWithTelegram = async (user) => {
     });
     if (answer) location.href = '/';
   } catch (error) {
-    if (message) {
-      message.textContent = `Войти не удалось: ${error.message}. Попробуйте ещё раз.`;
-      message.hidden = false;
-    }
+    toast(`Войти не удалось: ${error.message}. Попробуйте ещё раз.`, true);
   }
 };
 
@@ -85,30 +97,68 @@ function keyToBytes(base64url) {
  * разрешения без действия человека браузеры отклоняют, а Safari запоминает
  * отказ надолго — второго шанса спросить не будет.
  */
-async function enableNotifications(button) {
-  const { key } = await request('/api/push/key');
-  if (!key) return;
+/**
+ * Открыт ли портал как установленное приложение.
+ * Зачем проверять: на iPhone Web Push работает ТОЛЬКО в приложении с
+ * домашнего экрана. В самом Safari разрешение спрашивается, человек его даёт,
+ * а подписка потом падает — и он остаётся с ощущением, что всё сломано.
+ * Вызывается из enableNotifications.
+ */
+function isInstalledApp() {
+  return (
+    window.matchMedia('(display-mode: standalone)').matches ||
+    // Старый признак самой iOS: на ней он надёжнее медиазапроса.
+    window.navigator.standalone === true
+  );
+}
 
-  const permission = await Notification.requestPermission();
-  if (permission !== 'granted') {
-    button.title = 'Уведомления запрещены в настройках браузера';
+/** iPhone и iPad — у них свои правила для уведомлений. */
+function isApple() {
+  return /iPhone|iPad|iPod/.test(navigator.userAgent);
+}
+
+async function enableNotifications(button) {
+  if (isApple() && !isInstalledApp()) {
+    toast(
+      'На iPhone уведомления работают только в приложении: «Поделиться» → «На экран Домой», ' +
+        'потом открыть с домашнего экрана.',
+      true
+    );
     return;
   }
 
-  const registration = await navigator.serviceWorker.ready;
-  const subscription =
-    (await registration.pushManager.getSubscription()) ??
-    (await registration.pushManager.subscribe({
-      // Без этого флага браузер разрешил бы «тихие» пуши без уведомления — и
-      // отозвал бы подписку, заметив, что мы ничего не показываем.
-      userVisibleOnly: true,
-      applicationServerKey: keyToBytes(key)
-    }));
+  try {
+    const { key } = await request('/api/push/key');
+    if (!key) {
+      toast('Уведомления пока не настроены на сервере.', true);
+      return;
+    }
 
-  await request('/api/push/subscribe', { method: 'POST', body: JSON.stringify(subscription) });
-  button.textContent = '🔔';
-  button.title = 'Уведомления включены';
-  button.disabled = true;
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      toast('Уведомления запрещены. Разрешить их можно в настройках браузера.', true);
+      return;
+    }
+
+    const registration = await navigator.serviceWorker.ready;
+    const subscription =
+      (await registration.pushManager.getSubscription()) ??
+      (await registration.pushManager.subscribe({
+        // Без этого флага браузер разрешил бы «тихие» пуши без уведомления — и
+        // отозвал бы подписку, заметив, что мы ничего не показываем.
+        userVisibleOnly: true,
+        applicationServerKey: keyToBytes(key)
+      }));
+
+    await request('/api/push/subscribe', { method: 'POST', body: JSON.stringify(subscription) });
+    button.title = 'Уведомления включены';
+    button.disabled = true;
+    toast('Готово — уведомления о новых уроках будут приходить сюда.');
+  } catch (error) {
+    // Показываем текст браузера как есть: он часто объясняет причину точнее,
+    // чем любая наша догадка.
+    toast(`Не удалось включить уведомления: ${error.message}`, true);
+  }
 }
 
 const notificationsButton = document.querySelector('[data-notifications]');
