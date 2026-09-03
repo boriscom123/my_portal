@@ -43,6 +43,12 @@ test('имя бота читается и очищается от собаки',
   assert.equal(loadConfig(minimal).telegram.botUsername, '');
 });
 
+test('номер бота выделяется из токена', () => {
+  const config = loadConfig({ ...minimal, TELEGRAM_BOT_TOKEN: '123456789:AAA-секрет' });
+  assert.equal(config.telegram.botId, '123456789');
+  assert.equal(loadConfig(minimal).telegram.botId, '');
+});
+
 test('пустой список админов не даёт пустых пар', () => {
   assert.deepEqual(loadConfig(minimal).adminIdentities, []);
 });

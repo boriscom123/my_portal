@@ -6,38 +6,28 @@ import { escapeHtml } from '../lib/html.js';
 import { layout } from './layout.js';
 
 /**
- * Виджет Telegram — чужой скрипт: он сам рисует кнопку и зовёт нашу функцию
- * с подписанными данными. Показываем его только когда бот настроен: иначе на
- * странице висела бы кнопка, которая ничего не делает.
+ * Ссылка входа через Telegram.
+ *
+ * Ведёт на страницу подтверждения Telegram и возвращает человека к нам с
+ * ответом в якоре адреса. Зачем не официальный виджет: виджет — чужой iframe,
+ * и в приложении с домашнего экрана он появляется через раз. Обычный переход
+ * работает везде одинаково и выглядит как остальные кнопки портала.
+ * Вызывается из loginPage.
  */
-function telegramWidget(botUsername) {
-  if (!botUsername) {
-    return '<p class="hint">Вход через Telegram пока не настроен.</p>';
-  }
-  // Обработчик объявляется здесь, обычным скриптом, ДО подключения виджета.
-  // Раньше он жил в app.js — модуле, который выполняется после разбора
-  // страницы; виджет успевал вызвать ещё не существующую функцию, и первое
-  // нажатие уходило в никуда молча. Данные складываются в очередь, а забирает
-  // их app.js, когда загрузится.
-  return `<div id="telegram-widget">
-  <script>
-    window.pendingTelegramAuth = null;
-    window.onTelegramAuth = function (user) {
-      if (window.signInWithTelegram) window.signInWithTelegram(user);
-      else window.pendingTelegramAuth = user;
-    };
-  </script>
-  <script async src="https://telegram.org/js/telegram-widget.js?22"
-    data-telegram-login="${escapeHtml(botUsername)}"
-    data-size="large"
-    data-radius="12"
-    data-onauth="onTelegramAuth(user)"
-    data-request-access="write"></script>
-</div>`;
+function telegramLoginUrl(config) {
+  const параметры = new URLSearchParams({
+    bot_id: config.telegram.botId,
+    origin: config.publicBaseUrl,
+    // Разрешение писать нужно, чтобы бот мог доставлять уведомления тем,
+    // у кого нет установленного приложения.
+    request_access: 'write',
+    return_to: `${config.publicBaseUrl}/auth/telegram/return`
+  });
+  return `https://oauth.telegram.org/auth?${параметры}`;
 }
 
 export function loginPage({ config, user = null }) {
-  const telegramEnabled = Boolean(config.telegram?.botToken && config.telegram?.botUsername);
+  const telegramEnabled = Boolean(config.telegram?.botToken && config.telegram?.botId);
 
   return layout({
     config,
@@ -54,7 +44,11 @@ export function loginPage({ config, user = null }) {
 
   <div class="card login-methods">
     <a class="button-brand" href="/api/auth/google">Войти через Google</a>
-    ${telegramEnabled ? telegramWidget(config.telegram.botUsername) : telegramWidget('')}
+    ${
+      telegramEnabled
+        ? `<a class="button" href="${escapeHtml(telegramLoginUrl(config))}">Войти через Telegram</a>`
+        : '<p class="hint">Вход через Telegram пока не настроен.</p>'
+    }
 
     <div class="divider">скоро</div>
     <div class="soon">

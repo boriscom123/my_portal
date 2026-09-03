@@ -46,34 +46,6 @@ export async function request(url, options = {}) {
   return res.json();
 }
 
-/**
- * Завершает вход через виджет Telegram.
- * Живёт в window, потому что зовётся из разметки страницы входа. Молчать при
- * неудаче нельзя: человек нажал кнопку и обязан узнать, что произошло, —
- * прежняя версия при сбое просто ничего не делала.
- * Вызывается из onTelegramAuth в src/views/login.js.
- */
-window.signInWithTelegram = async (user) => {
-  try {
-    const answer = await request('/api/auth/telegram', {
-      method: 'POST',
-      body: JSON.stringify(user)
-    });
-    if (answer) location.href = '/';
-  } catch (error) {
-    toast(`Войти не удалось: ${error.message}. Попробуйте ещё раз.`, true);
-  }
-};
-
-// Если виджет успел сработать до загрузки этого модуля, данные ждут в очереди.
-if (window.pendingTelegramAuth) window.signInWithTelegram(window.pendingTelegramAuth);
-
-// Выход. Кука httpOnly, скриптом её не стереть — гасит её сервер.
-document.querySelector('[data-logout]')?.addEventListener('click', async () => {
-  await request('/api/auth/logout', { method: 'POST' });
-  location.href = '/';
-});
-
 /* --- Уведомления --------------------------------------------------------
  * Кнопка появляется только там, где подписка вообще возможна: у гостя её нет,
  * без ключей на сервере — тоже, а на iOS Web Push работает лишь в приложении,

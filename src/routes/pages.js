@@ -5,6 +5,7 @@ import { Router } from 'express';
 import { loginPage } from '../views/login.js';
 import { stubPage } from '../views/stub.js';
 import { offlinePage } from '../views/offline.js';
+import { telegramReturnPage } from '../views/telegram-return.js';
 import { feedPage } from '../views/feed.js';
 import { lessonPage } from '../views/lesson.js';
 import { ideasPage } from '../views/ideas.js';
@@ -88,6 +89,11 @@ export function pageRoutes(config, pool) {
     const user = await currentUser(pool, req);
     const ideas = await listIdeas(pool, { viewerId: req.user?.id ?? null });
     res.type('html').send(ideasPage({ config, ideas, user }));
+  });
+
+  // Telegram возвращает человека сюда после подтверждения входа.
+  router.get('/auth/telegram/return', (req, res) => {
+    res.type('html').send(telegramReturnPage(config));
   });
 
   router.get('/offline', (req, res) => {

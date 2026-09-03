@@ -30,24 +30,24 @@ test('страница входа отдаётся как HTML', async () => {
 test('видны оба способа и объяснение про один аккаунт', async () => {
   const r = await openPage({
     ...base,
-    telegram: { botToken: 'т', botUsername: 'solo_ai_journey_bot' }
+    telegram: { botToken: '123:секрет', botId: '123', botUsername: 'solo_ai_journey_bot' }
   });
   assert.match(r.html, /Войти через Google/);
+  assert.match(r.html, /Войти через Telegram/);
   assert.match(r.html, /один и тот же аккаунт/);
-  assert.match(r.html, /telegram-widget\.js/);
-  assert.match(r.html, /data-telegram-login="solo_ai_journey_bot"/);
+  assert.match(r.html, /oauth\.telegram\.org/);
 });
 
-test('без настроенного бота виджет не показывается', async () => {
-  const r = await openPage({ ...base, telegram: { botToken: '', botUsername: '' } });
-  assert.ok(!r.html.includes('telegram-widget.js'));
+test('без настроенного бота ссылки нет', async () => {
+  const r = await openPage({ ...base, telegram: { botToken: '', botId: '', botUsername: '' } });
+  assert.ok(!r.html.includes('oauth.telegram.org'));
   assert.match(r.html, /пока не настроен/);
 });
 
-test('имя бота экранируется', async () => {
+test('чужие символы в номере бота не ломают разметку', async () => {
   const r = await openPage({
     ...base,
-    telegram: { botToken: 'т', botUsername: '"><script>alert(1)</script>' }
+    telegram: { botToken: 'т', botId: '"><script>alert(1)</script>', botUsername: '' }
   });
   assert.ok(!r.html.includes('<script>alert(1)</script>'));
 });

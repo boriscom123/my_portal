@@ -67,6 +67,9 @@ export function loadConfig(env = process.env) {
       // токен секретный и в разметку попасть не может. Без имени виджета не
       // будет, даже если токен задан.
       botUsername: (env.TELEGRAM_BOT_USERNAME ?? '').replace(/^@/, ''),
+      // Номер бота — часть токена до двоеточия. Секретной является вторая
+      // половина, а номер нужен ссылке входа и виден в любом виджете.
+      botId: (env.TELEGRAM_BOT_TOKEN ?? '').split(':')[0],
       channelId: env.TELEGRAM_CHANNEL_ID ?? ''
     },
     google: {
