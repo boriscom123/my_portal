@@ -67,7 +67,9 @@
 
 | Вопрос | Решение | Почему |
 |---|---|---|
-| Как исходник попадает на сервер | **Два пути: ссылка на Яндекс Диск и загрузка из браузера.** Кусками по 8 МБ, с продолжением после обрыва | Решение заказчика от 2026-09-03, оба пути. Ссылка снимает главное узкое место — домашний исходящий канал: сервер забирает файл из дата-центра, а не с домашнего интернета. Она же даёт архив исходников, которого у портала нет и быть не должно, и делает автоудаление буфера безопасным — оригинал остаётся у заказчика. Загрузка из браузера остаётся запасным путём: для мелких файлов и когда Диска под рукой нет |
+| Как исходник попадает на сервер | **Два пути: Яндекс Диск по OAuth и загрузка из браузера.** Кусками по 8 МБ, с продолжением после обрыва | Решение заказчика от 2026-09-03, оба пути. Диск снимает главное узкое место — домашний исходящий канал: сервер забирает файл из дата-центра, а не с домашнего интернета. Он же даёт архив исходников, которого у портала нет и быть не должно, и делает автоудаление буфера безопасным — оригинал остаётся у заказчика. Загрузка из браузера остаётся запасным путём |
+| Доступ к Диску — OAuth или публичная ссылка | **OAuth.** Заказчик завёл приложение 2026-09-03 | Изначально в плане стояла публичная ссылка — чтобы не просить доступ ко всему Диску. Заказчик выбрал OAuth, и это оказалось правильнее: публичная ссылка делает **невышедший** урок доступным всякому, кто её увидит, а токен — нет. Плюс появляется выбор файла списком прямо в кабинете. Цена: токен нужно хранить, а значит шифровать |
+| Где хранится токен Диска | В базе, зашифрованным ключом `TOKEN_ENCRYPTION_KEY` | Требование спеки к токенам площадок, здесь то же самое: чужой долгоживущий токен открытым текстом в базе — это доступ к диску заказчика для всякого, кто получит дамп |
 | Чем расшифровывать | **Яндекс SpeechKit** асинхронным распознаванием | Умолчание спеки: сервер российский, оплата рублями, качество на русской речи хорошее. Заказчик подтвердил 2026-09-03: «подключим что-то по API» |
 | Как сервис получает звук | Временная ссылка на наш же сервер, живёт час | SpeechKit забирает файл по HTTPS сам. Иначе понадобилось бы Object Storage — лишний сервис ради одного файла |
 | Чем генерировать тексты | **YandexGPT** | Тот же аккаунт и тот же ключ, что у расшифровки |
@@ -1331,139 +1333,406 @@ git add src/views/admin-upload.js public/admin.js src/routes/pages.js \
 git commit -m "feat: страница загрузки исходника в кабинете"
 ```
 
-### Задача 5а: Загрузка по ссылке с Яндекс Диска
+### Задача 5а: Подключение Яндекс Диска и выбор файла
 
-Добавлена 2026-09-03 по решению заказчика: путей загрузки два.
+Переписана 2026-09-03: заказчик завёл приложение в Яндекс OAuth, поэтому вместо
+публичной ссылки — доступ по токену. Так невышедший урок не приходится делать
+доступным всякому, кто увидит ссылку.
 
 **Файлы:**
-- Создать: `src/services/disk.js`, `src/jobs/fetch-source.js`, `test/disk.test.js`
-- Изменить: `src/routes/upload.js`, `src/views/admin-upload.js`, `public/admin.js`
+- Создать: `migrations/010_integrations.sql`, `src/lib/secrets.js`,
+  `src/services/disk.js`, `src/routes/integrations.js`,
+  `src/jobs/fetch-source.js`, `test/secrets.test.js`, `test/disk.test.js`
+- Изменить: `src/config.js`, `src/app.js`, `src/views/admin-upload.js`,
+  `public/admin.js`, `.env.example`
 
 **Интерфейсы:**
-- Отдаёт дальше: `resolvePublicLink(url, fetchImpl)` → прямой адрес файла и
-  имя; `POST /api/upload/from-link` → ставит задачу `fetchSource`;
-  обработчик `fetchSource({ lessonId, url })` — качает файл в буфер и ставит
-  `extractAudio`.
+- Отдаёт дальше: `encryptSecret(text, key)` / `decryptSecret(box, key)`;
+  `saveIntegration(pool, config, { name, token, expiresAt })`,
+  `loadIntegration(pool, config, name)` → `{ token }` или `null`;
+  `listDiskFiles(token, path, fetchImpl)` → `[{ name, path, bytes, modified }]`;
+  `diskDownloadUrl(token, path, fetchImpl)` → прямой адрес;
+  `GET /api/integrations/yandex-disk/connect`,
+  `GET /api/integrations/yandex-disk/callback`,
+  `GET /api/integrations/yandex-disk/files?path=…`;
+  обработчик `fetchSource({ lessonId, diskPath })`.
 
-- [ ] **Шаг 1: Написать падающий тест**
+- [ ] **Шаг 1: Написать падающий тест на шифрование**
 
-`test/disk.test.js`:
+`test/secrets.test.js`:
 
 ```js
-// Публичная ссылка Яндекс Диска — это страница, а не файл. Прямой адрес
-// выдаёт открытый API по ключу ссылки; ключом служит она сама.
+// Шифрование чужих токенов. Токен Диска — это доступ ко всему диску
+// заказчика: открытым текстом в базе он превращает любой дамп в утечку.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolvePublicLink, isDiskLink } from '../src/services/disk.js';
+import { encryptSecret, decryptSecret } from '../src/lib/secrets.js';
 
-test('ссылка Диска узнаётся, чужая — нет', () => {
-  assert.equal(isDiskLink('https://disk.yandex.ru/i/abc123'), true);
-  assert.equal(isDiskLink('https://yadi.sk/i/abc123'), true);
-  assert.equal(isDiskLink('https://example.com/file.mp4'), false);
+const key = 'a'.repeat(64); // 32 байта в hex
+
+test('зашифрованное расшифровывается обратно', () => {
+  const box = encryptSecret('секретный токен', key);
+  assert.equal(decryptSecret(box, key), 'секретный токен');
 });
 
-test('публичная ссылка превращается в прямую', async () => {
-  const fetchStub = async (url) => {
-    assert.match(String(url), /cloud-api\.yandex\.net/);
-    // Ключом служит сама публичная ссылка — так устроен их API.
-    assert.match(String(url), /public_key=https%3A%2F%2Fdisk\.yandex\.ru%2Fi%2Fabc123/);
-    return { ok: true, json: async () => ({ href: 'https://downloader/файл.mp4?token=1' }) };
-  };
-  const direct = await resolvePublicLink('https://disk.yandex.ru/i/abc123', fetchStub);
-  assert.equal(direct.url, 'https://downloader/файл.mp4?token=1');
+test('в шифротексте нет исходного текста', () => {
+  assert.ok(!encryptSecret('секретный токен', key).includes('секретный'));
 });
 
-test('прямая ссылка на файл берётся как есть', async () => {
-  // Не всё лежит на Диске: обычный адрес файла тоже должен работать, без
-  // похода в чужой API.
-  const direct = await resolvePublicLink('https://example.com/урок.mp4', async () => {
-    throw new Error('в сеть ходить не должны');
-  });
-  assert.equal(direct.url, 'https://example.com/урок.mp4');
+test('два шифрования одного текста дают разное', () => {
+  // Одинаковый шифротекст выдавал бы, что два урока используют один токен.
+  assert.notEqual(encryptSecret('один', key), encryptSecret('один', key));
 });
 
-test('отказ Диска объясняется, а не глотается', async () => {
-  const fetchStub = async () => ({ ok: false, status: 404, text: async () => 'not found' });
-  await assert.rejects(
-    resolvePublicLink('https://disk.yandex.ru/i/нет', fetchStub),
-    /404|Диск/
-  );
+test('чужой ключ не расшифровывает', () => {
+  const box = encryptSecret('секрет', key);
+  assert.throws(() => decryptSecret(box, 'b'.repeat(64)));
+});
+
+test('подмена шифротекста замечается', () => {
+  // Без проверки подлинности можно было бы подменить токен на свой.
+  const box = encryptSecret('секрет', key);
+  const broken = box.slice(0, -4) + 'ffff';
+  assert.throws(() => decryptSecret(broken, key));
 });
 ```
 
 - [ ] **Шаг 2: Убедиться, что тест падает**
 
-Выполнить: `node --test test/disk.test.js`
+Выполнить: `node --test test/secrets.test.js`
 Ожидается: FAIL — модуль не найден.
 
-- [ ] **Шаг 3: Написать `src/services/disk.js`**
+- [ ] **Шаг 3: Написать `src/lib/secrets.js`**
 
 ```js
-// Получение исходника по публичной ссылке.
+// Шифрование чужих токенов перед записью в базу.
 //
-// Задача — превратить ссылку, которой заказчик поделился из Яндекс Диска, в
-// прямой адрес файла. Зачем: гигабайтный файл с домашнего канала идёт
-// десятками минут и рвётся, а из дата-центра в дата-центр — минуты. Плюс у
-// заказчика остаётся архив исходников, которого у портала нет и быть не
-// должно — автоудаление буфера от этого перестаёт быть страшным.
+// Задача — хранить токен доступа так, чтобы дамп базы не был утечкой. Токен
+// Яндекс Диска — это доступ ко всему диску заказчика; на этапе 7 рядом лягут
+// токены площадок, и правило спеки для них то же.
 //
-// Зачем без OAuth: публичная ссылка разворачивается открытым API, и доступа
-// ко всему диску для этого не нужно. Просить у человека доступ ко всему
-// хранилищу ради одного файла — плохой размен.
-// Вызывается из src/jobs/fetch-source.js.
+// AES-256-GCM: он одновременно шифрует и подписывает, поэтому подмена
+// шифротекста замечается, а не расшифровывается в мусор. Случайный вектор на
+// каждое шифрование — иначе одинаковые токены давали бы одинаковый шифротекст.
+// Вызывается из src/services/disk.js и, с этапа 7, из адаптеров площадок.
+import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 
-const RESOLVE_URL = 'https://cloud-api.yandex.net/v1/disk/public/resources/download';
+const ALGORITHM = 'aes-256-gcm';
+const IV_BYTES = 12; // Рекомендованная длина вектора для GCM.
 
-/** Похожа ли ссылка на публичную ссылку Яндекс Диска. */
-export function isDiskLink(url) {
-  return /^https:\/\/(disk\.yandex\.[a-z]+|yadi\.sk)\//.test(String(url));
+function keyBytes(hexKey) {
+  const key = Buffer.from(String(hexKey), 'hex');
+  if (key.length !== 32) throw new Error('TOKEN_ENCRYPTION_KEY должен быть 32 байта в hex');
+  return key;
 }
 
-/**
- * Возвращает прямой адрес файла.
- * Для ссылки Диска спрашивает у их API, для любой другой — отдаёт как есть:
- * не всё лежит на Диске, и обычный адрес файла тоже должен работать.
- */
-export async function resolvePublicLink(url, fetchImpl = fetch) {
-  if (!isDiskLink(url)) return { url: String(url) };
+/** Возвращает строку вида вектор:метка:шифротекст, всё в hex. */
+export function encryptSecret(text, hexKey) {
+  const iv = randomBytes(IV_BYTES);
+  const cipher = createCipheriv(ALGORITHM, keyBytes(hexKey), iv);
+  const encrypted = Buffer.concat([cipher.update(String(text), 'utf8'), cipher.final()]);
+  return [iv.toString('hex'), cipher.getAuthTag().toString('hex'), encrypted.toString('hex')].join(
+    ':'
+  );
+}
 
-  const response = await fetchImpl(`${RESOLVE_URL}?public_key=${encodeURIComponent(url)}`);
-  if (!response.ok) {
-    const body = await response.text().catch(() => '');
-    throw new Error(`Диск не отдал файл: ${response.status} ${body.slice(0, 200)}`);
-  }
-  const body = await response.json();
-  if (!body.href) throw new Error('Диск не вернул прямой ссылки');
-  return { url: body.href };
+/** Обратная операция. Бросает, если ключ чужой или шифротекст подменён. */
+export function decryptSecret(box, hexKey) {
+  const [iv, tag, data] = String(box).split(':');
+  const decipher = createDecipheriv(ALGORITHM, keyBytes(hexKey), Buffer.from(iv, 'hex'));
+  decipher.setAuthTag(Buffer.from(tag, 'hex'));
+  return Buffer.concat([decipher.update(Buffer.from(data, 'hex')), decipher.final()]).toString(
+    'utf8'
+  );
 }
 ```
 
-- [ ] **Шаг 4: Написать `src/jobs/fetch-source.js`**
+- [ ] **Шаг 4: Миграция для хранения подключений**
+
+`migrations/010_integrations.sql`:
+
+```sql
+-- Подключения к чужим сервисам: Яндекс Диск сейчас, площадки с этапа 7.
+--
+-- Токен лежит зашифрованным: он даёт доступ к диску заказчика, и открытым
+-- текстом любой дамп базы становится утечкой. Ключ живёт в окружении, поэтому
+-- дамп без него бесполезен.
+-- Читается из src/services/disk.js.
+CREATE TABLE integrations (
+  -- Имя сервиса: одно подключение на сервис, потому что автор один.
+  name         text PRIMARY KEY,
+  token        text NOT NULL,
+  refresh_token text,
+  expires_at   timestamptz,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at   timestamptz NOT NULL DEFAULT now()
+);
+```
+
+- [ ] **Шаг 5: Написать падающий тест на Диск**
+
+`test/disk.test.js`:
 
 ```js
-// Шаг конвейера: скачать исходник по ссылке.
+// Работа с Яндекс Диском по токену. В сеть не ходим: fetch подставляется.
+// Проверяем разбор ответов и то, что токен не утекает в разметку и в журнал.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { listDiskFiles, diskDownloadUrl, isVideo } from '../src/services/disk.js';
+
+test('из списка отбираются только видео', () => {
+  assert.equal(isVideo({ name: 'urok.mp4', media_type: 'video' }), true);
+  assert.equal(isVideo({ name: 'zametki.txt', media_type: 'text' }), false);
+  // Диск не всегда проставляет media_type — тогда судим по расширению.
+  assert.equal(isVideo({ name: 'urok.mkv' }), true);
+});
+
+test('список файлов разбирается', async () => {
+  const fetchStub = async (url, options) => {
+    assert.match(options.headers.Authorization, /^OAuth /);
+    assert.match(String(url), /resources\?path=/);
+    return {
+      ok: true,
+      json: async () => ({
+        _embedded: {
+          items: [
+            { name: 'urok.mp4', path: 'disk:/video/urok.mp4', size: 100, media_type: 'video',
+              modified: '2026-09-03T10:00:00Z', type: 'file' },
+            { name: 'zametki.txt', path: 'disk:/video/zametki.txt', size: 10,
+              media_type: 'text', type: 'file' }
+          ]
+        }
+      })
+    };
+  };
+  const files = await listDiskFiles('токен', 'disk:/video', fetchStub);
+  assert.equal(files.length, 1);
+  assert.equal(files[0].name, 'urok.mp4');
+  assert.equal(files[0].bytes, 100);
+});
+
+test('прямая ссылка на скачивание берётся у Диска', async () => {
+  const fetchStub = async (url) => {
+    assert.match(String(url), /resources\/download\?path=/);
+    return { ok: true, json: async () => ({ href: 'https://downloader/file?t=1' }) };
+  };
+  assert.equal(await diskDownloadUrl('токен', 'disk:/video/urok.mp4', fetchStub), 'https://downloader/file?t=1');
+});
+
+test('отказ Диска объясняется, но токен в объяснение не попадает', async () => {
+  const fetchStub = async () => ({ ok: false, status: 401, text: async () => 'unauthorized' });
+  await assert.rejects(listDiskFiles('секретный-токен', 'disk:/', fetchStub), (error) => {
+    assert.match(error.message, /401/);
+    // Текст ошибки уходит в журнал и на экран: токена там быть не должно.
+    assert.ok(!error.message.includes('секретный-токен'));
+    return true;
+  });
+});
+```
+
+- [ ] **Шаг 6: Написать `src/services/disk.js`**
+
+```js
+// Доступ к Яндекс Диску заказчика.
+//
+// Задача — показать список видео и отдать прямую ссылку на скачивание. Зачем
+// по токену, а не по публичной ссылке: публичная ссылка делает невышедший
+// урок доступным всякому, кто её увидит. Токен этого не требует, а заодно
+// позволяет выбирать файл списком, а не копировать адреса.
+// Вызывается из src/routes/integrations.js и src/jobs/fetch-source.js.
+import { encryptSecret, decryptSecret } from '../lib/secrets.js';
+
+const API = 'https://cloud-api.yandex.net/v1/disk';
+
+// Расширения, по которым узнаём видео, когда Диск не проставил media_type.
+const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.mkv', '.avi', '.webm', '.m4v'];
+
+/** Видео ли это. Диск не всегда проставляет тип — тогда судим по расширению. */
+export function isVideo(item) {
+  if (item.media_type === 'video') return true;
+  return VIDEO_EXTENSIONS.some((ext) => String(item.name).toLowerCase().endsWith(ext));
+}
+
+/**
+ * Общий разбор отказа.
+ * Токен в сообщение не попадает намеренно: оно уходит и в журнал, и на экран.
+ */
+async function failure(response, what) {
+  const body = await response.text().catch(() => '');
+  throw new Error(`${what}: ${response.status} ${body.slice(0, 200)}`);
+}
+
+function headers(token) {
+  return { Authorization: `OAuth ${token}` };
+}
+
+/** Список видео в папке Диска. */
+export async function listDiskFiles(token, diskPath, fetchImpl = fetch) {
+  const url = `${API}/resources?path=${encodeURIComponent(diskPath)}&limit=200&sort=-modified`;
+  const response = await fetchImpl(url, { headers: headers(token) });
+  if (!response.ok) await failure(response, 'Диск не отдал список файлов');
+
+  const body = await response.json();
+  return (body._embedded?.items ?? [])
+    .filter((item) => item.type === 'file' && isVideo(item))
+    .map((item) => ({
+      name: item.name,
+      path: item.path,
+      bytes: Number(item.size ?? 0),
+      modified: item.modified ?? null
+    }));
+}
+
+/** Прямая ссылка на скачивание. Живёт недолго — берём её перед самой закачкой. */
+export async function diskDownloadUrl(token, diskPath, fetchImpl = fetch) {
+  const url = `${API}/resources/download?path=${encodeURIComponent(diskPath)}`;
+  const response = await fetchImpl(url, { headers: headers(token) });
+  if (!response.ok) await failure(response, 'Диск не отдал ссылку на скачивание');
+  const body = await response.json();
+  if (!body.href) throw new Error('Диск не вернул прямой ссылки');
+  return body.href;
+}
+
+/** Сохраняет токен подключения зашифрованным. */
+export async function saveIntegration(pool, config, { name, token, refreshToken, expiresAt }) {
+  await pool.query(
+    `INSERT INTO integrations (name, token, refresh_token, expires_at)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (name) DO UPDATE SET token = EXCLUDED.token,
+                                      refresh_token = EXCLUDED.refresh_token,
+                                      expires_at = EXCLUDED.expires_at,
+                                      updated_at = now()`,
+    [
+      name,
+      encryptSecret(token, config.tokenEncryptionKey),
+      refreshToken ? encryptSecret(refreshToken, config.tokenEncryptionKey) : null,
+      expiresAt ?? null
+    ]
+  );
+}
+
+/** Достаёт токен подключения. null, если сервис не подключён. */
+export async function loadIntegration(pool, config, name) {
+  const { rows } = await pool.query(
+    'SELECT token, refresh_token, expires_at FROM integrations WHERE name = $1',
+    [name]
+  );
+  if (!rows.length) return null;
+  return {
+    token: decryptSecret(rows[0].token, config.tokenEncryptionKey),
+    refreshToken: rows[0].refresh_token
+      ? decryptSecret(rows[0].refresh_token, config.tokenEncryptionKey)
+      : null,
+    expiresAt: rows[0].expires_at
+  };
+}
+```
+
+- [ ] **Шаг 7: Маршруты подключения**
+
+`src/routes/integrations.js` — три маршрута под `requireAdmin`:
+
+```js
+// Подключение чужих сервисов к порталу.
+//
+// Задача — провести автора через согласие Яндекса и сохранить токен. Зачем
+// отдельным файлом от routes/auth.js: там вход людей на портал, здесь доступ
+// портала к чужому хранилищу — разные вещи с разными правилами.
+// Подключается в src/app.js по префиксу /api/integrations.
+import { Router } from 'express';
+import { requireAdmin } from '../middleware/guards.js';
+import { PublicError } from '../middleware/errors.js';
+import { signShortLived, verifyShortLived } from '../lib/jwt.js';
+import { saveIntegration, loadIntegration, listDiskFiles } from '../services/disk.js';
+
+const AUTHORIZE_URL = 'https://oauth.yandex.ru/authorize';
+const TOKEN_URL = 'https://oauth.yandex.ru/token';
+const STATE_TTL_SECONDS = 600;
+
+export function integrationRoutes(config, pool) {
+  const router = Router();
+  router.use(requireAdmin);
+
+  router.get('/yandex-disk/connect', (req, res) => {
+    if (!config.yandexOauth.clientId) throw new PublicError('Приложение Яндекса не настроено', 503);
+    const state = signShortLived({ purpose: 'yandex-disk' }, config.jwtSecret, STATE_TTL_SECONDS);
+    const params = new URLSearchParams({
+      response_type: 'code',
+      client_id: config.yandexOauth.clientId,
+      redirect_uri: `${config.publicBaseUrl}/api/integrations/yandex-disk/callback`,
+      state
+    });
+    res.redirect(`${AUTHORIZE_URL}?${params}`);
+  });
+
+  router.get('/yandex-disk/callback', async (req, res) => {
+    const state = verifyShortLived(String(req.query.state ?? ''), config.jwtSecret);
+    if (state?.purpose !== 'yandex-disk') throw new PublicError('Ссылка возврата устарела', 400);
+
+    const response = await fetch(TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: String(req.query.code ?? ''),
+        client_id: config.yandexOauth.clientId,
+        client_secret: config.yandexOauth.clientSecret
+      })
+    });
+    if (!response.ok) throw new PublicError('Яндекс не выдал токен', 502);
+    const body = await response.json();
+
+    await saveIntegration(pool, config, {
+      name: 'yandex-disk',
+      token: body.access_token,
+      refreshToken: body.refresh_token,
+      expiresAt: body.expires_in ? new Date(Date.now() + body.expires_in * 1000) : null
+    });
+    res.redirect('/admin/upload');
+  });
+
+  router.get('/yandex-disk/files', async (req, res) => {
+    const integration = await loadIntegration(pool, config, 'yandex-disk');
+    if (!integration) throw new PublicError('Диск не подключён', 409);
+    const path = String(req.query.path ?? 'disk:/');
+    res.json({ files: await listDiskFiles(integration.token, path) });
+  });
+
+  return router;
+}
+```
+
+- [ ] **Шаг 8: Шаг скачивания `src/jobs/fetch-source.js`**
+
+```js
+// Шаг конвейера: забрать исходник с Диска.
 //
 // Задача — положить файл в буфер и запустить обработку. Зачем отдельным
-// шагом, а не прямо в маршруте: скачивание гигабайтного файла идёт минутами,
-// а HTTP-запрос столько не живёт — человек закроет вкладку и не узнает, чем
+// шагом, а не прямо в маршруте: скачивание гигабайтного файла идёт минутами, а
+// HTTP-запрос столько не живёт — человек закроет вкладку и не узнает, чем
 // кончилось.
 // Вызывается воркером по имени JOBS.fetchSource.
 import { createWriteStream } from 'node:fs';
 import { mkdir, stat } from 'node:fs/promises';
 import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
+import path from 'node:path';
 import { mediaPath, registerAsset } from '../services/media.js';
-import { resolvePublicLink } from '../services/disk.js';
+import { loadIntegration, diskDownloadUrl } from '../services/disk.js';
 
 export function makeFetchSource(config, pool, queue, fetchImpl = fetch) {
-  return async ({ lessonId, url }) => {
-    const direct = await resolvePublicLink(url, fetchImpl);
-    const response = await fetchImpl(direct.url);
+  return async ({ lessonId, diskPath }) => {
+    const integration = await loadIntegration(pool, config, 'yandex-disk');
+    if (!integration) throw new Error('Яндекс Диск не подключён');
+
+    // Ссылку берём перед самой закачкой: она живёт недолго.
+    const href = await diskDownloadUrl(integration.token, diskPath, fetchImpl);
+    const response = await fetchImpl(href);
     if (!response.ok) throw new Error(`Файл не скачался: ${response.status}`);
 
     const dir = `lesson-${lessonId}`;
     await mkdir(mediaPath(config, dir), { recursive: true });
-    const relative = `${dir}/source.mp4`;
+    const relative = `${dir}/${path.basename(diskPath).replace(/[^\w.-]+/g, '_')}`;
 
     // Потоком: гигабайтный файл в память не помещается, а её здесь полтора
     // гигабайта на всю машину.
@@ -1477,7 +1746,8 @@ export function makeFetchSource(config, pool, queue, fetchImpl = fetch) {
       bytes: size
     });
     await pool.query(
-      `UPDATE lessons SET source_asset_id = $1, pipeline_state = 'processing' WHERE id = $2`,
+      `UPDATE lessons SET source_asset_id = $1, pipeline_state = 'processing', pipeline_error = NULL
+        WHERE id = $2`,
       [asset.id, lessonId]
     );
 
@@ -1487,56 +1757,38 @@ export function makeFetchSource(config, pool, queue, fetchImpl = fetch) {
 }
 ```
 
-- [ ] **Шаг 5: Маршрут и поле в кабинете**
+- [ ] **Шаг 9: Выбор файла в кабинете**
 
-В `src/routes/upload.js`:
+В `src/views/admin-upload.js` — вкладка «С Яндекс Диска»: кнопка «Подключить»,
+если не подключён, иначе список видео с кнопкой «Взять в обработку». Список
+подтягивается запросом к `/api/integrations/yandex-disk/files`.
 
-```js
-  // Загрузка по ссылке. Работа идёт в воркере, поэтому маршрут только ставит
-  // задачу и сразу отвечает: скачивание гигабайта в запрос не укладывается.
-  router.post('/from-link', async (req, res) => {
-    const { lessonId, url } = req.body ?? {};
-    if (!lessonId || !url) throw new PublicError('Не указан урок или ссылка');
-    await pool.query(`UPDATE lessons SET pipeline_state = 'uploading' WHERE id = $1`, [lessonId]);
-    await req.app.locals.queue.add('fetchSource', { lessonId, url: String(url) });
-    res.json({ ok: true });
-  });
-```
+В `public/admin.js` — обработчик выбора файла: `POST /api/upload/from-disk`
+с `{ lessonId, diskPath }`, который ставит задачу `fetchSource`.
 
-В `src/views/admin-upload.js` — второе поле рядом с выбором файла:
+- [ ] **Шаг 10: Убедиться, что тесты проходят**
 
-```html
-<fieldset>
-  <legend>Откуда брать файл</legend>
-  <label>Ссылка с Яндекс Диска
-    <input name="link" type="url" placeholder="https://disk.yandex.ru/i/…">
-    <span class="hint">Быстрее: сервер заберёт файл сам, ноутбук можно закрыть.</span>
-  </label>
-  <label>Или файл с компьютера
-    <input type="file" name="file" accept="video/*">
-  </label>
-</fieldset>
-```
+Выполнить: `npm test && npm run lint`
+Ожидается: всё зелёное.
 
-В `public/admin.js` — при заполненной ссылке отправляем её, иначе грузим файл.
+- [ ] **Шаг 11: Проверить на живом Диске**
 
-- [ ] **Шаг 6: Убедиться, что тесты проходят**
+1. В кабинете приложения Яндекса указать адрес возврата
+   `https://<адрес портала>/api/integrations/yandex-disk/callback`.
+2. Открыть `/admin/upload`, нажать «Подключить Диск», согласиться.
+3. Убедиться, что в базе токен лежит **зашифрованным**:
+   `SELECT left(token, 40) FROM integrations;` — должно быть три группы hex
+   через двоеточие, а не читаемая строка.
+4. Выбрать короткий ролик из списка, запустить обработку, посмотреть журнал
+   воркера.
 
-Выполнить: `npm test`
-Ожидается: все PASS.
-
-- [ ] **Шаг 7: Проверить на настоящей ссылке**
-
-Положить короткий ролик на Яндекс Диск, открыть доступ по ссылке, вставить её
-в кабинете. В журнале воркера — «Задача fetchSource выполнена», файл появился
-в буфере, конвейер пошёл дальше.
-
-- [ ] **Шаг 8: Коммит**
+- [ ] **Шаг 12: Коммит**
 
 ```bash
-git add src/services/disk.js src/jobs/fetch-source.js src/routes/upload.js \
-        src/views/admin-upload.js public/admin.js test/disk.test.js
-git commit -m "feat: загрузка исходника по ссылке с Яндекс Диска"
+git add migrations/010_integrations.sql src/lib/secrets.js src/services/disk.js \
+        src/routes/integrations.js src/jobs/fetch-source.js src/views/admin-upload.js \
+        public/admin.js src/config.js src/app.js test/secrets.test.js test/disk.test.js
+git commit -m "feat: подключение Яндекс Диска и выбор исходника списком"
 ```
 
 ### Задача 6: Запуск ffmpeg и извлечение звука
