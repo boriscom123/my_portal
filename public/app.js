@@ -1,3 +1,5 @@
+import { keyToBytes } from './push-key.js';
+
 /* Клиент портала: ванильный JS, без сборки.
  *
  * Задача — оживить серверные страницы: отправить данные виджета входа,
@@ -90,29 +92,11 @@ export async function request(url, options = {}) {
  * установленном на домашний экран. Мёртвая кнопка хуже отсутствующей. */
 
 /**
- * Переводит публичный ключ VAPID из base64url в байты.
- * Зачем: браузер принимает applicationServerKey только массивом байт, а сервер
- * отдаёт строку. Это самое частое место, где подписка молча не оформляется.
- * Вызывается только из включитьУведомления.
- */
-function keyToBytes(base64url) {
-  const base64 = (base64url + '='.repeat((4 - (base64url.length % 4)) % 4))
-    .replace(/-/g, '+')
-    .replace(/_/g, '/');
-  return Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
-}
-
-/**
- * Оформляет подписку на пуши. Вызывается по нажатию, а не сама: запрос
- * разрешения без действия человека браузеры отклоняют, а Safari запоминает
- * отказ надолго — второго шанса спросить не будет.
- */
-/**
  * Открыт ли портал как установленное приложение.
  * Зачем проверять: на iPhone Web Push работает ТОЛЬКО в приложении с
  * домашнего экрана. В самом Safari разрешение спрашивается, человек его даёт,
  * а подписка потом падает — и он остаётся с ощущением, что всё сломано.
- * Вызывается из enableNotifications.
+ * Вызывается из обработчика кнопки.
  */
 function isInstalledApp() {
   return (
@@ -127,68 +111,52 @@ function isApple() {
   return /iPhone|iPad|iPod/.test(navigator.userAgent);
 }
 
-async function enableNotifications(button) {
-  if (isApple() && !isInstalledApp()) {
-    toast(
-      'На iPhone уведомления работают только в приложении: «Поделиться» → «На экран Домой», ' +
-        'потом открыть с домашнего экрана.',
-      true
-    );
-    reportError('push-not-standalone', new Error('открыто не как приложение'));
-    return;
-  }
+/**
+ * Оформляет подписку, когда разрешение уже получено.
+ *
+ * Ключ передаётся готовым: запрашивать его здесь нельзя, потому что к этому
+ * моменту разрешение уже должно быть спрошено — см. обработчик нажатия ниже.
+ * Вызывается только оттуда.
+ */
+async function subscribeToPush(key) {
+  // navigator.serviceWorker.ready никогда не отклоняется: если worker не
+  // зарегистрировался, обещание просто висит вечно — человек нажал кнопку и
+  // не получил ни ответа, ни ошибки. Ограничиваем ожидание.
+  const registration = await Promise.race([
+    navigator.serviceWorker.ready,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('приложение не подготовилось к уведомлениям')), 8000)
+    )
+  ]);
 
-  try {
-    const { key } = await request('/api/push/key');
-    if (!key) {
-      toast('Уведомления пока не настроены на сервере.', true);
-      return;
-    }
+  const subscription =
+    (await registration.pushManager.getSubscription()) ??
+    (await registration.pushManager.subscribe({
+      // Без этого флага браузер разрешил бы «тихие» пуши без уведомления — и
+      // отозвал бы подписку, заметив, что мы ничего не показываем.
+      userVisibleOnly: true,
+      applicationServerKey: keyToBytes(key)
+    }));
 
-    const permission = await Notification.requestPermission();
-    if (permission !== 'granted') {
-      toast('Уведомления запрещены. Разрешить их можно в настройках браузера.', true);
-      return;
-    }
-
-    // navigator.serviceWorker.ready никогда не отклоняется: если worker не
-    // зарегистрировался, обещание просто висит вечно — человек нажал кнопку и
-    // не получил ни ответа, ни ошибки. Ограничиваем ожидание.
-    const registration = await Promise.race([
-      navigator.serviceWorker.ready,
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('приложение не подготовилось к уведомлениям')), 8000)
-      )
-    ]);
-    const subscription =
-      (await registration.pushManager.getSubscription()) ??
-      (await registration.pushManager.subscribe({
-        // Без этого флага браузер разрешил бы «тихие» пуши без уведомления — и
-        // отозвал бы подписку, заметив, что мы ничего не показываем.
-        userVisibleOnly: true,
-        applicationServerKey: keyToBytes(key)
-      }));
-
-    await request('/api/push/subscribe', { method: 'POST', body: JSON.stringify(subscription) });
-    button.title = 'Уведомления включены';
-    button.disabled = true;
-    toast('Готово — уведомления о новых уроках будут приходить сюда.');
-  } catch (error) {
-    // Показываем текст браузера как есть: он часто объясняет причину точнее,
-    // чем любая наша догадка. И тот же текст уходит в журнал сервера.
-    toast(`Не удалось включить уведомления: ${error.message}`, true);
-    reportError('push-subscribe', error);
-  }
+  await request('/api/push/subscribe', { method: 'POST', body: JSON.stringify(subscription) });
 }
 
 const notificationsButton = document.querySelector('[data-notifications]');
 if (notificationsButton && 'Notification' in window && 'serviceWorker' in navigator) {
+  // Ключ забираем заранее, при загрузке страницы. Это не преждевременная
+  // оптимизация, а необходимость: Safari разрешает спрашивать разрешение
+  // только прямо в обработчике нажатия, а поход в сеть перед этим разрывает
+  // связь с нажатием — и подписка падает. Ровно на этом мы и стояли.
+  let vapidKey = null;
+
   request('/api/push/key')
     .then(async (answer) => {
       if (!answer?.key) return;
+      vapidKey = answer.key;
       notificationsButton.hidden = false;
-      const registration = await navigator.serviceWorker.ready;
-      if (await registration.pushManager.getSubscription()) {
+
+      const registration = await navigator.serviceWorker.getRegistration();
+      if (registration && (await registration.pushManager.getSubscription())) {
         notificationsButton.title = 'Уведомления включены';
         notificationsButton.disabled = true;
       }
@@ -197,13 +165,41 @@ if (notificationsButton && 'Notification' in window && 'serviceWorker' in naviga
       // Ключей нет или сервер недоступен — кнопка так и остаётся скрытой.
     });
 
-  // Отдельно сообщаем, если worker так и не поднялся: без него уведомлений не
-  // будет, и человек должен узнать это до того, как нажмёт кнопку.
-  navigator.serviceWorker.getRegistration().then((registration) => {
-    if (!registration) notificationsButton.title = 'Приложение ещё готовится, подождите секунду';
-  });
+  notificationsButton.addEventListener('click', () => {
+    if (isApple() && !isInstalledApp()) {
+      toast(
+        'На iPhone уведомления работают только в приложении: «Поделиться» → «На экран Домой», ' +
+          'потом открыть с домашнего экрана.',
+        true
+      );
+      reportError('push-not-standalone', new Error('открыто не как приложение'));
+      return;
+    }
+    if (!vapidKey) {
+      toast('Уведомления пока не настроены на сервере.', true);
+      return;
+    }
 
-  notificationsButton.addEventListener('click', () => enableNotifications(notificationsButton));
+    // Вызов идёт первой строкой и без await перед ним: так браузер видит, что
+    // разрешение спрашивают в ответ на нажатие человека.
+    Notification.requestPermission()
+      .then(async (permission) => {
+        if (permission !== 'granted') {
+          toast('Уведомления запрещены. Разрешить их можно в настройках браузера.', true);
+          return;
+        }
+        await subscribeToPush(vapidKey);
+        notificationsButton.title = 'Уведомления включены';
+        notificationsButton.disabled = true;
+        toast('Готово — уведомления о новых уроках будут приходить сюда.');
+      })
+      .catch((error) => {
+        // Показываем текст браузера как есть: он объясняет причину точнее
+        // любой нашей догадки. Тот же текст уходит в журнал сервера.
+        toast(`Не удалось включить уведомления: ${error.message}`, true);
+        reportError('push-subscribe', error);
+      });
+  });
 }
 
 /* --- Тема ---------------------------------------------------------------
