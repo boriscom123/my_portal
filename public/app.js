@@ -91,6 +91,37 @@ export async function request(url, options = {}) {
  * без ключей на сервере — тоже, а на iOS Web Push работает лишь в приложении,
  * установленном на домашний экран. Мёртвая кнопка хуже отсутствующей. */
 
+/* --- Service worker ------------------------------------------------------
+ * Он даёт офлайн-оболочку и принимает уведомления. Без него не работает ни то,
+ * ни другое. */
+
+// Обещание регистрации запоминаем: подписка на уведомления ждёт именно его, а
+// не navigator.serviceWorker.ready — тот при неудачной регистрации висит вечно
+// и не отклоняется никогда.
+let swRegistration = null;
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    swRegistration = navigator.serviceWorker.register('/sw.js');
+    swRegistration.catch((error) => {
+      // Молчать здесь нельзя: без worker'а не будет ни офлайна, ни
+      // уведомлений, а человек об этом никак не узнает.
+      console.error('Service worker не зарегистрирован:', error);
+      reportError('sw-register', error);
+    });
+  });
+
+  // Установленное приложение держит загруженную страницу неделями: его
+  // сворачивают, а не закрывают. Без этого выкаченная правка до человека не
+  // доходит. Когда новый worker берёт управление, перезагружаем страницу один раз.
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloading) return;
+    reloading = true;
+    location.reload();
+  });
+}
+
 /**
  * Открыт ли портал как установленное приложение.
  * Зачем проверять: на iPhone Web Push работает ТОЛЬКО в приложении с
@@ -118,16 +149,39 @@ function isApple() {
  * моменту разрешение уже должно быть спрошено — см. обработчик нажатия ниже.
  * Вызывается только оттуда.
  */
+/**
+ * Дожидается, пока worker станет действующим.
+ * Зачем не navigator.serviceWorker.ready: он не отклоняется никогда, и при
+ * неудачной регистрации обещание висит вечно — человек остаётся без ответа.
+ * Здесь ошибка регистрации доходит как ошибка.
+ * Вызывается из subscribeToPush.
+ */
+async function activeRegistration() {
+  if (!swRegistration) throw new Error('регистрация ещё не начиналась');
+  const registration = await swRegistration;
+  if (registration.active) return registration;
+
+  const worker = registration.installing ?? registration.waiting;
+  if (!worker) throw new Error('worker не установился');
+
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('worker не активировался за 10 секунд')), 10000);
+    worker.addEventListener('statechange', () => {
+      if (worker.state === 'activated') {
+        clearTimeout(timer);
+        resolve();
+      }
+      if (worker.state === 'redundant') {
+        clearTimeout(timer);
+        reject(new Error('worker отвергнут браузером'));
+      }
+    });
+  });
+  return registration;
+}
+
 async function subscribeToPush(key) {
-  // navigator.serviceWorker.ready никогда не отклоняется: если worker не
-  // зарегистрировался, обещание просто висит вечно — человек нажал кнопку и
-  // не получил ни ответа, ни ошибки. Ограничиваем ожидание.
-  const registration = await Promise.race([
-    navigator.serviceWorker.ready,
-    new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('приложение не подготовилось к уведомлениям')), 8000)
-    )
-  ]);
+  const registration = await activeRegistration();
 
   const subscription =
     (await registration.pushManager.getSubscription()) ??
