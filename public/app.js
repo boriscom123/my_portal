@@ -43,6 +43,74 @@ document.querySelector('[data-выход]')?.addEventListener('click', async () 
   location.href = '/';
 });
 
+/* --- Уведомления --------------------------------------------------------
+ * Кнопка появляется только там, где подписка вообще возможна: у гостя её нет,
+ * без ключей на сервере — тоже, а на iOS Web Push работает лишь в приложении,
+ * установленном на домашний экран. Мёртвая кнопка хуже отсутствующей. */
+
+/**
+ * Переводит публичный ключ VAPID из base64url в байты.
+ * Зачем: браузер принимает applicationServerKey только массивом байт, а сервер
+ * отдаёт строку. Это самое частое место, где подписка молча не оформляется.
+ * Вызывается только из включитьУведомления.
+ */
+function ключВБайты(base64url) {
+  const base64 = (base64url + '='.repeat((4 - (base64url.length % 4)) % 4))
+    .replace(/-/g, '+')
+    .replace(/_/g, '/');
+  return Uint8Array.from(atob(base64), (символ) => символ.charCodeAt(0));
+}
+
+/**
+ * Оформляет подписку на пуши. Вызывается по нажатию, а не сама: запрос
+ * разрешения без действия человека браузеры отклоняют, а Safari запоминает
+ * отказ надолго — второго шанса спросить не будет.
+ */
+async function включитьУведомления(кнопка) {
+  const { key } = await запрос('/api/push/key');
+  if (!key) return;
+
+  const разрешение = await Notification.requestPermission();
+  if (разрешение !== 'granted') {
+    кнопка.title = 'Уведомления запрещены в настройках браузера';
+    return;
+  }
+
+  const регистрация = await navigator.serviceWorker.ready;
+  const подписка =
+    (await регистрация.pushManager.getSubscription()) ??
+    (await регистрация.pushManager.subscribe({
+      // Без этого флага браузер разрешил бы «тихие» пуши без уведомления — и
+      // отозвал бы подписку, заметив, что мы ничего не показываем.
+      userVisibleOnly: true,
+      applicationServerKey: ключВБайты(key)
+    }));
+
+  await запрос('/api/push/subscribe', { method: 'POST', body: JSON.stringify(подписка) });
+  кнопка.textContent = '🔔';
+  кнопка.title = 'Уведомления включены';
+  кнопка.disabled = true;
+}
+
+const кнопкаУведомлений = document.querySelector('[data-уведомления]');
+if (кнопкаУведомлений && 'Notification' in window && 'serviceWorker' in navigator) {
+  запрос('/api/push/key')
+    .then(async (ответ) => {
+      if (!ответ?.key) return;
+      кнопкаУведомлений.hidden = false;
+      const регистрация = await navigator.serviceWorker.ready;
+      if (await регистрация.pushManager.getSubscription()) {
+        кнопкаУведомлений.title = 'Уведомления включены';
+        кнопкаУведомлений.disabled = true;
+      }
+    })
+    .catch(() => {
+      // Ключей нет или сервер недоступен — кнопка так и остаётся скрытой.
+    });
+
+  кнопкаУведомлений.addEventListener('click', () => включитьУведомления(кнопкаУведомлений));
+}
+
 /* --- Тема ---------------------------------------------------------------
  * По умолчанию берётся системная настройка, кнопка её перебивает. Выбор
  * хранится в браузере: сервер о нём не знает и знать не должен — это личная

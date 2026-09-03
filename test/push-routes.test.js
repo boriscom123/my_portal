@@ -13,7 +13,14 @@ const config = {
   adminIdentities: [],
   telegram: { botToken: '', channelId: '', botUsername: '' },
   google: { clientId: '', clientSecret: '' },
-  vapid: { publicKey: 'ПУБЛИЧНЫЙ', privateKey: 'ЗАКРЫТЫЙ', subject: 'mailto:a@b' }
+  // Ключи настоящие по форме (base64url без «=»), но выпущены для теста:
+  // строка «ПУБЛИЧНЫЙ» проверяла бы не отдачу ключа, а обработку мусора.
+  vapid: {
+    publicKey:
+      'BKd0FOtDZ6E8Z9zvS7DkLzWlR3n6xk0PujC7SsxHqZ3xJk9m5UbXk4hQz1nB0cLZ8fWv2tGqYkR7pM6sTn1oQ4E',
+    privateKey: 'p8Y3nK1vQ7sW9xZ2rT4uJ6bN0cM5hL8dF1gA3kE7yI0',
+    subject: 'mailto:admin@soloaijourney.online'
+  }
 };
 
 const подписка = { endpoint: 'https://push.example/abc', keys: { p256dh: 'ключ', auth: 'соль' } };
@@ -37,7 +44,8 @@ test('публичный ключ отдаётся всем', skipWithoutDb, asy
   await withTestDb(async (pool) => {
     const app = finalize(createApp({ config, pool }));
     await withServer(app, async (base) => {
-      assert.equal((await (await fetch(`${base}/api/push/key`)).json()).key, 'ПУБЛИЧНЫЙ');
+      const { key } = await (await fetch(`${base}/api/push/key`)).json();
+      assert.equal(key, config.vapid.publicKey);
     });
   });
 });

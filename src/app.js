@@ -11,6 +11,8 @@ import { authRoutes } from './routes/auth.js';
 import { pageRoutes } from './routes/pages.js';
 import { pwaRoutes } from './routes/pwa.js';
 import { pushRoutes } from './routes/push.js';
+import { createWebPushChannel } from './services/notify/webpush.js';
+import { createTelegramChannel } from './services/notify/telegram.js';
 import { lessonRoutes } from './routes/lessons.js';
 import { feedbackRoutes } from './routes/feedback.js';
 
@@ -30,6 +32,14 @@ export function createApp({ config, pool }) {
   // Пригодится роутам и сервисам, чтобы не тащить конфиг импортом отовсюду.
   app.locals.config = config;
   app.locals.pool = pool;
+
+  // Каналы собираются один раз на приложение: web-push настраивается
+  // глобально, а повторная настройка на каждый запрос — лишняя работа и
+  // лишний повод разойтись конфигурациям. Тест подменяет app.locals.channels.
+  app.locals.channels = {
+    webpush: createWebPushChannel(config, pool),
+    telegram: createTelegramChannel(config)
+  };
 
   // Сессия разбирается до всех маршрутов: дальше по цепочке req.user есть
   // везде, в том числе у страниц — им нужно знать, показывать «Войти» или имя.

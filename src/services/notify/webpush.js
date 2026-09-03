@@ -16,7 +16,16 @@ export function createWebPushChannel(config, pool) {
   // Необязательные поля читаются через ?. намеренно: приложение должно
   // подниматься и без настроенных пушей — например, в тестах витрины.
   if (!config.vapid?.publicKey || !config.vapid?.privateKey) return null;
-  webpush.setVapidDetails(config.vapid.subject, config.vapid.publicKey, config.vapid.privateKey);
+
+  try {
+    webpush.setVapidDetails(config.vapid.subject, config.vapid.publicKey, config.vapid.privateKey);
+  } catch (err) {
+    // Испорченный ключ в окружении не должен ронять портал целиком: без пушей
+    // сайт работает, а слой уведомлений просто перейдёт к следующему каналу.
+    // Кричим в лог, потому что тихо отключённые пуши — худший из исходов.
+    console.error('Ключи Web Push не приняты, пуши отключены:', err.message);
+    return null;
+  }
 
   return async (подписки, сообщение) => {
     const тело = JSON.stringify(сообщение);
