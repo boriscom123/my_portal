@@ -35,8 +35,13 @@ scripts/tg-send.sh "краткий итог 1-2 предложения"
 
 ```bash
 docker run --rm --network shared-data --env-file .env -v "$PWD":/app -w /app \
-  node:24-alpine sh -c 'node --test --test-concurrency=8 "test/**/*.test.js"; npm run lint'
+  my_portal-worker sh -c 'node --test --test-concurrency=8 "test/**/*.test.js"; npm run lint'
 ```
+
+Образ проекта, а не голый `node:24-alpine`: в нём есть ffmpeg, без которого
+тесты шагов конвейера молча пропускаются. Пропущенный тест выглядит как
+зелёный — и именно так и не заметить сломанный шаг. Если образа ещё нет:
+`docker compose build worker`.
 
 Тесты запускать **в несколько потоков**: на двухъядерной машине гонки между
 файлами не проявляются, а на сборщике GitHub роняют половину прогона.

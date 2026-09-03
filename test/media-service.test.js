@@ -81,3 +81,27 @@ test('забытый файл исчезает из учёта', skipWithoutDb, 
     assert.equal(await assetById(pool, asset.id), null);
   });
 });
+
+test('повторная запись того же файла обновляет, а не двоит', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const lesson = await saveLesson(pool, { slug: 'u', title: 'Урок' });
+    const first = await registerAsset(pool, config, {
+      lessonId: lesson.id,
+      kind: 'source',
+      relativePath: 'u/source.mp4',
+      bytes: 100
+    });
+    const second = await registerAsset(pool, config, {
+      lessonId: lesson.id,
+      kind: 'source',
+      relativePath: 'u/source.mp4',
+      bytes: 200
+    });
+    // Повтор обработки перезаписывает файл на диске: запись должна обновиться,
+    // иначе уборка удалит один файл дважды, а буфер посчитается вдвое больше.
+    assert.equal(first.id, second.id);
+    const { rows } = await pool.query('SELECT count(*)::int AS n, max(bytes) AS bytes FROM assets');
+    assert.equal(rows[0].n, 1);
+    assert.equal(Number(rows[0].bytes), 200);
+  });
+});

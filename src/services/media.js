@@ -33,9 +33,15 @@ export function mediaPath(config, relative) {
 /** Записывает файл в учёт и назначает ему срок. */
 export async function registerAsset(pool, config, { lessonId, kind, relativePath, bytes }) {
   const hours = config.media.ttlHours * (TTL_SHARE[kind] ?? 1);
+  // Повтор обработки перезаписывает тот же файл на диске — значит и запись в
+  // учёте должна обновиться, а не удвоиться. Иначе уборка удаляла бы один
+  // файл дважды, а размер буфера считался вдвое больше настоящего.
   const { rows } = await pool.query(
     `INSERT INTO assets (lesson_id, kind, path, bytes, expires_at)
      VALUES ($1, $2, $3, $4, now() + ($5 || ' hours')::interval)
+     ON CONFLICT (lesson_id, path) DO UPDATE SET kind = EXCLUDED.kind,
+                                                 bytes = EXCLUDED.bytes,
+                                                 expires_at = EXCLUDED.expires_at
      RETURNING id, path, expires_at`,
     [lessonId, kind, relativePath, bytes, String(hours)]
   );
