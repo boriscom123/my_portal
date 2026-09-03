@@ -11,6 +11,7 @@ import { authRoutes } from './routes/auth.js';
 import { pageRoutes } from './routes/pages.js';
 import { pwaRoutes } from './routes/pwa.js';
 import { pushRoutes } from './routes/push.js';
+import { uploadRoutes } from './routes/upload.js';
 import { clientErrorRoutes } from './routes/client-errors.js';
 import { createWebPushChannel } from './services/notify/webpush.js';
 import { createTelegramChannel } from './services/notify/telegram.js';
@@ -29,7 +30,6 @@ export function createApp({ config, pool }) {
   // За общим nginx настоящий адрес клиента приходит заголовком; без этого в
   // логах и ограничителях частоты будет адрес контейнера nginx для всех.
   app.set('trust proxy', 1);
-  app.use(express.json({ limit: '64kb' }));
 
   // Пригодится роутам и сервисам, чтобы не тащить конфиг импортом отовсюду.
   app.locals.config = config;
@@ -46,6 +46,17 @@ export function createApp({ config, pool }) {
   // Сессия разбирается до всех маршрутов: дальше по цепочке req.user есть
   // везде, в том числе у страниц — им нужно знать, показывать «Войти» или имя.
   app.use(sessionMiddleware(config));
+
+  // Загрузка со своим разбором тела и ДО общего express.json: куски приходят
+  // потоком байт, и общий разбор попытался бы прочитать восемь мегабайт видео
+  // как JSON. Сессия при этом уже разобрана выше — без неё маршруты не узнали
+  // бы, кто пришёл, и отвечали бы «нужно войти». Порядок здесь не
+  // косметический: обе перестановки уже ломали загрузку.
+  app.use('/api/upload', express.json({ limit: '8kb' }), uploadRoutes(config, pool));
+
+  // Общий разбор тела — после загрузки, для всех остальных маршрутов.
+  app.use(express.json({ limit: '64kb' }));
+
   app.use('/api/auth', authRoutes(config, pool));
   app.use('/api', lessonRoutes(config, pool));
   app.use('/api', feedbackRoutes(config, pool));
