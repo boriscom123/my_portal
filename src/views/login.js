@@ -10,7 +10,7 @@ import { layout } from './layout.js';
  * с подписанными данными. Показываем его только когда бот настроен: иначе на
  * странице висела бы кнопка, которая ничего не делает.
  */
-function виджетTelegram(botUsername) {
+function telegramWidget(botUsername) {
   if (!botUsername) {
     return '<p class="hint">Вход через Telegram пока не настроен.</p>';
   }
@@ -38,7 +38,7 @@ function виджетTelegram(botUsername) {
 }
 
 export function loginPage({ config, user = null }) {
-  const включёнTelegram = Boolean(config.telegram?.botToken && config.telegram?.botUsername);
+  const telegramEnabled = Boolean(config.telegram?.botToken && config.telegram?.botUsername);
 
   return layout({
     config,
@@ -55,7 +55,7 @@ export function loginPage({ config, user = null }) {
 
   <div class="card login-methods">
     <a class="button-brand" href="/api/auth/google">Войти через Google</a>
-    ${включёнTelegram ? виджетTelegram(config.telegram.botUsername) : виджетTelegram('')}
+    ${telegramEnabled ? telegramWidget(config.telegram.botUsername) : telegramWidget('')}
 
     <div class="divider">скоро</div>
     <div class="soon">

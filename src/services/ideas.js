@@ -9,9 +9,9 @@
 import { PublicError } from '../middleware/errors.js';
 
 // Порядок соответствует пути идеи от предложения до вышедшего урока.
-const СТАТУСЫ = ['new', 'accepted', 'in_progress', 'released'];
+const STATUSES = ['new', 'accepted', 'in_progress', 'released'];
 
-const МАКС_ТЕМА = 200;
+const MAX_TITLE = 200;
 
 function toIdea(row) {
   return {
@@ -29,14 +29,14 @@ function toIdea(row) {
 
 /** Принимает идею от вошедшего человека. */
 export async function createIdea(pool, { userId, title, body }) {
-  const тема = String(title ?? '').trim();
-  if (!тема) throw new PublicError('У идеи должна быть тема');
-  if (тема.length > МАКС_ТЕМА) throw new PublicError('Тема слишком длинная');
+  const theme = String(title ?? '').trim();
+  if (!theme) throw new PublicError('У идеи должна быть тема');
+  if (theme.length > MAX_TITLE) throw new PublicError('Тема слишком длинная');
 
   const { rows } = await pool.query(
     `INSERT INTO ideas (author_id, title, body) VALUES ($1, $2, COALESCE($3, ''))
      RETURNING id, title, body, status, created_at, author_id`,
-    [userId, тема, String(body ?? '').trim()]
+    [userId, theme, String(body ?? '').trim()]
   );
   return toIdea({ ...rows[0], display_name: null });
 }
@@ -79,7 +79,7 @@ export async function unvoteIdea(pool, { ideaId, userId }) {
  * на вышедший урок.
  */
 export async function setIdeaStatus(pool, { ideaId, status, lessonSlug = null }) {
-  if (!СТАТУСЫ.includes(status)) throw new PublicError('Неизвестный статус идеи');
+  if (!STATUSES.includes(status)) throw new PublicError('Неизвестный статус идеи');
 
   const { rows } = await pool.query(
     `UPDATE ideas
@@ -91,13 +91,13 @@ export async function setIdeaStatus(pool, { ideaId, status, lessonSlug = null })
   );
   if (!rows.length) throw new PublicError('Идея не найдена', 404);
 
-  const { rows: голоса } = await pool.query(
+  const { rows: votes } = await pool.query(
     'SELECT user_id FROM idea_votes WHERE idea_id = $1 ORDER BY user_id',
     [ideaId]
   );
 
   return {
     idea: toIdea({ ...rows[0], display_name: null, lesson_slug: lessonSlug }),
-    voterIds: голоса.map((г) => Number(г.user_id))
+    voterIds: votes.map((row) => Number(row.user_id))
   };
 }

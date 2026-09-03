@@ -24,7 +24,7 @@ test('короткоживущий токен читается и протуха
   assert.deepEqual(verifyShortLived(signShortLived({ nonce: 'abc' }, secret, 60), secret), {
     nonce: 'abc'
   });
-  const протухший = signShortLived({ nonce: 'abc' }, secret, 0);
+  const expired = signShortLived({ nonce: 'abc' }, secret, 0);
   await new Promise((r) => setTimeout(r, 1100));
-  assert.equal(verifyShortLived(протухший, secret), null);
+  assert.equal(verifyShortLived(expired, secret), null);
 });

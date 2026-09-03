@@ -39,30 +39,30 @@ async function seed(pool) {
     `INSERT INTO users (display_name, role)
      VALUES ('Пётр', 'user'), ('Анна', 'user'), ('Автор', 'admin') RETURNING id`
   );
-  const люди = rows.map((r) => Number(r.id));
-  for (const [i, id] of люди.entries()) {
+  const people = rows.map((r) => Number(r.id));
+  for (const [i, id] of people.entries()) {
     await pool.query(
       `INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth)
        VALUES ($1, $2, 'k', 's')`,
       [id, `https://push.example/${i}`]
     );
   }
-  return { lessonId: lesson.id, petr: люди[0], anna: люди[1], admin: люди[2] };
+  return { lessonId: lesson.id, petr: people[0], anna: people[1], admin: people[2] };
 }
 
-function приложение(pool, отправлено) {
+function makeApp(pool, sent) {
   const app = createApp({ config, pool });
   app.locals.channels = {
-    webpush: async (подписки, m) => отправлено.push({ адрес: подписки[0].endpoint, m })
+    webpush: async (subscriptions, m) => sent.push({ url: subscriptions[0].endpoint, m })
   };
   return finalize(app);
 }
 
-async function отзыв(base, headers, поля) {
+async function commentItem(base, headers, fields) {
   const res = await fetch(`${base}/api/comments`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ objectType: 'lesson', ...поля })
+    body: JSON.stringify({ objectType: 'lesson', ...fields })
   });
   return (await res.json()).comment;
 }
@@ -70,20 +70,20 @@ async function отзыв(base, headers, поля) {
 test('автор отзыва узнаёт об ответе на него', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
     const { lessonId, petr, admin } = await seed(pool);
-    const отправлено = [];
-    await withServer(приложение(pool, отправлено), async (base) => {
-      const первый = await отзыв(base, as(petr), { objectId: lessonId, body: 'Вопрос' });
-      отправлено.length = 0; // Уведомление о самом отзыве проверяется отдельно.
+    const sent = [];
+    await withServer(makeApp(pool, sent), async (base) => {
+      const first = await commentItem(base, as(petr), { objectId: lessonId, body: 'Вопрос' });
+      sent.length = 0; // Уведомление о самом отзыве проверяется отдельно.
 
-      await отзыв(base, as(admin, 'admin'), {
+      await commentItem(base, as(admin, 'admin'), {
         objectId: lessonId,
-        parentId: первый.id,
+        parentId: first.id,
         body: 'Ответ'
       });
 
-      const адресаты = отправлено.map((о) => о.адрес);
-      assert.ok(адресаты.includes('https://push.example/0'), 'Пётр должен узнать об ответе');
-      assert.ok(!адресаты.includes('https://push.example/1'), 'Анна тут ни при чём');
+      const recipients = sent.map((entry) => entry.url);
+      assert.ok(recipients.includes('https://push.example/0'), 'Пётр должен узнать об ответе');
+      assert.ok(!recipients.includes('https://push.example/1'), 'Анна тут ни при чём');
     });
   });
 });
@@ -91,12 +91,12 @@ test('автор отзыва узнаёт об ответе на него', ski
 test('ответ самому себе не будит автора', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
     const { lessonId, petr } = await seed(pool);
-    const отправлено = [];
-    await withServer(приложение(pool, отправлено), async (base) => {
-      const первый = await отзыв(base, as(petr), { objectId: lessonId, body: 'Вопрос' });
-      отправлено.length = 0;
-      await отзыв(base, as(petr), { objectId: lessonId, parentId: первый.id, body: 'Сам себе' });
-      assert.ok(!отправлено.some((о) => о.адрес === 'https://push.example/0'));
+    const sent = [];
+    await withServer(makeApp(pool, sent), async (base) => {
+      const first = await commentItem(base, as(petr), { objectId: lessonId, body: 'Вопрос' });
+      sent.length = 0;
+      await commentItem(base, as(petr), { objectId: lessonId, parentId: first.id, body: 'Сам себе' });
+      assert.ok(!sent.some((entry) => entry.url === 'https://push.example/0'));
     });
   });
 });
@@ -104,24 +104,24 @@ test('ответ самому себе не будит автора', skipWithou
 test('новый отзыв уведомляет автора портала о модерации', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
     const { lessonId, petr } = await seed(pool);
-    const отправлено = [];
-    await withServer(приложение(pool, отправлено), async (base) => {
-      await отзыв(base, as(petr), { objectId: lessonId, body: 'Вопрос' });
+    const sent = [];
+    await withServer(makeApp(pool, sent), async (base) => {
+      await commentItem(base, as(petr), { objectId: lessonId, body: 'Вопрос' });
     });
-    const админу = отправлено.find((о) => о.адрес === 'https://push.example/2');
-    assert.ok(админу, 'админ должен узнать о новом отзыве');
-    assert.match(админу.m.title, /модерац/i);
-    assert.match(админу.m.url, /^\/lesson\/docker-1$/);
+    const toAdmin = sent.find((entry) => entry.url === 'https://push.example/2');
+    assert.ok(toAdmin, 'админ должен узнать о новом отзыве');
+    assert.match(toAdmin.m.title, /модерац/i);
+    assert.match(toAdmin.m.url, /^\/lesson\/docker-1$/);
   });
 });
 
 test('свой отзыв не зовёт автора портала модерировать самого себя', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
     const { lessonId, admin } = await seed(pool);
-    const отправлено = [];
-    await withServer(приложение(pool, отправлено), async (base) => {
-      await отзыв(base, as(admin, 'admin'), { objectId: lessonId, body: 'Заметка' });
+    const sent = [];
+    await withServer(makeApp(pool, sent), async (base) => {
+      await commentItem(base, as(admin, 'admin'), { objectId: lessonId, body: 'Заметка' });
     });
-    assert.equal(отправлено.length, 0);
+    assert.equal(sent.length, 0);
   });
 });

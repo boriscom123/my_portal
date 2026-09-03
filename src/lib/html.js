@@ -5,9 +5,9 @@
 // каждого пользовательского текста; всё, что печатают люди, проходит через неё.
 // Вызывается из всех файлов src/views/.
 
-const ЗАМЕНЫ = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 
 /** Превращает текст в безопасный для вставки в HTML. */
 export function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>"']/g, (ch) => ЗАМЕНЫ[ch]);
+  return String(value ?? '').replace(/[&<>"']/g, (ch) => ESCAPES[ch]);
 }

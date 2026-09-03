@@ -17,20 +17,20 @@ const config = {
   google: { clientId: '', clientSecret: '' }
 };
 
-async function урок(pool, поля = {}) {
+async function lesson(pool, fields = {}) {
   return saveLesson(pool, {
     slug: 'docker-1',
     title: 'Docker, часть 1',
     description: 'Контейнеры с нуля',
     status: 'published',
     publishedAt: new Date('2026-08-01T10:00:00Z'),
-    ...поля
+    ...fields
   });
 }
 
 test('лента отдаёт HTML с заголовком урока', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
-    await урок(pool);
+    await lesson(pool);
     const app = finalize(createApp({ config, pool }));
     await withServer(app, async (base) => {
       const res = await fetch(`${base}/`);
@@ -45,7 +45,7 @@ test('лента отдаёт HTML с заголовком урока', skipWith
 
 test('карточка урока несёт теги превью и канонический адрес', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
-    await урок(pool);
+    await lesson(pool);
     const app = finalize(createApp({ config, pool }));
     await withServer(app, async (base) => {
       const html = await (await fetch(`${base}/lesson/docker-1`)).text();
@@ -58,19 +58,19 @@ test('карточка урока несёт теги превью и канон
 
 test('черновик по прямой ссылке даёт 404 гостю и открывается автору', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
-    await урок(pool, { slug: 'chernovik', status: 'draft', publishedAt: null });
+    await lesson(pool, { slug: 'chernovik', status: 'draft', publishedAt: null });
     const { rows } = await pool.query(
       `INSERT INTO users (display_name, role) VALUES ('Автор', 'admin') RETURNING id`
     );
     const app = finalize(createApp({ config, pool }));
     await withServer(app, async (base) => {
       assert.equal((await fetch(`${base}/lesson/chernovik`)).status, 404);
-      const свой = await fetch(`${base}/lesson/chernovik`, {
+      const mine = await fetch(`${base}/lesson/chernovik`, {
         headers: {
           Authorization: `Bearer ${signSession({ userId: rows[0].id, role: 'admin' }, config.jwtSecret)}`
         }
       });
-      assert.equal(свой.status, 200);
+      assert.equal(mine.status, 200);
     });
   });
 });
@@ -89,7 +89,7 @@ test('страница 404 отдаётся человеку как страни
 
 test('название урока с разметкой экранируется', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
-    await урок(pool, { slug: 'xss', title: '<script>alert(1)</script>' });
+    await lesson(pool, { slug: 'xss', title: '<script>alert(1)</script>' });
     const app = finalize(createApp({ config, pool }));
     await withServer(app, async (base) => {
       const html = await (await fetch(`${base}/`)).text();
@@ -101,9 +101,9 @@ test('название урока с разметкой экранируется
 
 test('лента по тегу показывает только его уроки', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
-    const l = await урок(pool);
+    const l = await lesson(pool);
     await setLessonTags(pool, l.id, ['docker']);
-    await урок(pool, { slug: 'drugoj', title: 'Другой урок' });
+    await lesson(pool, { slug: 'drugoj', title: 'Другой урок' });
     const app = finalize(createApp({ config, pool }));
     await withServer(app, async (base) => {
       const html = await (await fetch(`${base}/tag/docker`)).text();
@@ -115,7 +115,7 @@ test('лента по тегу показывает только его урок
 
 test('гостю не показывают форму отзыва, а неодобренный отзыв скрыт', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
-    const l = await урок(pool);
+    const l = await lesson(pool);
     const { rows } = await pool.query(
       `INSERT INTO users (display_name) VALUES ('Пётр') RETURNING id`
     );
@@ -127,21 +127,21 @@ test('гостю не показывают форму отзыва, а неод�
     });
     const app = finalize(createApp({ config, pool }));
     await withServer(app, async (base) => {
-      const гость = await (await fetch(`${base}/lesson/docker-1`)).text();
-      assert.ok(!гость.includes('Скрытый пока отзыв'));
-      assert.ok(!гость.includes('id="comment-form"'));
-      assert.match(гость, /Войдите/);
+      const guest = await (await fetch(`${base}/lesson/docker-1`)).text();
+      assert.ok(!guest.includes('Скрытый пока отзыв'));
+      assert.ok(!guest.includes('id="comment-form"'));
+      assert.match(guest, /Войдите/);
 
-      const автор = await (
+      const author = await (
         await fetch(`${base}/lesson/docker-1`, {
           headers: {
             Authorization: `Bearer ${signSession({ userId: rows[0].id, role: 'user' }, config.jwtSecret)}`
           }
         })
       ).text();
-      assert.match(автор, /Скрытый пока отзыв/);
-      assert.match(автор, /ждёт проверки/);
-      assert.match(автор, /id="comment-form"/);
+      assert.match(author, /Скрытый пока отзыв/);
+      assert.match(author, /ждёт проверки/);
+      assert.match(author, /id="comment-form"/);
     });
   });
 });

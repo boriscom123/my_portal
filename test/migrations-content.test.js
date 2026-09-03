@@ -57,10 +57,10 @@ test('удаление урока уносит его теги и публика
       [rows[0].id]
     );
     await pool.query('DELETE FROM lessons WHERE id = $1', [rows[0].id]);
-    const пусто = await pool.query(
+    const empty = await pool.query(
       'SELECT (SELECT count(*) FROM publications) + (SELECT count(*) FROM lesson_tags) AS n'
     );
-    assert.equal(Number(пусто.rows[0].n), 0);
+    assert.equal(Number(empty.rows[0].n), 0);
   });
 });
 

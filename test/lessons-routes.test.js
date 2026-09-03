@@ -63,14 +63,14 @@ test('админ видит черновики, обычный пользова�
     const { petr, admin } = await seed(pool);
     const app = finalize(createApp({ config, pool }));
     await withServer(app, async (base) => {
-      const свои = await (
+      const own = await (
         await fetch(`${base}/api/lessons?drafts=1`, { headers: as(admin, 'admin') })
       ).json();
-      assert.equal(свои.lessons.length, 2);
-      const чужие = await (
+      assert.equal(own.lessons.length, 2);
+      const others = await (
         await fetch(`${base}/api/lessons?drafts=1`, { headers: as(petr) })
       ).json();
-      assert.equal(чужие.lessons.length, 1);
+      assert.equal(others.lessons.length, 1);
     });
   });
 });
@@ -122,22 +122,22 @@ test('гость не видит неодобренный комментарий
         })
       ).json();
 
-      const до = await (
+      const before = await (
         await fetch(`${base}/api/comments?objectType=lesson&objectId=${lessonId}`)
       ).json();
-      assert.equal(до.comments.length, 0);
+      assert.equal(before.comments.length, 0);
 
-      const решение = await fetch(`${base}/api/comments/${created.comment.id}/moderate`, {
+      const verdict = await fetch(`${base}/api/comments/${created.comment.id}/moderate`, {
         method: 'POST',
         headers: as(admin, 'admin'),
         body: JSON.stringify({ status: 'approved' })
       });
-      assert.equal(решение.status, 200);
+      assert.equal(verdict.status, 200);
 
-      const после = await (
+      const after = await (
         await fetch(`${base}/api/comments?objectType=lesson&objectId=${lessonId}`)
       ).json();
-      assert.equal(после.comments.length, 1);
+      assert.equal(after.comments.length, 1);
     });
   });
 });
@@ -169,20 +169,20 @@ test('правка урока доступна только автору пор�
     const { petr, admin } = await seed(pool);
     const app = finalize(createApp({ config, pool }));
     await withServer(app, async (base) => {
-      const чужой = await fetch(`${base}/api/lessons/docker-1`, {
+      const foreign = await fetch(`${base}/api/lessons/docker-1`, {
         method: 'PUT',
         headers: as(petr),
         body: JSON.stringify({ title: 'Взлом' })
       });
-      assert.equal(чужой.status, 403);
+      assert.equal(foreign.status, 403);
 
-      const свой = await fetch(`${base}/api/lessons/novyj`, {
+      const mine = await fetch(`${base}/api/lessons/novyj`, {
         method: 'PUT',
         headers: as(admin, 'admin'),
         body: JSON.stringify({ title: 'Новый урок', tags: ['docker', 'vps'] })
       });
-      assert.equal(свой.status, 200);
-      assert.deepEqual((await свой.json()).lesson.tags, ['docker', 'vps']);
+      assert.equal(mine.status, 200);
+      assert.deepEqual((await mine.json()).lesson.tags, ['docker', 'vps']);
     });
   });
 });

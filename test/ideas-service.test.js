@@ -41,9 +41,9 @@ test('голос считается один раз на человека', skip
     const idea = await createIdea(pool, { userId: petr, title: 'Про очереди', body: '' });
     await voteIdea(pool, { ideaId: idea.id, userId: anna });
     await voteIdea(pool, { ideaId: idea.id, userId: anna });
-    const [сИдеей] = await listIdeas(pool, { viewerId: anna });
-    assert.equal(сИдеей.votes, 1);
-    assert.equal(сИдеей.votedByViewer, true);
+    const [withIdea] = await listIdeas(pool, { viewerId: anna });
+    assert.equal(withIdea.votes, 1);
+    assert.equal(withIdea.votedByViewer, true);
   });
 });
 
@@ -52,9 +52,9 @@ test('гость видит счётчик, но не помечен голос�
     const { petr, anna } = await seed(pool);
     const idea = await createIdea(pool, { userId: petr, title: 'Про очереди', body: '' });
     await voteIdea(pool, { ideaId: idea.id, userId: anna });
-    const [гостю] = await listIdeas(pool, {});
-    assert.equal(гостю.votes, 1);
-    assert.equal(гостю.votedByViewer, false);
+    const [asGuest] = await listIdeas(pool, {});
+    assert.equal(asGuest.votes, 1);
+    assert.equal(asGuest.votedByViewer, false);
   });
 });
 
@@ -64,9 +64,9 @@ test('голос можно отозвать', skipWithoutDb, async () => {
     const idea = await createIdea(pool, { userId: petr, title: 'Про очереди', body: '' });
     await voteIdea(pool, { ideaId: idea.id, userId: anna });
     await unvoteIdea(pool, { ideaId: idea.id, userId: anna });
-    const [сИдеей] = await listIdeas(pool, { viewerId: anna });
-    assert.equal(сИдеей.votes, 0);
-    assert.equal(сИдеей.votedByViewer, false);
+    const [withIdea] = await listIdeas(pool, { viewerId: anna });
+    assert.equal(withIdea.votes, 0);
+    assert.equal(withIdea.votedByViewer, false);
   });
 });
 
@@ -74,10 +74,10 @@ test('желанные идеи идут первыми', skipWithoutDb, async (
   await withTestDb(async (pool) => {
     const { petr, anna } = await seed(pool);
     await createIdea(pool, { userId: petr, title: 'Никому не нужна', body: '' });
-    const нужная = await createIdea(pool, { userId: petr, title: 'Желанная', body: '' });
-    await voteIdea(pool, { ideaId: нужная.id, userId: anna });
-    const список = await listIdeas(pool, {});
-    assert.equal(список[0].title, 'Желанная');
+    const wanted = await createIdea(pool, { userId: petr, title: 'Желанная', body: '' });
+    await voteIdea(pool, { ideaId: wanted.id, userId: anna });
+    const list = await listIdeas(pool, {});
+    assert.equal(list[0].title, 'Желанная');
   });
 });
 
@@ -86,11 +86,11 @@ test('смена статуса возвращает список проголо
     const { petr, anna } = await seed(pool);
     const idea = await createIdea(pool, { userId: petr, title: 'Про очереди', body: '' });
     await voteIdea(pool, { ideaId: idea.id, userId: anna });
-    const { idea: обновлённая, voterIds } = await setIdeaStatus(pool, {
+    const { idea: updated, voterIds } = await setIdeaStatus(pool, {
       ideaId: idea.id,
       status: 'accepted'
     });
-    assert.equal(обновлённая.status, 'accepted');
+    assert.equal(updated.status, 'accepted');
     assert.deepEqual(voterIds, [anna]);
   });
 });
@@ -105,14 +105,14 @@ test('вышедшая идея связывается с уроком', skipWit
       publishedAt: new Date()
     });
     const idea = await createIdea(pool, { userId: petr, title: 'Про очереди', body: '' });
-    const { idea: закрытая } = await setIdeaStatus(pool, {
+    const { idea: closed } = await setIdeaStatus(pool, {
       ideaId: idea.id,
       status: 'released',
       lessonSlug: 'ocheredi'
     });
-    assert.equal(закрытая.lessonSlug, 'ocheredi');
-    const [из_списка] = await listIdeas(pool, {});
-    assert.equal(из_списка.lessonSlug, 'ocheredi');
+    assert.equal(closed.lessonSlug, 'ocheredi');
+    const [fromList] = await listIdeas(pool, {});
+    assert.equal(fromList.lessonSlug, 'ocheredi');
   });
 });
 

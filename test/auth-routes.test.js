@@ -27,7 +27,7 @@ function signedWidget(fields) {
 }
 
 /** Свежие данные виджета: подпись протухает за сутки. */
-function свежийВиджет() {
+function freshWidgetData() {
   return signedWidget({
     id: '7',
     first_name: 'Пётр',
@@ -41,7 +41,7 @@ function sessionCookie(res) {
   return raw ? raw.split(';')[0] : null;
 }
 
-async function войти(base, data = свежийВиджет()) {
+async function signIn(base, data = freshWidgetData()) {
   return fetch(`${base}/api/auth/telegram`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -53,7 +53,7 @@ test('вход виджетом ставит куку, /me её читает', s
   await withTestDb(async (pool) => {
     const app = finalize(createApp({ config, pool }));
     await withServer(app, async (base) => {
-      const login = await войти(base);
+      const login = await signIn(base);
       assert.equal(login.status, 200);
       const cookie = sessionCookie(login);
       assert.ok(cookie);
@@ -71,7 +71,7 @@ test('кука закрыта от скриптов и не ходит по http
   await withTestDb(async (pool) => {
     const app = finalize(createApp({ config, pool }));
     await withServer(app, async (base) => {
-      const raw = (await войти(base)).headers.getSetCookie().find((c) => c.startsWith('portal_session='));
+      const raw = (await signIn(base)).headers.getSetCookie().find((c) => c.startsWith('portal_session='));
       assert.match(raw, /HttpOnly/i);
       assert.match(raw, /Secure/i);
       assert.match(raw, /SameSite=Lax/i);
@@ -83,7 +83,7 @@ test('подделанные данные виджета не пускают', s
   await withTestDb(async (pool) => {
     const app = finalize(createApp({ config, pool }));
     await withServer(app, async (base) => {
-      const res = await войти(base, {
+      const res = await signIn(base, {
         id: '7',
         first_name: 'Пётр',
         auth_date: String(Math.floor(Date.now() / 1000)),
@@ -113,7 +113,7 @@ test('токен заголовком работает наравне с кук�
   await withTestDb(async (pool) => {
     const app = finalize(createApp({ config, pool }));
     await withServer(app, async (base) => {
-      const { token } = await (await войти(base)).json();
+      const { token } = await (await signIn(base)).json();
       const me = await fetch(`${base}/api/auth/me`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -126,7 +126,7 @@ test('выход гасит куку', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
     const app = finalize(createApp({ config, pool }));
     await withServer(app, async (base) => {
-      const login = await войти(base);
+      const login = await signIn(base);
       const out = await fetch(`${base}/api/auth/logout`, {
         method: 'POST',
         headers: { cookie: sessionCookie(login) }

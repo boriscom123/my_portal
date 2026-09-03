@@ -29,7 +29,7 @@ test('на странице виден номер версии — по нему
 
 test('гостю показывается вход, вошедшему — нет', () => {
   assert.match(stubPage(config), />Войти</);
-  const свой = stubPage(config, { displayName: 'Борис' });
-  assert.match(свой, /Борис/);
-  assert.ok(!свой.includes('>Войти<'));
+  const mine = stubPage(config, { displayName: 'Борис' });
+  assert.match(mine, /Борис/);
+  assert.ok(!mine.includes('>Войти<'));
 });

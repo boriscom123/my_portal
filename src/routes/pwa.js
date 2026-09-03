@@ -51,11 +51,11 @@ export function pwaRoutes(config) {
   });
 
   router.get('/sw.js', async (req, res) => {
-    const код = await readFile(new URL('../../public/sw.js', import.meta.url), 'utf8');
+    const code = await readFile(new URL('../../public/sw.js', import.meta.url), 'utf8');
     // Долгий кеш здесь опасен: закешированный worker означает, что старая
     // версия приложения живёт у человека ещё час после выката, включая
     // старую логику пушей. Браузер и так перепроверяет его при каждой загрузке.
-    res.set('Cache-Control', 'no-cache').type('application/javascript').send(код);
+    res.set('Cache-Control', 'no-cache').type('application/javascript').send(code);
   });
 
   return router;

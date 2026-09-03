@@ -11,7 +11,7 @@
 
 // Порядок перебора каналов. Пуш первым: он приходит в установленное
 // приложение, то есть тому, кто уже выразил готовность его получать.
-const ПРИОРИТЕТ_ТЕЛЕГРАМА = ['tg_widget', 'tg_miniapp'];
+const TELEGRAM_PROVIDERS = ['tg_widget', 'tg_miniapp'];
 
 /**
  * Отправляет уведомление одним каналом — первым доступным по приоритету:
@@ -22,57 +22,57 @@ const ПРИОРИТЕТ_ТЕЛЕГРАМА = ['tg_widget', 'tg_miniapp'];
  */
 export async function notify(pool, { userId, kind, dedupKey, title, body, url }, channels = {}) {
   // Занимаем ключ. Не занялся — значит это уведомление уже отправляли.
-  const занято = await pool.query(
+  const claimed = await pool.query(
     `INSERT INTO notifications (user_id, kind, payload, dedup_key)
      VALUES ($1, $2, $3::jsonb, $4)
      ON CONFLICT (dedup_key) DO NOTHING
      RETURNING id`,
     [userId, kind, JSON.stringify({ title, body, url }), dedupKey]
   );
-  if (!занято.rowCount) return { channel: null, reason: 'уже отправляли' };
-  const записьId = занято.rows[0].id;
+  if (!claimed.rowCount) return { channel: null, reason: 'уже отправляли' };
+  const recordId = claimed.rows[0].id;
 
-  const сообщение = { title, body, url };
+  const message = { title, body, url };
 
   /** Помечает журнал каналом, которым ушло. */
-  const пометить = async (канал) => {
-    await pool.query('UPDATE notifications SET channel = $1 WHERE id = $2', [канал, записьId]);
-    return { channel: канал };
+  const markChannel = async (channel) => {
+    await pool.query('UPDATE notifications SET channel = $1 WHERE id = $2', [channel, recordId]);
+    return { channel: channel };
   };
 
   try {
-    const { rows: подписки } = await pool.query(
+    const { rows: subscriptions } = await pool.query(
       'SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = $1',
       [userId]
     );
-    if (подписки.length && channels.webpush) {
-      await channels.webpush(подписки, сообщение);
-      return пометить('webpush');
+    if (subscriptions.length && channels.webpush) {
+      await channels.webpush(subscriptions, message);
+      return markChannel('webpush');
     }
 
-    const { rows: привязки } = await pool.query(
+    const { rows: links } = await pool.query(
       `SELECT provider, external_id FROM identities
         WHERE user_id = $1 AND provider IN ('tg_widget', 'tg_miniapp', 'max_miniapp')`,
       [userId]
     );
 
-    const телеграм = привязки.find((п) => ПРИОРИТЕТ_ТЕЛЕГРАМА.includes(п.provider));
-    if (телеграм && channels.telegram) {
-      await channels.telegram(телеграм.external_id, сообщение);
-      return пометить('telegram');
+    const telegram = links.find((ref) => TELEGRAM_PROVIDERS.includes(ref.provider));
+    if (telegram && channels.telegram) {
+      await channels.telegram(telegram.external_id, message);
+      return markChannel('telegram');
     }
 
-    const max = привязки.find((п) => п.provider === 'max_miniapp');
+    const max = links.find((ref) => ref.provider === 'max_miniapp');
     if (max && channels.max) {
-      await channels.max(max.external_id, сообщение);
-      return пометить('max');
+      await channels.max(max.external_id, message);
+      return markChannel('max');
     }
 
     // Связаться нечем. Запись остаётся с channel = NULL: это не ошибка, а факт,
     // и он пригодится, когда автор спросит, до скольких человек дошло.
     return { channel: null, reason: 'нет доступного канала' };
   } catch (err) {
-    await pool.query('DELETE FROM notifications WHERE id = $1', [записьId]);
+    await pool.query('DELETE FROM notifications WHERE id = $1', [recordId]);
     throw err;
   }
 }

@@ -7,10 +7,10 @@
 // Запускается вручную после правки ракеты: `npm run icons`.
 // Требует питона с cairosvg — берётся из контейнера, ставить в систему нечего.
 import { writeFileSync, mkdirSync } from 'node:fs';
-import { ракета } from '../src/views/rocket.js';
+import { rocket } from '../src/views/rocket.js';
 
-const ВЫХОД = new URL('../public/icons/', import.meta.url);
-const ФОН = '#0C0A20';
+const OUT_DIR = new URL('../public/icons/', import.meta.url);
+const BACKGROUND = '#0C0A20';
 
 /**
  * Собирает квадратную картинку: ракета по центру тёмного фона.
@@ -20,27 +20,27 @@ const ФОН = '#0C0A20';
  * @param {number} доля — какую часть высоты занимает ракета
  * @param {number} скругление — радиус углов; 0 для maskable, её режет система
  */
-function холст(доля, скругление) {
-  const сторона = 512;
-  const высота = сторона * доля;
-  const ширина = (высота * 48) / 116;
-  const x = (сторона - ширина) / 2;
-  const y = (сторона - высота) / 2;
-  const знак = ракета({ height: высота, id: 'icon', живое: false })
+function canvas(share, radius) {
+  const side = 512;
+  const height = side * share;
+  const width = (height * 48) / 116;
+  const x = (side - width) / 2;
+  const y = (side - height) / 2;
+  const mark = rocket({ height: height, id: 'icon', animated: false })
     // На картинке анимации нет, поэтому размеры задаём трансформацией:
     // так ракета остаётся одним и тем же вектором, без второго описания.
     .replace(/^<svg[^>]*>/, '')
     .replace('</svg>', '');
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${сторона} ${сторона}" width="${сторона}" height="${сторона}">
-<rect width="${сторона}" height="${сторона}" rx="${скругление}" fill="${ФОН}"/>
-<g transform="translate(${x} ${y}) scale(${высота / 116})">${знак}</g>
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${side} ${side}" width="${side}" height="${side}">
+<rect width="${side}" height="${side}" rx="${radius}" fill="${BACKGROUND}"/>
+<g transform="translate(${x} ${y}) scale(${height / 116})">${mark}</g>
 </svg>`;
 }
 
-mkdirSync(ВЫХОД, { recursive: true });
+mkdirSync(OUT_DIR, { recursive: true });
 // Обычная иконка: ракета занимает две трети — так она читается на мелком
 // значке. Maskable: система обрежет края по своей маске, поэтому запас больше.
-writeFileSync(new URL('icon.svg', ВЫХОД), холст(0.86, 0));
-writeFileSync(new URL('icon-maskable.svg', ВЫХОД), холст(0.62, 0));
+writeFileSync(new URL('icon.svg', OUT_DIR), canvas(0.86, 0));
+writeFileSync(new URL('icon-maskable.svg', OUT_DIR), canvas(0.62, 0));
 console.log('Векторы иконок собраны в public/icons/');

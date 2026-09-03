@@ -8,12 +8,12 @@ export function createTelegramChannel(config, fetchImpl = fetch) {
   // Как и у Web Push: не настроен бот — канала нет, приложение работает.
   if (!config.telegram?.botToken) return null;
 
-  return async (chatId, сообщение) => {
-    const текст = [
-      сообщение.title,
+  return async (chatId, message) => {
+    const text = [
+      message.title,
       '',
-      сообщение.body,
-      `${config.publicBaseUrl}${сообщение.url ?? '/'}`
+      message.body,
+      `${config.publicBaseUrl}${message.url ?? '/'}`
     ].join('\n');
 
     const res = await fetchImpl(`https://api.telegram.org/bot${config.telegram.botToken}/sendMessage`, {
@@ -21,7 +21,7 @@ export function createTelegramChannel(config, fetchImpl = fetch) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: chatId,
-        text: текст,
+        text: text,
         // Превью ссылки раздувает сообщение на пол-экрана, а заголовок и так
         // есть в тексте.
         link_preview_options: { is_disabled: true }

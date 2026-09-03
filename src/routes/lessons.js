@@ -21,7 +21,7 @@ import { notify } from '../services/notify/index.js';
  * урок будет публиковаться не руками, а концом конвейера.
  * Вызывается из обработчика PUT /api/lessons/:slug.
  */
-async function разослатьОУроке(pool, channels, lesson) {
+async function notifyAboutLesson(pool, channels, lesson) {
   // Берём только тех, кому есть чем доставить: остальным запись в журнале
   // ничего не даст, а строк наплодит.
   const { rows } = await pool.query(
@@ -68,9 +68,9 @@ export function lessonRoutes(config, pool) {
       includeDrafts: req.user?.role === 'admin'
     });
     if (!lesson) throw new PublicError('Урок не найден', 404);
-    const объект = { objectType: 'lesson', objectId: lesson.id };
-    lesson.reactions = await countReactions(pool, объект);
-    lesson.rating = await ratingSummary(pool, объект);
+    const object = { objectType: 'lesson', objectId: lesson.id };
+    lesson.reactions = await countReactions(pool, object);
+    lesson.rating = await ratingSummary(pool, object);
     res.json({ lesson });
   });
 
@@ -81,7 +81,7 @@ export function lessonRoutes(config, pool) {
       lesson.tags = [...req.body.tags].sort();
     }
     if (lesson.status === 'published') {
-      await разослатьОУроке(pool, req.app.locals.channels, lesson);
+      await notifyAboutLesson(pool, req.app.locals.channels, lesson);
     }
     res.json({ lesson });
   });

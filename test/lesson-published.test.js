@@ -17,9 +17,9 @@ const config = {
 };
 
 /** Приложение с подменёнными каналами: тест не должен ходить в сеть. */
-function приложение(pool, отправлено) {
+function makeApp(pool, sent) {
   const app = createApp({ config, pool });
-  app.locals.channels = { webpush: async (_, m) => отправлено.push(m) };
+  app.locals.channels = { webpush: async (_, m) => sent.push(m) };
   return finalize(app);
 }
 
@@ -36,7 +36,7 @@ async function seed(pool) {
   return { admin, petr };
 }
 
-function заголовки(admin) {
+function headers(admin) {
   return {
     'Content-Type': 'application/json',
     Accept: 'application/json',
@@ -44,7 +44,7 @@ function заголовки(admin) {
   };
 }
 
-const тело = JSON.stringify({
+const body = JSON.stringify({
   title: 'Docker, часть 1',
   description: 'Контейнеры',
   status: 'published',
@@ -54,54 +54,54 @@ const тело = JSON.stringify({
 test('публикация урока рассылает уведомления подписчикам', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
     const { admin } = await seed(pool);
-    const отправлено = [];
-    const app = приложение(pool, отправлено);
+    const sent = [];
+    const app = makeApp(pool, sent);
     await withServer(app, async (base) => {
       const res = await fetch(`${base}/api/lessons/docker-1`, {
         method: 'PUT',
-        headers: заголовки(admin),
-        body: тело
+        headers: headers(admin),
+        body: body
       });
       assert.equal(res.status, 200);
     });
-    assert.equal(отправлено.length, 1);
-    assert.match(отправлено[0].body, /Docker/);
-    assert.match(отправлено[0].url, /^\/lesson\/docker-1$/);
+    assert.equal(sent.length, 1);
+    assert.match(sent[0].body, /Docker/);
+    assert.match(sent[0].url, /^\/lesson\/docker-1$/);
   });
 });
 
 test('повторное сохранение опубликованного урока не шлёт второй раз', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
     const { admin } = await seed(pool);
-    const отправлено = [];
-    const app = приложение(pool, отправлено);
+    const sent = [];
+    const app = makeApp(pool, sent);
     await withServer(app, async (base) => {
       for (let i = 0; i < 2; i += 1) {
         await fetch(`${base}/api/lessons/docker-1`, {
           method: 'PUT',
-          headers: заголовки(admin),
-          body: тело
+          headers: headers(admin),
+          body: body
         });
       }
     });
     // Правка описания вышедшего урока — обычное дело; будить людей повторно
     // из-за неё нельзя. Защищает ключ вида lesson:<id>:published:<человек>.
-    assert.equal(отправлено.length, 1);
+    assert.equal(sent.length, 1);
   });
 });
 
 test('черновик никого не будит', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
     const { admin } = await seed(pool);
-    const отправлено = [];
-    const app = приложение(pool, отправлено);
+    const sent = [];
+    const app = makeApp(pool, sent);
     await withServer(app, async (base) => {
       await fetch(`${base}/api/lessons/chernovik`, {
         method: 'PUT',
-        headers: заголовки(admin),
+        headers: headers(admin),
         body: JSON.stringify({ title: 'Ещё не готов' })
       });
     });
-    assert.equal(отправлено.length, 0);
+    assert.equal(sent.length, 0);
   });
 });

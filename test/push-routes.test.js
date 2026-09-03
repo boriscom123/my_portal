@@ -23,7 +23,7 @@ const config = {
   }
 };
 
-const подписка = { endpoint: 'https://push.example/abc', keys: { p256dh: 'ключ', auth: 'соль' } };
+const subscription = { endpoint: 'https://push.example/abc', keys: { p256dh: 'ключ', auth: 'соль' } };
 
 function as(userId) {
   return {
@@ -33,7 +33,7 @@ function as(userId) {
   };
 }
 
-async function человек(pool) {
+async function makeUser(pool) {
   const { rows } = await pool.query(
     `INSERT INTO users (display_name) VALUES ('Пётр') RETURNING id`
   );
@@ -52,8 +52,8 @@ test('публичный ключ отдаётся всем', skipWithoutDb, asy
 
 test('без настроенных ключей отдаётся пусто, а не ошибка', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
-    const без = { ...config, vapid: { publicKey: '', privateKey: '', subject: '' } };
-    const app = finalize(createApp({ config: без, pool }));
+    const without = { ...config, vapid: { publicKey: '', privateKey: '', subject: '' } };
+    const app = finalize(createApp({ config: without, pool }));
     await withServer(app, async (base) => {
       // По пустому ключу клиент понимает, что предлагать подписку не нужно,
       // и не показывает кнопку, которая всё равно не сработает.
@@ -69,7 +69,7 @@ test('гость подписаться не может', skipWithoutDb, async (
       const res = await fetch(`${base}/api/push/subscribe`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify(подписка)
+        body: JSON.stringify(subscription)
       });
       assert.equal(res.status, 401);
     });
@@ -78,14 +78,14 @@ test('гость подписаться не может', skipWithoutDb, async (
 
 test('повторная подписка того же устройства не двоится', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
-    const id = await человек(pool);
+    const id = await makeUser(pool);
     const app = finalize(createApp({ config, pool }));
     await withServer(app, async (base) => {
       for (let i = 0; i < 2; i += 1) {
         await fetch(`${base}/api/push/subscribe`, {
           method: 'POST',
           headers: as(id),
-          body: JSON.stringify(подписка)
+          body: JSON.stringify(subscription)
         });
       }
       const { rows } = await pool.query('SELECT count(*)::int AS n FROM push_subscriptions');
@@ -96,18 +96,18 @@ test('повторная подписка того же устройства н�
 
 test('отписка убирает подписку', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
-    const id = await человек(pool);
+    const id = await makeUser(pool);
     const app = finalize(createApp({ config, pool }));
     await withServer(app, async (base) => {
       await fetch(`${base}/api/push/subscribe`, {
         method: 'POST',
         headers: as(id),
-        body: JSON.stringify(подписка)
+        body: JSON.stringify(subscription)
       });
       await fetch(`${base}/api/push/unsubscribe`, {
         method: 'POST',
         headers: as(id),
-        body: JSON.stringify({ endpoint: подписка.endpoint })
+        body: JSON.stringify({ endpoint: subscription.endpoint })
       });
       const { rows } = await pool.query('SELECT count(*)::int AS n FROM push_subscriptions');
       assert.equal(rows[0].n, 0);
@@ -117,27 +117,27 @@ test('отписка убирает подписку', skipWithoutDb, async () =
 
 test('чужую подписку отписать нельзя', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
-    const петр = await человек(pool);
+    const petr = await makeUser(pool);
     const { rows } = await pool.query(
       `INSERT INTO users (display_name) VALUES ('Анна') RETURNING id`
     );
-    const анна = Number(rows[0].id);
+    const anna = Number(rows[0].id);
     const app = finalize(createApp({ config, pool }));
     await withServer(app, async (base) => {
       await fetch(`${base}/api/push/subscribe`, {
         method: 'POST',
-        headers: as(петр),
-        body: JSON.stringify(подписка)
+        headers: as(petr),
+        body: JSON.stringify(subscription)
       });
       await fetch(`${base}/api/push/unsubscribe`, {
         method: 'POST',
-        headers: as(анна),
-        body: JSON.stringify({ endpoint: подписка.endpoint })
+        headers: as(anna),
+        body: JSON.stringify({ endpoint: subscription.endpoint })
       });
-      const { rows: осталось } = await pool.query(
+      const { rows: left } = await pool.query(
         'SELECT count(*)::int AS n FROM push_subscriptions'
       );
-      assert.equal(осталось[0].n, 1);
+      assert.equal(left[0].n, 1);
     });
   });
 });

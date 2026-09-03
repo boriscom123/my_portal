@@ -7,10 +7,10 @@ import webpush from 'web-push';
 
 // Сутки жизни у сообщения на сервере проталкивания: телефон в самолёте должен
 // получить уведомление о новом уроке, когда включится, а не потерять его.
-const ЖИЗНЬ_СЕКУНД = 86_400;
+const TTL_SECONDS = 86_400;
 
 // Коды, которыми браузер сообщает «этой подписки больше нет».
-const МЁРТВЫЕ = [404, 410];
+const GONE_CODES = [404, 410];
 
 export function createWebPushChannel(config, pool) {
   // Необязательные поля читаются через ?. намеренно: приложение должно
@@ -27,18 +27,18 @@ export function createWebPushChannel(config, pool) {
     return null;
   }
 
-  return async (подписки, сообщение) => {
-    const тело = JSON.stringify(сообщение);
-    for (const п of подписки) {
+  return async (subscriptions, message) => {
+    const body = JSON.stringify(message);
+    for (const ref of subscriptions) {
       try {
         await webpush.sendNotification(
-          { endpoint: п.endpoint, keys: { p256dh: п.p256dh, auth: п.auth } },
-          тело,
-          { TTL: ЖИЗНЬ_СЕКУНД }
+          { endpoint: ref.endpoint, keys: { p256dh: ref.p256dh, auth: ref.auth } },
+          body,
+          { TTL: TTL_SECONDS }
         );
       } catch (err) {
-        if (МЁРТВЫЕ.includes(err.statusCode)) {
-          await pool.query('DELETE FROM push_subscriptions WHERE endpoint = $1', [п.endpoint]);
+        if (GONE_CODES.includes(err.statusCode)) {
+          await pool.query('DELETE FROM push_subscriptions WHERE endpoint = $1', [ref.endpoint]);
         } else {
           throw err;
         }

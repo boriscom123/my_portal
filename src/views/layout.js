@@ -5,7 +5,7 @@
 // Вызывается из всех остальных файлов src/views/.
 import { escapeHtml } from '../lib/html.js';
 import { assetUrl } from '../lib/assets.js';
-import { ракета } from './rocket.js';
+import { rocket } from './rocket.js';
 
 /**
  * Собирает полную страницу.
@@ -24,7 +24,7 @@ export function layout({
   // Полный адрес страницы. Нужен дважды: поисковику — как канонический, чтобы
   // один урок не считался тремя страницами из-за меток в ссылках; мессенджеру —
   // в превью, где относительный адрес не разворачивается.
-  const адресСтраницы = `${config.publicBaseUrl}${path}`;
+  const pageUrl = `${config.publicBaseUrl}${path}`;
   return `<!doctype html>
 <html lang="ru">
 <head>
@@ -36,8 +36,8 @@ export function layout({
 <meta property="og:title" content="${escapeHtml(title)}">
 <meta property="og:description" content="${escapeHtml(description)}">
 <meta property="og:type" content="website">
-<meta property="og:url" content="${escapeHtml(адресСтраницы)}">
-<link rel="canonical" href="${escapeHtml(адресСтраницы)}">
+<meta property="og:url" content="${escapeHtml(pageUrl)}">
+<link rel="canonical" href="${escapeHtml(pageUrl)}">
 ${image ? `<meta property="og:image" content="${escapeHtml(image)}">\n` : ''}<meta name="theme-color" content="#0c0a20">
 <link rel="icon" href="/icons/icon-192.png">
 <link rel="manifest" href="/manifest.webmanifest">
@@ -48,7 +48,7 @@ ${image ? `<meta property="og:image" content="${escapeHtml(image)}">\n` : ''}<me
 <body>
 <header class="site-header">
   <a class="logo" href="/">
-    ${ракета({ height: 34, id: 'header' })}
+    ${rocket({ height: 34, id: 'header' })}
     <span class="wordmark">
       <span class="brand-mark" style="font-size:16px">SOLO AI</span>
       <span class="wordmark-tail">JOURNEY</span>

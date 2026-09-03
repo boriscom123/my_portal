@@ -22,53 +22,53 @@ export const skipWithoutDb = { skip: testDatabaseUrl ? false : 'TEST_DATABASE_UR
 
 // Имя латиницей: кириллица в именах схем работает, но требует кавычек в
 // каждом запросе — лишний повод ошибиться.
-const СХЕМА = `test_${process.pid}`;
+const SCHEMA = `test_${process.pid}`;
 
-let пул = null;
+let pool = null;
 
 /**
  * Готовит пул, привязанный к собственной схеме этого файла.
  * Схема создаётся заново: номер процесса система переиспользует, и остатки
  * прошлого прогона иначе выдали бы себя за свежие данные.
  */
-async function получитьПул() {
-  if (пул) return пул;
+async function getPool() {
+  if (pool) return pool;
 
-  const служебный = new pg.Pool({ connectionString: testDatabaseUrl, max: 1 });
+  const admin = new pg.Pool({ connectionString: testDatabaseUrl, max: 1 });
   try {
-    await служебный.query(`DROP SCHEMA IF EXISTS ${СХЕМА} CASCADE`);
-    await служебный.query(`CREATE SCHEMA ${СХЕМА}`);
+    await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
+    await admin.query(`CREATE SCHEMA ${SCHEMA}`);
   } finally {
-    await служебный.end();
+    await admin.end();
   }
 
-  пул = new pg.Pool({
+  pool = new pg.Pool({
     connectionString: testDatabaseUrl,
     // search_path заставляет миграции и запросы работать в нашей схеме, не
     // упоминая её ни в одной строке SQL самого приложения.
-    options: `-c search_path=${СХЕМА}`
+    options: `-c search_path=${SCHEMA}`
   });
-  await runMigrations(пул, new URL('../../migrations/', import.meta.url));
-  return пул;
+  await runMigrations(pool, new URL('../../migrations/', import.meta.url));
+  return pool;
 }
 
 // Схема живёт до конца процесса и уносится с собой: иначе на машине
 // разработчика они копились бы после каждого прогона.
 process.on('beforeExit', async () => {
-  if (!пул) return;
-  const свой = пул;
-  пул = null;
+  if (!pool) return;
+  const mine = pool;
+  pool = null;
   try {
-    await свой.query(`DROP SCHEMA IF EXISTS ${СХЕМА} CASCADE`);
+    await mine.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
   } catch {
     // База могла уже уйти — прибирать нечего.
   } finally {
-    await свой.end();
+    await mine.end();
   }
 });
 
 export async function withTestDb(fn) {
-  const pool = await получитьПул();
+  const pool = await getPool();
 
   // Внутри файла тесты идут по очереди, поэтому чистим перед каждым.
   // RESTART IDENTITY возвращает счётчики: без него идентификаторы растут от
@@ -76,11 +76,11 @@ export async function withTestDb(fn) {
   const { rows } = await pool.query(
     `SELECT tablename FROM pg_tables
       WHERE schemaname = $1 AND tablename <> 'schema_migrations'`,
-    [СХЕМА]
+    [SCHEMA]
   );
   if (rows.length) {
-    const имена = rows.map((r) => `${СХЕМА}."${r.tablename}"`).join(', ');
-    await pool.query(`TRUNCATE ${имена} RESTART IDENTITY CASCADE`);
+    const names = rows.map((r) => `${SCHEMA}."${r.tablename}"`).join(', ');
+    await pool.query(`TRUNCATE ${names} RESTART IDENTITY CASCADE`);
   }
 
   return fn(pool);

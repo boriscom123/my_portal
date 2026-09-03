@@ -7,7 +7,7 @@
 
 // Сколько уроков отдаём за раз. Лента бесконечной не бывает, а без предела
 // первый же год работы портала превратит главную в мегабайт HTML.
-const ПО_УМОЛЧАНИЮ = 20;
+const DEFAULT_LIMIT = 20;
 
 /** Приводит строку базы к виду, в котором её ждут шаблоны и API. */
 function toLesson(row) {
@@ -27,7 +27,7 @@ function toLesson(row) {
 /** Лента уроков. includeDrafts включается только для админа. */
 export async function listLessons(
   pool,
-  { tag = null, limit = ПО_УМОЛЧАНИЮ, offset = 0, includeDrafts = false }
+  { tag = null, limit = DEFAULT_LIMIT, offset = 0, includeDrafts = false }
 ) {
   const { rows } = await pool.query(
     `SELECT l.*, COALESCE(array_agg(t.slug ORDER BY t.slug) FILTER (WHERE t.slug IS NOT NULL), '{}') AS tags
@@ -130,7 +130,7 @@ export async function setLessonTags(pool, lessonId, tagSlugs) {
 }
 
 /** Лента новостей. Новость публикуется сразу: черновиков у неё нет. */
-export async function listNews(pool, { limit = ПО_УМОЛЧАНИЮ } = {}) {
+export async function listNews(pool, { limit = DEFAULT_LIMIT } = {}) {
   const { rows } = await pool.query(
     'SELECT id, slug, title, body, published_at FROM news ORDER BY published_at DESC LIMIT $1',
     [limit]

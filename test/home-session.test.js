@@ -23,19 +23,19 @@ test('вошедший видит своё имя на главной, гост�
     );
     const app = finalize(createApp({ config, pool }));
     await withServer(app, async (base) => {
-      const гость = await (await fetch(`${base}/`)).text();
-      assert.match(гость, />Войти</);
+      const guest = await (await fetch(`${base}/`)).text();
+      assert.match(guest, />Войти</);
 
-      const свой = await (
+      const mine = await (
         await fetch(`${base}/`, {
           headers: {
             Authorization: `Bearer ${signSession({ userId: rows[0].id, role: 'user' }, config.jwtSecret)}`
           }
         })
       ).text();
-      assert.match(свой, /Борис/);
-      assert.ok(!свой.includes('>Войти<'));
-      assert.match(свой, /Выйти/);
+      assert.match(mine, /Борис/);
+      assert.ok(!mine.includes('>Войти<'));
+      assert.match(mine, /Выйти/);
     });
   });
 });

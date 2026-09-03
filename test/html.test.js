@@ -31,17 +31,17 @@ test('заголовок страницы экранируется, а разм�
 });
 
 test('гостю показывается вход, вошедшему — его имя', () => {
-  const гость = layout({ config, title: 'Т', description: 'о', body: '' });
-  assert.match(гость, /Войти/);
-  const свой = layout({
+  const guest = layout({ config, title: 'Т', description: 'о', body: '' });
+  assert.match(guest, /Войти/);
+  const mine = layout({
     config,
     title: 'Т',
     description: 'о',
     body: '',
     user: { displayName: 'Пётр' }
   });
-  assert.match(свой, /Пётр/);
-  assert.ok(!свой.includes('>Войти<'));
+  assert.match(mine, /Пётр/);
+  assert.ok(!mine.includes('>Войти<'));
 });
 
 test('у iPhone своё имя приложения — short_name он не читает', () => {

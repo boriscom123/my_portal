@@ -6,18 +6,18 @@
 // и сводной ленте отзывов на этапе 9.
 // Вызывается из src/routes/feedback.js и src/routes/pages.js.
 import { PublicError } from '../middleware/errors.js';
-import { допустимаяОценка } from '../lib/reactions.js';
+import { isRatingOnScale } from '../lib/reactions.js';
 
 // Длина комментария. Верхняя граница защищает страницу от простыни на экран,
 // нижняя отсекает пустые нажатия.
-const МАКС_ДЛИНА = 4000;
+const MAX_LENGTH = 4000;
 
 /** Ставит или меняет оценку. Повтор той же оценки ничего не меняет. */
 export async function setReaction(pool, { userId, objectType, objectId, kind }) {
   // Проверяем до базы, чтобы человек получил внятный отказ, а не ошибку
   // ограничения. Ограничение в базе при этом остаётся: оно защищает от того,
   // что запишет мимо этой функции.
-  if (!допустимаяОценка(kind)) throw new PublicError('Такой оценки нет на шкале');
+  if (!isRatingOnScale(kind)) throw new PublicError('Такой оценки нет на шкале');
   await pool.query(
     `INSERT INTO reactions (user_id, object_type, object_id, kind)
      VALUES ($1, $2, $3, $4)
@@ -82,15 +82,15 @@ export async function getViewerReaction(pool, { objectType, objectId, userId }) 
 
 /** Принимает комментарий. Он появляется скрытым и ждёт модерации. */
 export async function addComment(pool, { userId, objectType, objectId, parentId = null, body }) {
-  const текст = String(body ?? '').trim();
-  if (!текст) throw new PublicError('Комментарий пуст');
-  if (текст.length > МАКС_ДЛИНА) throw new PublicError('Комментарий слишком длинный');
+  const text = String(body ?? '').trim();
+  if (!text) throw new PublicError('Комментарий пуст');
+  if (text.length > MAX_LENGTH) throw new PublicError('Комментарий слишком длинный');
 
   const { rows } = await pool.query(
     `INSERT INTO comments (user_id, object_type, object_id, parent_id, body)
      VALUES ($1, $2, $3, $4, $5)
      RETURNING id, user_id, parent_id, body, status, created_at`,
-    [userId, objectType, objectId, parentId, текст]
+    [userId, objectType, objectId, parentId, text]
   );
   const row = rows[0];
   return {

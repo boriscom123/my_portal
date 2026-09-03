@@ -39,13 +39,13 @@ async function seed(pool) {
   return { petr, anna, admin };
 }
 
-function приложение(pool, отправлено) {
+function makeApp(pool, sent) {
   const app = createApp({ config, pool });
-  app.locals.channels = { webpush: async (_, m) => отправлено.push(m) };
+  app.locals.channels = { webpush: async (_, m) => sent.push(m) };
   return finalize(app);
 }
 
-async function предложить(base, headers, title = 'Урок про очереди') {
+async function proposeIdea(base, headers, title = 'Урок про очереди') {
   const res = await fetch(`${base}/api/ideas`, {
     method: 'POST',
     headers,
@@ -56,7 +56,7 @@ async function предложить(base, headers, title = 'Урок про оч
 
 test('гость идею не предлагает', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
-    await withServer(приложение(pool, []), async (base) => {
+    await withServer(makeApp(pool, []), async (base) => {
       const res = await fetch(`${base}/api/ideas`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -70,8 +70,8 @@ test('гость идею не предлагает', skipWithoutDb, async () =>
 test('гость и голосовать не может', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
     const { petr } = await seed(pool);
-    await withServer(приложение(pool, []), async (base) => {
-      const { idea } = await предложить(base, as(petr));
+    await withServer(makeApp(pool, []), async (base) => {
+      const { idea } = await proposeIdea(base, as(petr));
       const res = await fetch(`${base}/api/ideas/${idea.id}/vote`, {
         method: 'POST',
         headers: { Accept: 'application/json' }
@@ -84,8 +84,8 @@ test('гость и голосовать не может', skipWithoutDb, async 
 test('статус меняет только автор портала', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
     const { petr } = await seed(pool);
-    await withServer(приложение(pool, []), async (base) => {
-      const { idea } = await предложить(base, as(petr));
+    await withServer(makeApp(pool, []), async (base) => {
+      const { idea } = await proposeIdea(base, as(petr));
       const res = await fetch(`${base}/api/ideas/${idea.id}/status`, {
         method: 'POST',
         headers: as(petr),
@@ -99,9 +99,9 @@ test('статус меняет только автор портала', skipWit
 test('предложил, проголосовал, сменил статус — уведомление ушло', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
     const { petr, anna, admin } = await seed(pool);
-    const отправлено = [];
-    await withServer(приложение(pool, отправлено), async (base) => {
-      const { idea } = await предложить(base, as(petr));
+    const sent = [];
+    await withServer(makeApp(pool, sent), async (base) => {
+      const { idea } = await proposeIdea(base, as(petr));
       await fetch(`${base}/api/ideas/${idea.id}/vote`, { method: 'POST', headers: as(anna) });
 
       const res = await fetch(`${base}/api/ideas/${idea.id}/status`, {
@@ -111,18 +111,18 @@ test('предложил, проголосовал, сменил статус �
       });
       assert.equal(res.status, 200);
     });
-    assert.equal(отправлено.length, 1);
-    assert.match(отправлено[0].body, /Урок про очереди/);
-    assert.match(отправлено[0].title, /принята/i);
+    assert.equal(sent.length, 1);
+    assert.match(sent[0].body, /Урок про очереди/);
+    assert.match(sent[0].title, /принята/i);
   });
 });
 
 test('повторная смена статуса на тот же не будит людей снова', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
     const { petr, anna, admin } = await seed(pool);
-    const отправлено = [];
-    await withServer(приложение(pool, отправлено), async (base) => {
-      const { idea } = await предложить(base, as(petr));
+    const sent = [];
+    await withServer(makeApp(pool, sent), async (base) => {
+      const { idea } = await proposeIdea(base, as(petr));
       await fetch(`${base}/api/ideas/${idea.id}/vote`, { method: 'POST', headers: as(anna) });
       for (let i = 0; i < 2; i += 1) {
         await fetch(`${base}/api/ideas/${idea.id}/status`, {
@@ -132,7 +132,7 @@ test('повторная смена статуса на тот же не буд�
         });
       }
     });
-    assert.equal(отправлено.length, 1);
+    assert.equal(sent.length, 1);
   });
 });
 
@@ -143,9 +143,9 @@ test('вышедшая идея уводит уведомление на уро�
       `INSERT INTO lessons (slug, title, status, published_at)
        VALUES ('ocheredi', 'Очереди', 'published', now())`
     );
-    const отправлено = [];
-    await withServer(приложение(pool, отправлено), async (base) => {
-      const { idea } = await предложить(base, as(petr));
+    const sent = [];
+    await withServer(makeApp(pool, sent), async (base) => {
+      const { idea } = await proposeIdea(base, as(petr));
       await fetch(`${base}/api/ideas/${idea.id}/vote`, { method: 'POST', headers: as(anna) });
       await fetch(`${base}/api/ideas/${idea.id}/status`, {
         method: 'POST',
@@ -153,6 +153,6 @@ test('вышедшая идея уводит уведомление на уро�
         body: JSON.stringify({ status: 'released', lessonSlug: 'ocheredi' })
       });
     });
-    assert.equal(отправлено[0].url, '/lesson/ocheredi');
+    assert.equal(sent[0].url, '/lesson/ocheredi');
   });
 });

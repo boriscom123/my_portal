@@ -18,7 +18,7 @@ import { notify } from '../services/notify/index.js';
  * главную. Для урока это его карточка, для идеи — борд.
  * Вызывается из разослатьОбОтзыве.
  */
-async function адресОбъекта(pool, objectType, objectId) {
+async function objectUrl(pool, objectType, objectId) {
   if (objectType !== 'lesson') return '/ideas';
   const { rows } = await pool.query('SELECT slug FROM lessons WHERE id = $1', [objectId]);
   return rows.length ? `/lesson/${rows[0].slug}` : '/';
@@ -33,26 +33,26 @@ async function адресОбъекта(pool, objectType, objectId) {
  * Себя не уведомляем ни в одной роли: человек знает, что он только что написал.
  * Вызывается из обработчика POST /api/comments.
  */
-async function разослатьОбОтзыве(pool, channels, comment, objectType, objectId) {
-  const url = await адресОбъекта(pool, objectType, objectId);
+async function notifyAboutComment(pool, channels, comment, objectType, objectId) {
+  const url = await objectUrl(pool, objectType, objectId);
   // Обрезаем: в уведомлении на телефоне длинный отзыв всё равно не покажут,
   // а тащить простыню через канал незачем.
-  const выдержка = comment.body.slice(0, 200);
+  const excerpt = comment.body.slice(0, 200);
 
   if (comment.parentId) {
     const { rows } = await pool.query('SELECT user_id FROM comments WHERE id = $1', [
       comment.parentId
     ]);
-    const адресат = rows.length ? Number(rows[0].user_id) : null;
-    if (адресат && адресат !== comment.userId) {
+    const recipient = rows.length ? Number(rows[0].user_id) : null;
+    if (recipient && recipient !== comment.userId) {
       await notify(
         pool,
         {
-          userId: адресат,
+          userId: recipient,
           kind: 'comment_reply',
-          dedupKey: `comment:${comment.id}:reply:${адресат}`,
+          dedupKey: `comment:${comment.id}:reply:${recipient}`,
           title: 'Вам ответили',
-          body: выдержка,
+          body: excerpt,
           url
         },
         channels
@@ -60,8 +60,8 @@ async function разослатьОбОтзыве(pool, channels, comment, objec
     }
   }
 
-  const { rows: админы } = await pool.query(`SELECT id FROM users WHERE role = 'admin'`);
-  for (const { id } of админы) {
+  const { rows: admins } = await pool.query(`SELECT id FROM users WHERE role = 'admin'`);
+  for (const { id } of admins) {
     if (Number(id) === comment.userId) continue;
     await notify(
       pool,
@@ -70,7 +70,7 @@ async function разослатьОбОтзыве(pool, channels, comment, objec
         kind: 'comment_moderation',
         dedupKey: `comment:${comment.id}:moderation:${id}`,
         title: 'Отзыв на модерацию',
-        body: выдержка,
+        body: excerpt,
         url
       },
       channels
@@ -112,7 +112,7 @@ export function feedbackRoutes(config, pool) {
       parentId: parentId ?? null,
       body
     });
-    await разослатьОбОтзыве(pool, req.app.locals.channels, comment, objectType, objectId);
+    await notifyAboutComment(pool, req.app.locals.channels, comment, objectType, objectId);
 
     // 201: комментарий создан, но опубликован не сразу — клиент должен
     // показать «ждёт проверки», а не сделать вид, что он уже в ленте.

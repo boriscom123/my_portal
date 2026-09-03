@@ -10,7 +10,7 @@ import { requireUser, requireAdmin } from '../middleware/guards.js';
 
 // Что человек прочитает в уведомлении о смене статуса. Слово «accepted» на
 // экране телефона не объясняет ничего.
-const ПОДПИСИ_СТАТУСОВ = {
+const STATUS_LABELS = {
   new: 'снова открыта',
   accepted: 'принята в работу',
   in_progress: 'уже снимается',
@@ -63,7 +63,7 @@ export function ideaRoutes(config, pool) {
           // Ключ включает статус: каждая смена уведомляет один раз, а повтор
           // того же статуса — ни разу.
           dedupKey: `idea:${idea.id}:${idea.status}:${userId}`,
-          title: `Идея ${ПОДПИСИ_СТАТУСОВ[idea.status]}`,
+          title: `Идея ${STATUS_LABELS[idea.status]}`,
           body: idea.title,
           // Вышедшую идею ведём сразу на урок: человек голосовал за тему, и
           // ему нужен урок, а не строчка в списке.

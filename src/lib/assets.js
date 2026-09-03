@@ -12,27 +12,27 @@
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 
-const КАТАЛОГ = new URL('../../public/', import.meta.url);
+const DIR = new URL('../../public/', import.meta.url);
 
 // Восьми знаков хватает: столкновение двух версий одного файла на таком
 // количестве вариантов практически невозможно, а адрес остаётся читаемым.
-const ДЛИНА_ОТПЕЧАТКА = 8;
+const FINGERPRINT_LENGTH = 8;
 
-const отпечатки = new Map();
+const fingerprints = new Map();
 
 /**
  * Возвращает адрес файла статики с отпечатком: /styles.css?v=1a2b3c4d.
  * Если файла нет — отдаёт адрес как есть: страница важнее, чем кеш.
  */
-export function assetUrl(путь) {
-  if (!отпечатки.has(путь)) {
+export function assetUrl(path) {
+  if (!fingerprints.has(path)) {
     try {
-      const содержимое = readFileSync(new URL(путь.replace(/^\//, ''), КАТАЛОГ));
-      отпечатки.set(путь, createHash('sha256').update(содержимое).digest('hex').slice(0, ДЛИНА_ОТПЕЧАТКА));
+      const content = readFileSync(new URL(path.replace(/^\//, ''), DIR));
+      fingerprints.set(path, createHash('sha256').update(content).digest('hex').slice(0, FINGERPRINT_LENGTH));
     } catch {
-      отпечатки.set(путь, null);
+      fingerprints.set(path, null);
     }
   }
-  const отпечаток = отпечатки.get(путь);
-  return отпечаток ? `${путь}?v=${отпечаток}` : путь;
+  const fingerprint = fingerprints.get(path);
+  return fingerprint ? `${path}?v=${fingerprint}` : path;
 }

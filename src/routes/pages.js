@@ -24,7 +24,7 @@ import { PublicError } from '../middleware/errors.js';
  * шаблон весь req незачем — вид не должен знать про HTTP.
  * Вызывается из обработчиков этого файла.
  */
-async function текущийПользователь(pool, req) {
+async function currentUser(pool, req) {
   if (!req.user || !pool) return null;
   const { rows } = await pool.query('SELECT display_name, role FROM users WHERE id = $1', [
     req.user.id
@@ -44,7 +44,7 @@ export function pageRoutes(config, pool) {
   });
 
   router.get('/', async (req, res) => {
-    const user = await текущийПользователь(pool, req);
+    const user = await currentUser(pool, req);
     const lessons = await listLessons(pool, { includeDrafts: user?.role === 'admin' });
     // Пока уроков нет вовсе, показываем заглушку с рассказом о проекте:
     // пустая лента на новом сайте читается как сломанная страница.
@@ -57,35 +57,35 @@ export function pageRoutes(config, pool) {
   });
 
   router.get('/tag/:slug', async (req, res) => {
-    const user = await текущийПользователь(pool, req);
+    const user = await currentUser(pool, req);
     const lessons = await listLessons(pool, { tag: req.params.slug });
     res.type('html').send(feedPage({ config, lessons, news: [], user, tag: req.params.slug }));
   });
 
   router.get('/lesson/:slug', async (req, res) => {
-    const user = await текущийПользователь(pool, req);
+    const user = await currentUser(pool, req);
     const lesson = await getLessonBySlug(pool, req.params.slug, {
       includeDrafts: user?.role === 'admin'
     });
     if (!lesson) throw new PublicError('Урок не найден', 404);
 
-    const объект = { objectType: 'lesson', objectId: lesson.id };
-    lesson.reactions = await countReactions(pool, объект);
-    const rating = await ratingSummary(pool, объект);
+    const object = { objectType: 'lesson', objectId: lesson.id };
+    lesson.reactions = await countReactions(pool, object);
+    const rating = await ratingSummary(pool, object);
     const comments = await listComments(pool, {
-      ...объект,
+      ...object,
       viewerId: req.user?.id ?? null,
       isAdmin: user?.role === 'admin'
     });
     const viewerReaction = await getViewerReaction(pool, {
-      ...объект,
+      ...object,
       userId: req.user?.id ?? null
     });
     res.type('html').send(lessonPage({ config, lesson, comments, user, viewerReaction, rating }));
   });
 
   router.get('/ideas', async (req, res) => {
-    const user = await текущийПользователь(pool, req);
+    const user = await currentUser(pool, req);
     const ideas = await listIdeas(pool, { viewerId: req.user?.id ?? null });
     res.type('html').send(ideasPage({ config, ideas, user }));
   });
@@ -95,7 +95,7 @@ export function pageRoutes(config, pool) {
   });
 
   router.get('/login', async (req, res) => {
-    const user = await текущийПользователь(pool, req);
+    const user = await currentUser(pool, req);
     res.type('html').send(loginPage({ config, user }));
   });
 

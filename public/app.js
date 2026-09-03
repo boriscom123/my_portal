@@ -14,8 +14,8 @@
  * повторять это в каждом — верный способ где-нибудь забыть.
  * Вызывается всеми обработчиками этого файла.
  */
-export async function запрос(адрес, options = {}) {
-  const res = await fetch(адрес, {
+export async function request(url, options = {}) {
+  const res = await fetch(url, {
     ...options,
     headers: { 'Content-Type': 'application/json', ...(options.headers ?? {}) }
   });
@@ -24,8 +24,8 @@ export async function запрос(адрес, options = {}) {
     return null;
   }
   if (!res.ok) {
-    const тело = await res.json().catch(() => ({}));
-    throw new Error(тело.error ?? 'Ошибка');
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error ?? 'Ошибка');
   }
   return res.json();
 }
@@ -37,28 +37,28 @@ export async function запрос(адрес, options = {}) {
  * прежняя версия при сбое просто ничего не делала.
  * Вызывается из onTelegramAuth в src/views/login.js.
  */
-window.войтиЧерезTelegram = async (user) => {
-  const сообщение = document.querySelector('.login-error');
+window.signInWithTelegram = async (user) => {
+  const message = document.querySelector('.login-error');
   try {
-    const ответ = await запрос('/api/auth/telegram', {
+    const answer = await request('/api/auth/telegram', {
       method: 'POST',
       body: JSON.stringify(user)
     });
-    if (ответ) location.href = '/';
-  } catch (ошибка) {
-    if (сообщение) {
-      сообщение.textContent = `Войти не удалось: ${ошибка.message}. Попробуйте ещё раз.`;
-      сообщение.hidden = false;
+    if (answer) location.href = '/';
+  } catch (error) {
+    if (message) {
+      message.textContent = `Войти не удалось: ${error.message}. Попробуйте ещё раз.`;
+      message.hidden = false;
     }
   }
 };
 
 // Если виджет успел сработать до загрузки этого модуля, данные ждут в очереди.
-if (window.очередьВхода) window.войтиЧерезTelegram(window.очередьВхода);
+if (window.pendingTelegramAuth) window.signInWithTelegram(window.pendingTelegramAuth);
 
 // Выход. Кука httpOnly, скриптом её не стереть — гасит её сервер.
 document.querySelector('[data-logout]')?.addEventListener('click', async () => {
-  await запрос('/api/auth/logout', { method: 'POST' });
+  await request('/api/auth/logout', { method: 'POST' });
   location.href = '/';
 });
 
@@ -73,11 +73,11 @@ document.querySelector('[data-logout]')?.addEventListener('click', async () => {
  * отдаёт строку. Это самое частое место, где подписка молча не оформляется.
  * Вызывается только из включитьУведомления.
  */
-function ключВБайты(base64url) {
+function keyToBytes(base64url) {
   const base64 = (base64url + '='.repeat((4 - (base64url.length % 4)) % 4))
     .replace(/-/g, '+')
     .replace(/_/g, '/');
-  return Uint8Array.from(atob(base64), (символ) => символ.charCodeAt(0));
+  return Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
 }
 
 /**
@@ -85,56 +85,56 @@ function ключВБайты(base64url) {
  * разрешения без действия человека браузеры отклоняют, а Safari запоминает
  * отказ надолго — второго шанса спросить не будет.
  */
-async function включитьУведомления(кнопка) {
-  const { key } = await запрос('/api/push/key');
+async function enableNotifications(button) {
+  const { key } = await request('/api/push/key');
   if (!key) return;
 
-  const разрешение = await Notification.requestPermission();
-  if (разрешение !== 'granted') {
-    кнопка.title = 'Уведомления запрещены в настройках браузера';
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') {
+    button.title = 'Уведомления запрещены в настройках браузера';
     return;
   }
 
-  const регистрация = await navigator.serviceWorker.ready;
-  const подписка =
-    (await регистрация.pushManager.getSubscription()) ??
-    (await регистрация.pushManager.subscribe({
+  const registration = await navigator.serviceWorker.ready;
+  const subscription =
+    (await registration.pushManager.getSubscription()) ??
+    (await registration.pushManager.subscribe({
       // Без этого флага браузер разрешил бы «тихие» пуши без уведомления — и
       // отозвал бы подписку, заметив, что мы ничего не показываем.
       userVisibleOnly: true,
-      applicationServerKey: ключВБайты(key)
+      applicationServerKey: keyToBytes(key)
     }));
 
-  await запрос('/api/push/subscribe', { method: 'POST', body: JSON.stringify(подписка) });
-  кнопка.textContent = '🔔';
-  кнопка.title = 'Уведомления включены';
-  кнопка.disabled = true;
+  await request('/api/push/subscribe', { method: 'POST', body: JSON.stringify(subscription) });
+  button.textContent = '🔔';
+  button.title = 'Уведомления включены';
+  button.disabled = true;
 }
 
-const кнопкаУведомлений = document.querySelector('[data-notifications]');
-if (кнопкаУведомлений && 'Notification' in window && 'serviceWorker' in navigator) {
-  запрос('/api/push/key')
-    .then(async (ответ) => {
-      if (!ответ?.key) return;
-      кнопкаУведомлений.hidden = false;
-      const регистрация = await navigator.serviceWorker.ready;
-      if (await регистрация.pushManager.getSubscription()) {
-        кнопкаУведомлений.title = 'Уведомления включены';
-        кнопкаУведомлений.disabled = true;
+const notificationsButton = document.querySelector('[data-notifications]');
+if (notificationsButton && 'Notification' in window && 'serviceWorker' in navigator) {
+  request('/api/push/key')
+    .then(async (answer) => {
+      if (!answer?.key) return;
+      notificationsButton.hidden = false;
+      const registration = await navigator.serviceWorker.ready;
+      if (await registration.pushManager.getSubscription()) {
+        notificationsButton.title = 'Уведомления включены';
+        notificationsButton.disabled = true;
       }
     })
     .catch(() => {
       // Ключей нет или сервер недоступен — кнопка так и остаётся скрытой.
     });
 
-  кнопкаУведомлений.addEventListener('click', () => включитьУведомления(кнопкаУведомлений));
+  notificationsButton.addEventListener('click', () => enableNotifications(notificationsButton));
 }
 
 /* --- Тема ---------------------------------------------------------------
  * По умолчанию берётся системная настройка, кнопка её перебивает. Выбор
  * хранится в браузере: сервер о нём не знает и знать не должен — это личная
  * настройка устройства, а не свойство аккаунта. */
-const КЛЮЧ_ТЕМЫ = 'portal-theme';
+const THEME_KEY = 'portal-theme';
 
 /**
  * Красит строку браузера в цвет фактического фона страницы.
@@ -143,37 +143,37 @@ const КЛЮЧ_ТЕМЫ = 'portal-theme';
  * самым белым, что видно сверху и снизу экрана. Одну метку понимают все.
  * Вызывается при загрузке и при каждой смене темы.
  */
-function обновитьЦветСтроки() {
-  const фон = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
-  const метка = document.querySelector('meta[name="theme-color"]');
-  if (метка && фон) метка.setAttribute('content', фон);
+function updateThemeColor() {
+  const background = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
+  const tag = document.querySelector('meta[name="theme-color"]');
+  if (tag && background) tag.setAttribute('content', background);
 }
 
-function применитьТему(тема) {
-  if (тема) document.documentElement.dataset.theme = тема;
+function applyTheme(theme) {
+  if (theme) document.documentElement.dataset.theme = theme;
   else delete document.documentElement.dataset.theme;
-  обновитьЦветСтроки();
+  updateThemeColor();
 }
 
 try {
-  применитьТему(localStorage.getItem(КЛЮЧ_ТЕМЫ));
+  applyTheme(localStorage.getItem(THEME_KEY));
 } catch {
   // Приватное окно или запрет на хранилище: остаёмся на системной теме.
-  обновитьЦветСтроки();
+  updateThemeColor();
 }
 
 // Человек переключил тему в системе, пока страница открыта.
 window
   .matchMedia('(prefers-color-scheme: dark)')
-  .addEventListener('change', обновитьЦветСтроки);
+  .addEventListener('change', updateThemeColor);
 
 document.querySelector('[data-theme-toggle]')?.addEventListener('click', () => {
-  const системнаяТёмная = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const сейчас = document.documentElement.dataset.theme || (системнаяТёмная ? 'dark' : 'light');
-  const следующая = сейчас === 'dark' ? 'light' : 'dark';
-  применитьТему(следующая);
+  const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const current = document.documentElement.dataset.theme || (systemDark ? 'dark' : 'light');
+  const next = current === 'dark' ? 'light' : 'dark';
+  applyTheme(next);
   try {
-    localStorage.setItem(КЛЮЧ_ТЕМЫ, следующая);
+    localStorage.setItem(THEME_KEY, next);
   } catch {
     // Не сохранилось — тема продержится до перезагрузки страницы.
   }
@@ -181,42 +181,42 @@ document.querySelector('[data-theme-toggle]')?.addEventListener('click', () => {
 
 /* --- Карточка урока: реакции и отзывы ----------------------------------- */
 
-const карточкаУрока = document.querySelector('[data-lesson]');
-if (карточкаУрока) {
-  const objectId = Number(карточкаУрока.dataset.lesson);
+const lessonCard = document.querySelector('[data-lesson]');
+if (lessonCard) {
+  const objectId = Number(lessonCard.dataset.lesson);
 
-  for (const кнопка of карточкаУрока.querySelectorAll('[data-rating]')) {
-    кнопка.addEventListener('click', async () => {
+  for (const button of lessonCard.querySelectorAll('[data-rating]')) {
+    button.addEventListener('click', async () => {
       // Нажатие по уже отданной оценке снимает её: иначе передумать нельзя,
       // а сервер всё равно хранит одну оценку на человека.
-      const отдана = кнопка.classList.contains('отдана');
-      const ответ = await запрос('/api/reactions', {
-        method: отдана ? 'DELETE' : 'POST',
-        body: JSON.stringify({ objectType: 'lesson', objectId, kind: кнопка.dataset.rating })
+      const isChosen = button.classList.contains('отдана');
+      const answer = await request('/api/reactions', {
+        method: isChosen ? 'DELETE' : 'POST',
+        body: JSON.stringify({ objectType: 'lesson', objectId, kind: button.dataset.rating })
       });
-      if (ответ) location.reload();
+      if (answer) location.reload();
     });
   }
 
-  const форма = document.querySelector('#comment-form');
-  форма?.addEventListener('submit', async (event) => {
+  const form = document.querySelector('#comment-form');
+  form?.addEventListener('submit', async (event) => {
     event.preventDefault();
-    const кнопка = форма.querySelector('button');
-    кнопка.disabled = true;
+    const button = form.querySelector('button');
+    button.disabled = true;
     try {
-      const ответ = await запрос('/api/comments', {
+      const answer = await request('/api/comments', {
         method: 'POST',
         body: JSON.stringify({
           objectType: 'lesson',
           objectId,
-          body: new FormData(форма).get('body')
+          body: new FormData(form).get('body')
         })
       });
       // Перезагружаем: отзыв скрыт до проверки, но своему автору он виден —
       // человек должен увидеть, что его слова не пропали.
-      if (ответ) location.reload();
+      if (answer) location.reload();
     } finally {
-      кнопка.disabled = false;
+      button.disabled = false;
     }
   });
 }
@@ -225,29 +225,29 @@ if (карточкаУрока) {
 
 // Счётчик правим на месте, без перезагрузки: голосуют подряд за несколько идей,
 // и перезагрузка на каждый голос сбрасывала бы прокрутку к началу списка.
-for (const кнопка of document.querySelectorAll('[data-vote]')) {
-  кнопка.addEventListener('click', async () => {
-    const отдан = кнопка.classList.contains('отдан');
-    const ответ = await запрос(`/api/ideas/${кнопка.dataset.vote}/vote`, {
-      method: отдан ? 'DELETE' : 'POST'
+for (const button of document.querySelectorAll('[data-vote]')) {
+  button.addEventListener('click', async () => {
+    const isVoted = button.classList.contains('отдан');
+    const answer = await request(`/api/ideas/${button.dataset.vote}/vote`, {
+      method: isVoted ? 'DELETE' : 'POST'
     });
-    if (!ответ) return;
-    const счётчик = кнопка.querySelector('span');
-    счётчик.textContent = Number(счётчик.textContent) + (отдан ? -1 : 1);
-    кнопка.classList.toggle('отдан');
-    кнопка.setAttribute('aria-label', отдан ? 'Проголосовать' : 'Отозвать голос');
+    if (!answer) return;
+    const counter = button.querySelector('span');
+    counter.textContent = Number(counter.textContent) + (isVoted ? -1 : 1);
+    button.classList.toggle('отдан');
+    button.setAttribute('aria-label', isVoted ? 'Проголосовать' : 'Отозвать голос');
   });
 }
 
-const формаИдеи = document.querySelector('#idea-form');
-формаИдеи?.addEventListener('submit', async (событие) => {
-  событие.preventDefault();
-  const данные = new FormData(формаИдеи);
-  const ответ = await запрос('/api/ideas', {
+const ideaForm = document.querySelector('#idea-form');
+ideaForm?.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const data = new FormData(ideaForm);
+  const answer = await request('/api/ideas', {
     method: 'POST',
-    body: JSON.stringify({ title: данные.get('title'), body: данные.get('body') })
+    body: JSON.stringify({ title: data.get('title'), body: data.get('body') })
   });
   // Здесь перезагрузка уместна: идея видна сразу, и человек должен увидеть её
   // в списке на своём месте — по числу голосов, а не там, где он ожидал.
-  if (ответ) location.reload();
+  if (answer) location.reload();
 });

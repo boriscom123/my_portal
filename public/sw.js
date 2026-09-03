@@ -9,9 +9,9 @@
 
 // Имя кеша с версией: смена имени — это и есть выкат новой оболочки. Старый
 // кеш удаляется в activate, иначе они копятся до конца жизни устройства.
-const КЕШ = 'портал-оболочка-v1';
+const CACHE = 'портал-оболочка-v1';
 
-const ОБОЛОЧКА = [
+const SHELL = [
   '/offline',
   '/styles.css',
   '/app.js',
@@ -22,10 +22,10 @@ const ОБОЛОЧКА = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
-      .open(КЕШ)
+      .open(CACHE)
       // addAll падает целиком, если хоть один файл не отдался, и тогда worker
       // не установится вовсе. Кладём по одному: офлайн-страница важнее полноты.
-      .then((кеш) => Promise.allSettled(ОБОЛОЧКА.map((путь) => кеш.add(путь))))
+      .then((cache) => Promise.allSettled(SHELL.map((path) => cache.add(path))))
       .then(() => self.skipWaiting())
   );
 });
@@ -34,7 +34,7 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((имена) => Promise.all(имена.filter((и) => и !== КЕШ).map((и) => caches.delete(и))))
+      .then((names) => Promise.all(names.filter((name) => name !== CACHE).map((name) => caches.delete(name))))
       .then(() => self.clients.claim())
   );
 });
@@ -42,42 +42,42 @@ self.addEventListener('activate', (event) => {
 // Сеть в приоритете: содержимое портала меняется, и показывать вчерашнюю ленту
 // вместо сегодняшней хуже, чем секунда ожидания. Кеш — запасной выход.
 self.addEventListener('fetch', (event) => {
-  const запрос = event.request;
-  if (запрос.method !== 'GET') return;
+  const request = event.request;
+  if (request.method !== 'GET') return;
 
   // Чужие домены не наше дело, а запросы к API кешировать нельзя вовсе:
   // ответ зависит от того, кто спрашивает.
-  const адрес = new URL(запрос.url);
-  if (адрес.origin !== self.location.origin || адрес.pathname.startsWith('/api/')) return;
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin || url.pathname.startsWith('/api/')) return;
 
   event.respondWith(
-    fetch(запрос)
-      .then((ответ) => {
-        if (ответ.ok) {
-          const копия = ответ.clone();
-          caches.open(КЕШ).then((кеш) => кеш.put(запрос, копия));
+    fetch(request)
+      .then((answer) => {
+        if (answer.ok) {
+          const copy = answer.clone();
+          caches.open(CACHE).then((cache) => cache.put(request, copy));
         }
-        return ответ;
+        return answer;
       })
       .catch(() =>
-        caches.match(запрос).then((из_кеша) => из_кеша ?? caches.match('/offline'))
+        caches.match(request).then((cached) => cached ?? caches.match('/offline'))
       )
   );
 });
 
 self.addEventListener('push', (event) => {
-  let данные = {};
+  let data = {};
   try {
-    данные = event.data ? event.data.json() : {};
+    data = event.data ? event.data.json() : {};
   } catch {
-    данные = { body: event.data && event.data.text() };
+    data = { body: event.data && event.data.text() };
   }
   event.waitUntil(
-    self.registration.showNotification(данные.title || 'Solo AI Journey', {
-      body: данные.body || '',
+    self.registration.showNotification(data.title || 'Solo AI Journey', {
+      body: data.body || '',
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-192.png',
-      data: { url: данные.url || '/' }
+      data: { url: data.url || '/' }
     })
   );
 });
@@ -86,11 +86,11 @@ self.addEventListener('push', (event) => {
 // только иначе новую: иначе у человека копятся вкладки одного и того же портала.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const адрес = event.notification.data?.url || '/';
+  const url = event.notification.data?.url || '/';
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((окна) => {
-      const открытое = окна.find((окно) => окно.url.includes(адрес));
-      return открытое ? открытое.focus() : self.clients.openWindow(адрес);
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
+      const openWindow = windows.find((win) => win.url.includes(url));
+      return openWindow ? openWindow.focus() : self.clients.openWindow(url);
     })
   );
 });

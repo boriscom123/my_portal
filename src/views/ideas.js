@@ -5,15 +5,15 @@
 import { escapeHtml } from '../lib/html.js';
 import { layout } from './layout.js';
 
-const ПОДПИСИ_СТАТУСОВ = {
+const STATUS_LABELS = {
   new: 'новая',
   accepted: 'принята',
   in_progress: 'в работе',
   released: 'вышла'
 };
 
-function карточкаИдеи(idea) {
-  const ссылкаНаУрок = idea.lessonSlug
+function ideaCard(idea) {
+  const lessonLink = idea.lessonSlug
     ? ` — <a href="/lesson/${encodeURIComponent(idea.lessonSlug)}">смотреть урок</a>`
     : '';
   return `<li class="idea">
@@ -25,7 +25,7 @@ function карточкаИдеи(idea) {
   <div class="idea-text">
     <h3>${escapeHtml(idea.title)}</h3>
     ${idea.body ? `<p>${escapeHtml(idea.body)}</p>` : ''}
-    <p class="meta">${ПОДПИСИ_СТАТУСОВ[idea.status]}${ссылкаНаУрок} ·
+    <p class="meta">${STATUS_LABELS[idea.status]}${lessonLink} ·
       предложил ${escapeHtml(idea.author?.displayName ?? 'кто-то')}</p>
   </div>
 </li>`;
@@ -57,7 +57,7 @@ ${
 }
 
 <ul class="ideas-board">${
-      ideas.map(карточкаИдеи).join('') ||
+      ideas.map(ideaCard).join('') ||
       '<li class="hint">Пока пусто. Будьте первым — тема ближайшего урока ещё не выбрана.</li>'
     }</ul>`
   });

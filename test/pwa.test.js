@@ -15,19 +15,19 @@ const config = {
   vapid: { publicKey: '', privateKey: '', subject: 'mailto:a@b' }
 };
 
-async function получить(путь) {
+async function fetchPage(path) {
   const app = finalize(createApp({ config, pool: null }));
   return withServer(app, async (base) => {
-    const res = await fetch(`${base}${путь}`);
-    return { res, тело: await res.text() };
+    const res = await fetch(`${base}${path}`);
+    return { res, body: await res.text() };
   });
 }
 
 test('манифест собран из адреса портала', async () => {
-  const { res, тело } = await получить('/manifest.webmanifest');
+  const { res, body } = await fetchPage('/manifest.webmanifest');
   assert.equal(res.status, 200);
   assert.match(res.headers.get('content-type'), /manifest\+json/);
-  const manifest = JSON.parse(тело);
+  const manifest = JSON.parse(body);
   assert.equal(manifest.start_url, 'https://soloaijourney.online/');
   // standalone — приложение открывается без адресной строки. Без этого iOS
   // не считает страницу приложением и не даёт Web Push.
@@ -44,26 +44,26 @@ test('манифест собран из адреса портала', async () 
 });
 
 test('манифест перечитывается, а не живёт в кеше сутками', async () => {
-  const { res } = await получить('/manifest.webmanifest');
+  const { res } = await fetchPage('/manifest.webmanifest');
   assert.match(res.headers.get('cache-control'), /no-cache|max-age=0/);
 });
 
 test('service worker отдаётся с корня, иначе не увидит весь сайт', async () => {
-  const { res, тело } = await получить('/sw.js');
+  const { res, body } = await fetchPage('/sw.js');
   assert.equal(res.status, 200);
   assert.match(res.headers.get('content-type'), /javascript/);
-  assert.match(тело, /addEventListener\('push'/);
+  assert.match(body, /addEventListener\('push'/);
 });
 
 test('service worker не кладётся в долгий кеш', async () => {
-  const { res } = await получить('/sw.js');
+  const { res } = await fetchPage('/sw.js');
   // Закешированный на час worker означает, что старая версия приложения
   // живёт у человека ещё час после выката — включая старую логику пушей.
   assert.match(res.headers.get('cache-control'), /no-cache|max-age=0/);
 });
 
 test('офлайн-страница есть и объясняет, что происходит', async () => {
-  const { res, тело } = await получить('/offline');
+  const { res, body } = await fetchPage('/offline');
   assert.equal(res.status, 200);
-  assert.match(тело, /нет сети|без сети/i);
+  assert.match(body, /нет сети|без сети/i);
 });
