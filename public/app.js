@@ -134,6 +134,7 @@ async function enableNotifications(button) {
         'потом открыть с домашнего экрана.',
       true
     );
+    reportError('push-not-standalone', new Error('открыто не как приложение'));
     return;
   }
 
