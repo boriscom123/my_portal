@@ -7,6 +7,7 @@ import { stubPage } from '../views/stub.js';
 import { offlinePage } from '../views/offline.js';
 import { telegramReturnPage } from '../views/telegram-return.js';
 import { adminUploadPage } from '../views/admin-upload.js';
+import { adminHomePage } from '../views/admin-home.js';
 import { requireAdmin } from '../middleware/guards.js';
 import { feedPage } from '../views/feed.js';
 import { lessonPage } from '../views/lesson.js';
@@ -87,6 +88,23 @@ export function pageRoutes(config, pool) {
     res.type('html').send(lessonPage({ config, lesson, comments, user, viewerReaction, rating }));
   });
 
+  /**
+   * Подключён ли Яндекс Диск. Нужен двум страницам кабинета, поэтому вынесен.
+   * Вызывается из обработчиков /admin и /admin/upload.
+   */
+  const diskConnected = async () => {
+    const { rows } = await pool.query(`SELECT 1 FROM integrations WHERE name = 'yandex-disk'`);
+    return rows.length > 0;
+  };
+
+  router.get('/admin', requireAdmin, async (req, res) => {
+    const user = await currentUser(pool, req);
+    const lessons = await listLessons(pool, { includeDrafts: true });
+    res.type('html').send(
+      adminHomePage({ config, user, lessons, diskConnected: await diskConnected() })
+    );
+  });
+
   // Кабинет автора: загрузка исходника. Под requireAdmin — исходники грузит
   // один человек, и посторонним тут нечего смотреть.
   router.get('/admin/upload', requireAdmin, async (req, res) => {
@@ -94,9 +112,8 @@ export function pageRoutes(config, pool) {
     const lessons = await listLessons(pool, { includeDrafts: true });
     // Подключён ли Диск, узнаём одним запросом: показывать список файлов или
     // кнопку подключения — решается здесь, а не мельканием в браузере.
-    const { rows } = await pool.query(`SELECT 1 FROM integrations WHERE name = 'yandex-disk'`);
     res.type('html').send(
-      adminUploadPage({ config, user, lessons, diskConnected: rows.length > 0 })
+      adminUploadPage({ config, user, lessons, diskConnected: await diskConnected() })
     );
   });
 

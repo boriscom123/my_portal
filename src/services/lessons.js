@@ -20,6 +20,10 @@ function toLesson(row) {
     status: row.status,
     publishedAt: row.published_at,
     durationSeconds: row.duration_seconds,
+    // Состояние обработки: отдельно от статуса. Статус видит зритель,
+    // состояние — только автор в кабинете.
+    pipelineState: row.pipeline_state ?? 'idle',
+    pipelineError: row.pipeline_error ?? null,
     tags: row.tags ?? []
   };
 }

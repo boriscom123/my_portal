@@ -91,6 +91,12 @@ export async function request(url, options = {}) {
  * без ключей на сервере — тоже, а на iOS Web Push работает лишь в приложении,
  * установленном на домашний экран. Мёртвая кнопка хуже отсутствующей. */
 
+// Выход. Кука httpOnly, скриптом её не стереть — гасит её сервер.
+document.querySelector('[data-logout]')?.addEventListener('click', async () => {
+  const answer = await request('/api/auth/logout', { method: 'POST' });
+  if (answer) location.href = '/';
+});
+
 /* --- Service worker ------------------------------------------------------
  * Он даёт офлайн-оболочку и принимает уведомления. Без него не работает ни то,
  * ни другое. */

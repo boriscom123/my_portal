@@ -7,7 +7,7 @@
 // молчали до жалобы заказчика. Здесь проверяется, что они на месте.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 
 const читать = (имя) => readFile(new URL(`../public/${имя}`, import.meta.url), 'utf8');
 
@@ -36,6 +36,31 @@ test('worker принимает уведомления и открывает с�
   assert.match(sw, /addEventListener\('push'/);
   assert.match(sw, /showNotification/);
   assert.match(sw, /addEventListener\('notificationclick'/);
+});
+
+test('у каждой зацепки в разметке есть обработчик в клиенте', async () => {
+  // Разметку и клиент связывают только имена атрибутов. Трижды при правке
+  // соседнего кода обработчик исчезал, а кнопка оставалась: «Выйти» ничего не
+  // делала, колокольчик молчал, worker не регистрировался. Тест сверяет обе
+  // стороны, потому что ни линтер, ни тест страницы этого не видят.
+  const views = await readdir(new URL('../src/views/', import.meta.url));
+  const hooks = new Set();
+  for (const name of views) {
+    const source = await readFile(new URL(`../src/views/${name}`, import.meta.url), 'utf8');
+    for (const match of source.matchAll(/\sdata-([a-z-]+)[=>\s]/g)) hooks.add(match[1]);
+  }
+
+  const client = [
+    await читать('app.js'),
+    await читать('admin.js')
+  ].join('\n');
+
+  for (const hook of hooks) {
+    assert.ok(
+      client.includes(`data-${hook}`),
+      `в разметке есть data-${hook}, а в клиенте его никто не слушает — кнопка будет мёртвой`
+    );
+  }
 });
 
 test('worker не кеширует ответы API', async () => {

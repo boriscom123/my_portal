@@ -963,3 +963,67 @@ footer {
   flex-direction: column;
   gap: 10px;
 }
+
+/* --- Кабинет: список уроков ---------------------------------------------- */
+
+.admin-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.admin-lessons {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.admin-lesson {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+.admin-lesson h3 {
+  margin: 0 0 4px;
+}
+.admin-lesson h3 a {
+  color: var(--fg);
+}
+.admin-lesson .grow {
+  flex-grow: 1;
+  min-width: 12rem;
+}
+.admin-lesson .meta {
+  margin: 0;
+}
+
+/* Метка состояния: короткое слово рядом с датой, а не отдельная строка —
+   иначе список превращается в простыню. */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+/* Упавшая обработка помечена цветом пламени: её видно в списке из десятка
+   уроков, не вчитываясь. */
+.badge.danger {
+  background: transparent;
+  border: 1px solid var(--flame);
+  color: var(--flame);
+}
+.hint.danger {
+  color: var(--flame);
+}

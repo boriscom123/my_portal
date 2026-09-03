@@ -61,6 +61,7 @@ ${image ? `<meta property="og:image" content="${escapeHtml(image)}">\n` : ''}<me
   </a>
   <nav class="nav">
     <a href="/ideas">Идеи</a>
+    ${user?.role === 'admin' ? '<a href="/admin">Кабинет</a>' : ''}
     ${
       user
         ? `<span class="user-name" title="Вы вошли">${escapeHtml(user.displayName)}</span>
