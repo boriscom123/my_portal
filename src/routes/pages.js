@@ -6,6 +6,8 @@ import { loginPage } from '../views/login.js';
 import { stubPage } from '../views/stub.js';
 import { offlinePage } from '../views/offline.js';
 import { telegramReturnPage } from '../views/telegram-return.js';
+import { adminUploadPage } from '../views/admin-upload.js';
+import { requireAdmin } from '../middleware/guards.js';
 import { feedPage } from '../views/feed.js';
 import { lessonPage } from '../views/lesson.js';
 import { ideasPage } from '../views/ideas.js';
@@ -83,6 +85,19 @@ export function pageRoutes(config, pool) {
       userId: req.user?.id ?? null
     });
     res.type('html').send(lessonPage({ config, lesson, comments, user, viewerReaction, rating }));
+  });
+
+  // Кабинет автора: загрузка исходника. Под requireAdmin — исходники грузит
+  // один человек, и посторонним тут нечего смотреть.
+  router.get('/admin/upload', requireAdmin, async (req, res) => {
+    const user = await currentUser(pool, req);
+    const lessons = await listLessons(pool, { includeDrafts: true });
+    // Подключён ли Диск, узнаём одним запросом: показывать список файлов или
+    // кнопку подключения — решается здесь, а не мельканием в браузере.
+    const { rows } = await pool.query(`SELECT 1 FROM integrations WHERE name = 'yandex-disk'`);
+    res.type('html').send(
+      adminUploadPage({ config, user, lessons, diskConnected: rows.length > 0 })
+    );
   });
 
   router.get('/ideas', async (req, res) => {
