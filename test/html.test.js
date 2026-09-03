@@ -44,6 +44,11 @@ test('гостю показывается вход, вошедшему — ег�
   assert.ok(!свой.includes('>Войти<'));
 });
 
+test('у iPhone своё имя приложения — short_name он не читает', () => {
+  const html = layout({ config, title: 'Solo AI Journey — портал видеоуроков', description: 'о', body: '' });
+  assert.match(html, /apple-mobile-web-app-title" content="Solo"/);
+});
+
 test('канонический адрес собирается из адреса портала и пути', () => {
   const html = layout({ config, title: 'Т', description: 'о', body: '', path: '/login' });
   assert.match(html, /<link rel="canonical" href="https:\/\/soloaijourney\.online\/login">/);
