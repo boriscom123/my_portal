@@ -11,13 +11,10 @@
 // кеш удаляется в activate, иначе они копятся до конца жизни устройства.
 const CACHE = 'портал-оболочка-v1';
 
-const SHELL = [
-  '/offline',
-  '/styles.css',
-  '/app.js',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png'
-];
+// Только то, что не меняется от выката к выкату. Стили и скрипты сюда не
+// кладём: их адреса несут отпечаток содержимого, и заранее мы их не знаем —
+// они попадут в кеш при первой же загрузке страницы.
+const SHELL = ['/offline', '/icons/icon-192.png', '/icons/icon-512.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

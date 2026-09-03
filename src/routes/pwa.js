@@ -9,6 +9,7 @@
 // Подключается в src/app.js до статики.
 import { Router } from 'express';
 import { readFile } from 'node:fs/promises';
+import { assetUrl } from '../lib/assets.js';
 
 export function pwaRoutes(config) {
   const router = Router();
@@ -51,7 +52,17 @@ export function pwaRoutes(config) {
   });
 
   router.get('/sw.js', async (req, res) => {
-    const code = await readFile(new URL('../../public/sw.js', import.meta.url), 'utf8');
+    const source = await readFile(new URL('../../public/sw.js', import.meta.url), 'utf8');
+
+    // Отпечатки клиентских файлов подмешиваются в текст worker'а.
+    //
+    // Зачем: браузер считает worker новым, только если изменились его БАЙТЫ.
+    // Пока правились лишь app.js и styles.css, worker оставался прежним, новая
+    // версия не вступала в силу, и установленное приложение неделями крутило
+    // старый код — человек нажимал кнопку и получал ошибку, которой в
+    // репозитории уже не было. Теперь любая правка клиента меняет worker.
+    const stamp = [assetUrl('/app.js'), assetUrl('/styles.css'), assetUrl('/push-key.js')].join(' ');
+    const code = `// версия клиента: ${stamp}\n${source}`;
     // Долгий кеш здесь опасен: закешированный worker означает, что старая
     // версия приложения живёт у человека ещё час после выката, включая
     // старую логику пушей. Браузер и так перепроверяет его при каждой загрузке.

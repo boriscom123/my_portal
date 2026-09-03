@@ -111,9 +111,17 @@ if ('serviceWorker' in navigator) {
     });
   });
 
-  // Установленное приложение держит загруженную страницу неделями: его
-  // сворачивают, а не закрывают. Без этого выкаченная правка до человека не
-  // доходит. Когда новый worker берёт управление, перезагружаем страницу один раз.
+  // Установленное приложение возвращают из фона, а не открывают заново. При
+  // каждом возвращении спрашиваем, нет ли новой версии: иначе она дождётся
+  // только полного перезапуска приложения, которого может не случиться неделями.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible' || !swRegistration) return;
+    swRegistration.then((registration) => registration.update()).catch(() => {
+      // Сеть недоступна — обновимся в следующий раз.
+    });
+  });
+
+  // Когда новый worker берёт управление, перезагружаем страницу один раз.
   let reloading = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (reloading) return;
