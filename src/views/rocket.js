@@ -5,8 +5,8 @@
 // растр мылит на большом экране, а разделённая на части ракета позволяет
 // оживить одно только пламя, не трогая остальное — этого и просил заказчик.
 //
-// Части названы и вынесены классами: .ракета-нос, .ракета-корпус,
-// .ракета-крыло, .ракета-пламя. Оформление живёт в public/styles.css,
+// Части названы и вынесены классами: .rocket-nose, .rocket-body,
+// .rocket-fin, .rocket-flame. Оформление живёт в public/styles.css,
 // здесь только геометрия.
 //
 // Вызывается из src/views/layout.js (шапка) и из скрипта сборки иконок
@@ -24,37 +24,37 @@
  * @param {string} параметры.id — приставка к идентификаторам градиентов
  * @param {boolean} параметры.живое — нужен ли класс, включающий перелив пламени
  */
-export function ракета({ height = 34, id = 'знак', живое = true } = {}) {
+export function ракета({ height = 34, id = 'brand', живое = true } = {}) {
   const ширина = Math.round((height * 48) / 116);
   const п = (имя) => `${id}-${имя}`;
 
-  return `<svg class="ракета${живое ? ' живая' : ''}" width="${ширина}" height="${height}"
+  return `<svg class="rocket${живое ? ' animated' : ''}" width="${ширина}" height="${height}"
   viewBox="0 0 48 116" role="img" aria-label="Ракета Solo AI Journey" focusable="false">
 <defs>
-  <linearGradient id="${п('нос')}" x1="0" y1="0" x2="1" y2="0.4">
+  <linearGradient id="${п('nose')}" x1="0" y1="0" x2="1" y2="0.4">
     <stop offset="0" stop-color="#8A4BD6"/>
     <stop offset="0.55" stop-color="#B45CE8"/>
     <stop offset="1" stop-color="#E88A7A"/>
   </linearGradient>
-  <linearGradient id="${п('корпус')}" x1="0" y1="0" x2="0" y2="1">
+  <linearGradient id="${п('body')}" x1="0" y1="0" x2="0" y2="1">
     <stop offset="0" stop-color="#29BDE8"/>
     <stop offset="0.5" stop-color="#5B9BE0"/>
     <stop offset="1" stop-color="#A38DE2"/>
   </linearGradient>
-  <linearGradient id="${п('крыло')}" x1="0" y1="0" x2="1" y2="1">
+  <linearGradient id="${п('fin')}" x1="0" y1="0" x2="1" y2="1">
     <stop offset="0" stop-color="#9B5CF0"/>
     <stop offset="1" stop-color="#7B3BC4"/>
   </linearGradient>
-  <linearGradient id="${п('пламя')}" x1="0" y1="0" x2="0" y2="1">
-    <stop class="пламя-верх" offset="0" stop-color="#FF6B3D"/>
-    <stop class="пламя-середина" offset="0.55" stop-color="#FFB336"/>
-    <stop class="пламя-низ" offset="1" stop-color="#FFE08A"/>
+  <linearGradient id="${п('flame')}" x1="0" y1="0" x2="0" y2="1">
+    <stop class="flame-top" offset="0" stop-color="#FF6B3D"/>
+    <stop class="flame-mid" offset="0.55" stop-color="#FFB336"/>
+    <stop class="flame-bottom" offset="1" stop-color="#FFE08A"/>
   </linearGradient>
 </defs>
-<path class="ракета-крыло" d="M16.5 57 Q4.5 69 4.5 88 Q10 76 16.5 72 Z" fill="url(#${п('крыло')})"/>
-<path class="ракета-крыло" d="M31.5 57 Q43.5 69 43.5 88 Q38 76 31.5 72 Z" fill="url(#${п('крыло')})"/>
-<path class="ракета-корпус" d="M19 26 H29 V79 Q29 87 24 90 Q19 87 19 79 Z" fill="url(#${п('корпус')})"/>
-<path class="ракета-нос" d="M24 2 L35.5 35 Q24 25.5 12.5 35 Z" fill="url(#${п('нос')})"/>
-<path class="ракета-пламя" d="M24 88 Q28.5 95 26 102 Q24.8 107 24 109 Q23.2 107 22 102 Q19.5 95 24 88 Z" fill="url(#${п('пламя')})"/>
+<path class="rocket-fin" d="M16.5 57 Q4.5 69 4.5 88 Q10 76 16.5 72 Z" fill="url(#${п('fin')})"/>
+<path class="rocket-fin" d="M31.5 57 Q43.5 69 43.5 88 Q38 76 31.5 72 Z" fill="url(#${п('fin')})"/>
+<path class="rocket-body" d="M19 26 H29 V79 Q29 87 24 90 Q19 87 19 79 Z" fill="url(#${п('body')})"/>
+<path class="rocket-nose" d="M24 2 L35.5 35 Q24 25.5 12.5 35 Z" fill="url(#${п('nose')})"/>
+<path class="rocket-flame" d="M24 88 Q28.5 95 26 102 Q24.8 107 24 109 Q23.2 107 22 102 Q19.5 95 24 88 Z" fill="url(#${п('flame')})"/>
 </svg>`;
 }

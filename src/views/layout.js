@@ -46,31 +46,31 @@ ${image ? `<meta property="og:image" content="${escapeHtml(image)}">\n` : ''}<me
 <link rel="stylesheet" href="${assetUrl('/styles.css')}">
 </head>
 <body>
-<header class="шапка">
-  <a class="лого" href="/">
-    ${ракета({ height: 34, id: 'шапка' })}
-    <span class="написание">
-      <span class="знак" style="font-size:16px">SOLO AI</span>
-      <span class="journey">JOURNEY</span>
+<header class="site-header">
+  <a class="logo" href="/">
+    ${ракета({ height: 34, id: 'header' })}
+    <span class="wordmark">
+      <span class="brand-mark" style="font-size:16px">SOLO AI</span>
+      <span class="wordmark-tail">JOURNEY</span>
     </span>
   </a>
-  <nav class="меню">
+  <nav class="nav">
     <a href="/ideas">Идеи</a>
     ${
       user
-        ? `<span class="имя" title="Вы вошли">${escapeHtml(user.displayName)}</span>
-       <button class="тема" type="button" data-уведомления hidden
+        ? `<span class="user-name" title="Вы вошли">${escapeHtml(user.displayName)}</span>
+       <button class="theme-toggle" type="button" data-notifications hidden
          title="Уведомления о новых уроках">🔔</button>
-       <button class="кнопка" type="button" data-выход>Выйти</button>`
-        : '<a class="кнопка-знак" href="/login">Войти</a>'
+       <button class="button" type="button" data-logout>Выйти</button>`
+        : '<a class="button-brand" href="/login">Войти</a>'
     }
-    <button class="тема" type="button" data-тема title="Светлая или тёмная тема">◐</button>
+    <button class="theme-toggle" type="button" data-theme-toggle title="Светлая или тёмная тема">◐</button>
   </nav>
 </header>
 <main>${body}</main>
 <footer>
   <span>soloaijourney.online</span>
-  <span class="подпись-бренда">от идеи до продукта</span>
+  <span class="tagline">от идеи до продукта</span>
 </footer>
 <script src="${assetUrl('/app.js')}" type="module"></script>
 </body>

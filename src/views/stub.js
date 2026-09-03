@@ -15,13 +15,13 @@ export function stubPage(config, user = null) {
     description:
       'Видеоуроки о разработке с ИИ: Claude Code, свой VPS и Telegram-бот. Уроки, новости и борд идей для будущих выпусков.',
     body: `
-<p class="подпись-бренда">от идеи до продукта · шаг за шагом</p>
-<h1>Реальные приложения<br>с ИИ, <span class="знак">в одиночку</span></h1>
+<p class="tagline">от идеи до продукта · шаг за шагом</p>
+<h1>Реальные приложения<br>с ИИ, <span class="brand-mark">в одиночку</span></h1>
 <p style="max-width:34rem">Claude Code, свой VPS и Telegram-бот. Каждый урок — работающий кусок системы,
 а не пример из документации. Код и переписка с заказчиком лежат в открытом репозитории.</p>
 
-<div class="карточка" style="max-width:34rem">
-  <p style="margin-top:0"><span class="пламя-точка"></span> <span class="пламя">сайт строится</span></p>
+<div class="card" style="max-width:34rem">
+  <p style="margin-top:0"><span class="flame-dot"></span> <span class="flame">сайт строится</span></p>
   <p>Здесь будет:</p>
   <ul>
     <li>витрина уроков со ссылками на все площадки, где урок вышел;</li>
@@ -30,11 +30,11 @@ export function stubPage(config, user = null) {
   </ul>
   ${
     user
-      ? '<p class="подсказка">Вы вошли — уведомление о первом уроке придёт вам.</p>'
-      : '<p><a class="кнопка-знак" href="/login">Войти</a></p>'
+      ? '<p class="hint">Вы вошли — уведомление о первом уроке придёт вам.</p>'
+      : '<p><a class="button-brand" href="/login">Войти</a></p>'
   }
 </div>
 
-<p class="подсказка">Каркас собран, версия ${version}</p>`
+<p class="hint">Каркас собран, версия ${version}</p>`
   });
 }

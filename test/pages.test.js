@@ -129,7 +129,7 @@ test('гостю не показывают форму отзыва, а неод�
     await withServer(app, async (base) => {
       const гость = await (await fetch(`${base}/lesson/docker-1`)).text();
       assert.ok(!гость.includes('Скрытый пока отзыв'));
-      assert.ok(!гость.includes('id="форма-отзыва"'));
+      assert.ok(!гость.includes('id="comment-form"'));
       assert.match(гость, /Войдите/);
 
       const автор = await (
@@ -141,7 +141,7 @@ test('гостю не показывают форму отзыва, а неод�
       ).text();
       assert.match(автор, /Скрытый пока отзыв/);
       assert.match(автор, /ждёт проверки/);
-      assert.match(автор, /id="форма-отзыва"/);
+      assert.match(автор, /id="comment-form"/);
     });
   });
 });

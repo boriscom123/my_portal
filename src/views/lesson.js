@@ -35,9 +35,9 @@ function склонение(n, [одна, две, много]) {
 
 function отзыв(c) {
   const ждёт = c.status === 'pending';
-  return `<li class="отзыв${ждёт ? ' ждёт' : ''}">
-  <p class="автор">${escapeHtml(c.author.displayName)}
-    ${ждёт ? '<span class="метка">ждёт проверки автором</span>' : ''}</p>
+  return `<li class="comment${ждёт ? ' pending' : ''}">
+  <p class="comment-author">${escapeHtml(c.author.displayName)}
+    ${ждёт ? '<span class="badge">ждёт проверки автором</span>' : ''}</p>
   <p>${escapeHtml(c.body)}</p>
 </li>`;
 }
@@ -54,7 +54,7 @@ export function lessonPage({
     .filter((p) => p.url && p.state === 'published')
     .map(
       (p) =>
-        `<a class="кнопка" href="${escapeHtml(p.url)}" rel="noopener" target="_blank">Смотреть на ${escapeHtml(
+        `<a class="button" href="${escapeHtml(p.url)}" rel="noopener" target="_blank">Смотреть на ${escapeHtml(
           НАЗВАНИЯ_ПЛОЩАДОК[p.platform] ?? p.platform
         )}</a>`
     )
@@ -64,15 +64,15 @@ export function lessonPage({
   // одного смайлика непонятна и не читается программой чтения с экрана.
   const шкалаОценки = ШКАЛА.map(
     ({ значение, смайлик, описание }) =>
-      `<button type="button" class="ступень${viewerReaction === значение ? ' отдана' : ''}"
-        data-оценка="${значение}" title="${escapeHtml(описание)}"
+      `<button type="button" class="rating-step${viewerReaction === значение ? ' chosen' : ''}"
+        data-rating="${значение}" title="${escapeHtml(описание)}"
         aria-label="${escapeHtml(значение)} из 9 — ${escapeHtml(описание)}">${смайлик}</button>`
   ).join('');
 
   const итогОценки = rating.total
-    ? `<p class="итог-оценки"><b>${String(rating.average).replace('.', ',')}</b> из 9 ·
+    ? `<p class="rating-summary"><b>${String(rating.average).replace('.', ',')}</b> из 9 ·
        ${rating.total} ${склонение(rating.total, ['оценка', 'оценки', 'оценок'])}</p>`
-    : '<p class="итог-оценки подсказка">Оценок пока нет — поставьте первую.</p>';
+    : '<p class="rating-summary hint">Оценок пока нет — поставьте первую.</p>';
 
   return layout({
     config,
@@ -82,42 +82,42 @@ export function lessonPage({
     description: lesson.description,
     image: lesson.coverUrl,
     body: `
-<article class="урок" data-урок="${lesson.id}">
-  <p class="мета">${escapeHtml(lesson.publishedAt ? датаПоРусски(lesson.publishedAt) : 'черновик')}</p>
+<article class="lesson" data-lesson="${lesson.id}">
+  <p class="meta">${escapeHtml(lesson.publishedAt ? датаПоРусски(lesson.publishedAt) : 'черновик')}</p>
   <h1>${escapeHtml(lesson.title)}</h1>
-  <p class="лид">${escapeHtml(lesson.description)}</p>
+  <p class="lead">${escapeHtml(lesson.description)}</p>
 
   ${
     lesson.tags.length
-      ? `<p class="теги">${lesson.tags
-          .map((t) => `<a class="тег" href="/tag/${encodeURIComponent(t)}">${escapeHtml(t)}</a>`)
+      ? `<p class="tags">${lesson.tags
+          .map((t) => `<a class="tag" href="/tag/${encodeURIComponent(t)}">${escapeHtml(t)}</a>`)
           .join(' ')}</p>`
       : ''
   }
 
-  <div class="площадки">
-    ${кнопкиПлощадок || '<p class="подсказка">Ссылки появятся после публикации на площадках.</p>'}
+  <div class="platforms">
+    ${кнопкиПлощадок || '<p class="hint">Ссылки появятся после публикации на площадках.</p>'}
   </div>
 
-  <div class="оценка">
-    <p class="мета">Как вам урок?</p>
-    <div class="шкала">${шкалаОценки}</div>
+  <div class="rating">
+    <p class="meta">Как вам урок?</p>
+    <div class="rating-scale">${шкалаОценки}</div>
     ${итогОценки}
   </div>
 
-  <section class="отзывы">
+  <section class="comments">
     <h2>Отзывы</h2>
-    <ul>${comments.map(отзыв).join('') || '<li class="подсказка">Пока никто не написал.</li>'}</ul>
+    <ul>${comments.map(отзыв).join('') || '<li class="hint">Пока никто не написал.</li>'}</ul>
     ${
       user
-        ? `<form id="форма-отзыва" class="карточка">
+        ? `<form id="comment-form" class="card">
       <textarea name="body" rows="3" required placeholder="Что осталось непонятным?"></textarea>
-      <div class="строка">
-        <span class="подсказка">Отзыв появится после проверки автором.</span>
-        <button class="кнопка-знак" type="submit">Отправить</button>
+      <div class="form-row">
+        <span class="hint">Отзыв появится после проверки автором.</span>
+        <button class="button-brand" type="submit">Отправить</button>
       </div>
     </form>`
-        : '<p class="подсказка"><a href="/login">Войдите</a>, чтобы оставить отзыв.</p>'
+        : '<p class="hint"><a href="/login">Войдите</a>, чтобы оставить отзыв.</p>'
     }
   </section>
 </article>`

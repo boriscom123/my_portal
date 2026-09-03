@@ -6,11 +6,11 @@ import { ракета } from '../src/views/rocket.js';
 
 test('ракета состоит из названных частей', () => {
   const svg = ракета();
-  for (const часть of ['ракета-нос', 'ракета-корпус', 'ракета-крыло', 'ракета-пламя']) {
+  for (const часть of ['rocket-nose', 'rocket-body', 'rocket-fin', 'rocket-flame']) {
     assert.ok(svg.includes(часть), `нет части ${часть}`);
   }
   // Два крыла, а не одно.
-  assert.equal(svg.match(/ракета-крыло/g).length, 2);
+  assert.equal(svg.match(/rocket-fin/g).length, 2);
 });
 
 test('пропорции сохраняются при любой высоте', () => {
@@ -22,16 +22,16 @@ test('пропорции сохраняются при любой высоте',
 test('идентификаторы градиентов разводятся приставкой', () => {
   // Два знака на одной странице с одинаковыми id склеились бы в один
   // градиент, и второй перекрасился бы вслед за первым.
-  const первый = ракета({ id: 'шапка' });
-  const второй = ракета({ id: 'подвал' });
-  assert.match(первый, /id="шапка-пламя"/);
-  assert.match(второй, /id="подвал-пламя"/);
-  assert.ok(!второй.includes('шапка-'));
+  const первый = ракета({ id: 'header' });
+  const второй = ракета({ id: 'footer' });
+  assert.match(первый, /id="header-flame"/);
+  assert.match(второй, /id="footer-flame"/);
+  assert.ok(!второй.includes('header-'));
 });
 
 test('на иконке пламя не анимируется', () => {
-  assert.ok(!ракета({ живое: false }).includes('живая'));
-  assert.match(ракета({ живое: true }), /class="ракета живая"/);
+  assert.ok(!ракета({ живое: false }).includes('animated'));
+  assert.match(ракета({ живое: true }), /class="rocket animated"/);
 });
 
 test('у знака есть словесное описание для чтения с экрана', () => {

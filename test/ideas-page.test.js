@@ -42,7 +42,7 @@ test('борд виден гостю, но форма ему не предлаг
     assert.equal(status, 200);
     assert.match(html, /Урок про очереди/);
     assert.match(html, /Войдите/);
-    assert.ok(!html.includes('id="форма-идеи"'));
+    assert.ok(!html.includes('id="idea-form"'));
   });
 });
 
@@ -50,7 +50,7 @@ test('вошедшему показывается форма', skipWithoutDb, as
   await withTestDb(async (pool) => {
     const id = await человек(pool);
     const { html } = await борд(pool, id);
-    assert.match(html, /id="форма-идеи"/);
+    assert.match(html, /id="idea-form"/);
   });
 });
 
@@ -61,9 +61,9 @@ test('видно, за что этот человек уже голосовал'
     const idea = await createIdea(pool, { userId: петр, title: 'Про очереди', body: '' });
     await voteIdea(pool, { ideaId: idea.id, userId: анна });
     const свой = await борд(pool, анна);
-    assert.match(свой.html, /class="голос отдан"/);
+    assert.match(свой.html, /class="vote voted"/);
     const чужой = await борд(pool, петр);
-    assert.ok(!чужой.html.includes('class="голос отдан"'));
+    assert.ok(!чужой.html.includes('class="vote voted"'));
   });
 });
 

@@ -12,14 +12,14 @@ import { layout } from './layout.js';
  */
 function виджетTelegram(botUsername) {
   if (!botUsername) {
-    return '<p class="подсказка">Вход через Telegram пока не настроен.</p>';
+    return '<p class="hint">Вход через Telegram пока не настроен.</p>';
   }
   // Обработчик объявляется здесь, обычным скриптом, ДО подключения виджета.
   // Раньше он жил в app.js — модуле, который выполняется после разбора
   // страницы; виджет успевал вызвать ещё не существующую функцию, и первое
   // нажатие уходило в никуда молча. Данные складываются в очередь, а забирает
   // их app.js, когда загрузится.
-  return `<div id="виджет-telegram">
+  return `<div id="telegram-widget">
   <script>
     window.очередьВхода = null;
     window.onTelegramAuth = function (user) {
@@ -33,7 +33,7 @@ function виджетTelegram(botUsername) {
     data-radius="12"
     data-onauth="onTelegramAuth(user)"
     data-request-access="write"></script>
-  <p class="ошибка-входа подсказка" hidden></p>
+  <p class="login-error hint" hidden></p>
 </div>`;
 }
 
@@ -48,24 +48,24 @@ export function loginPage({ config, user = null }) {
     description:
       'Войдите, чтобы оставлять отзывы, голосовать за темы будущих уроков и получать уведомления о новых выпусках.',
     body: `
-<div class="вход">
-  <img class="знак-крупно" src="/icons/icon-192.png" alt="">
+<div class="login">
+  <img class="login-mark" src="/icons/icon-192.png" alt="">
   <h1>Вход</h1>
   <p>Любой способ ведёт в <b>один и тот же аккаунт</b>: войдите вторым — он привяжется к первому, история никуда не денется.</p>
 
-  <div class="карточка способы">
-    <a class="кнопка-знак" href="/api/auth/google">Войти через Google</a>
+  <div class="card login-methods">
+    <a class="button-brand" href="/api/auth/google">Войти через Google</a>
     ${включёнTelegram ? виджетTelegram(config.telegram.botUsername) : виджетTelegram('')}
 
-    <div class="разделитель">скоро</div>
-    <div class="скоро">
+    <div class="divider">скоро</div>
+    <div class="soon">
       <span>VK</span>
       <span>Яндекс</span>
       <span>MAX</span>
     </div>
   </div>
 
-  <p class="подсказка">Читать уроки можно и без входа. Он нужен, чтобы оставлять отзывы, голосовать за темы и получать уведомления о новых выпусках.</p>
+  <p class="hint">Читать уроки можно и без входа. Он нужен, чтобы оставлять отзывы, голосовать за темы и получать уведомления о новых выпусках.</p>
   <p><a href="/">← на главную</a></p>
 </div>`
   });

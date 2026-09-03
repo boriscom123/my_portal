@@ -34,11 +34,11 @@
   --cyan: #0e7fa8;
   --flame: #c4482e;
 
-  --поле: 16px;
-  --скругление: 12px;
+  --gap: 16px;
+  --radius: 12px;
   /* Минимальная цель нажатия. Ниже 44 пикселей на телефоне промахиваются. */
-  --цель: 44px;
-  --ширина-текста: 46rem;
+  --tap-target: 44px;
+  --text-width: 46rem;
 }
 
 /* Тёмная — родная для знака: баннер построен на почти чёрном синем.
@@ -142,8 +142,8 @@ h3 {
  * Оба живые по требованию заказчика. Градиент растянут втрое по ширине и
  * ездит сдвигом фона: это рисует видеокарта, JS не участвует и телефон не
  * греется. */
-.знак,
-.кнопка-знак {
+.brand-mark,
+.button-brand {
   background: linear-gradient(
     96deg,
     var(--brand-1) 0%,
@@ -153,10 +153,10 @@ h3 {
     var(--brand-1) 100%
   );
   background-size: 300% 100%;
-  animation: перелив 9s ease-in-out infinite;
+  animation: shimmer 9s ease-in-out infinite;
 }
 
-.знак {
+.brand-mark {
   font-family: Unbounded, system-ui, sans-serif;
   font-weight: 800;
   -webkit-background-clip: text;
@@ -166,8 +166,8 @@ h3 {
 
 /* Пламя ракеты — второй живой акцент, быстрее знака: в такт они выглядели бы
    одним мигающим блоком. */
-.пламя,
-.пламя-точка {
+.flame,
+.flame-dot {
   background: linear-gradient(
     96deg,
     var(--flame) 0%,
@@ -176,22 +176,22 @@ h3 {
     var(--flame) 100%
   );
   background-size: 300% 100%;
-  animation: перелив 6s ease-in-out infinite;
+  animation: shimmer 6s ease-in-out infinite;
 }
-.пламя {
+.flame {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
   font-weight: 600;
 }
-.пламя-точка {
+.flame-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
   display: inline-block;
 }
 
-@keyframes перелив {
+@keyframes shimmer {
   0% {
     background-position: 0% 50%;
   }
@@ -206,17 +206,17 @@ h3 {
 /* Постоянное движение на экране у части людей вызывает головную боль и
    тошноту — системная настройка существует ровно для этого случая. */
 @media (prefers-reduced-motion: reduce) {
-  .знак,
-  .кнопка-знак,
-  .пламя,
-  .пламя-точка {
+  .brand-mark,
+  .button-brand,
+  .flame,
+  .flame-dot {
     animation: none;
     background-position: 30% 50%;
   }
-  .ракета.живая .ракета-пламя,
-  .ракета.живая .пламя-верх,
-  .ракета.живая .пламя-середина,
-  .ракета.живая .пламя-низ {
+  .rocket.animated .rocket-flame,
+  .rocket.animated .flame-top,
+  .rocket.animated .flame-mid,
+  .rocket.animated .flame-bottom {
     animation: none;
   }
 }
@@ -226,17 +226,17 @@ h3 {
 /* Шапка. На телефоне переносится в две строки: знак сверху, меню под ним —
    иначе четыре элемента в один ряд наезжают друг на друга. Ни одного
    медиазапроса: перенос делает flex-wrap, а размеры — clamp. */
-.шапка {
+.site-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px 16px;
-  padding: 12px clamp(var(--поле), 4vw, 48px);
+  padding: 12px clamp(var(--gap), 4vw, 48px);
   border-bottom: 1px solid var(--line);
   flex-wrap: wrap;
 }
 
-.лого {
+.logo {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -246,11 +246,11 @@ h3 {
      подсветкой нажатия. */
   -webkit-tap-highlight-color: transparent;
 }
-.лого:hover,
-.лого:focus {
+.logo:hover,
+.logo:focus {
   text-decoration: none;
 }
-.лого .ракета {
+.logo .rocket {
   flex-shrink: 0;
   display: block;
 }
@@ -259,21 +259,21 @@ h3 {
    Дыхание — от нижней точки корпуса, иначе ракета выглядит подпрыгивающей.
    Скорость не совпадает с переливом знака (9 с) намеренно: в такт они
    читались бы как одна мигающая деталь. */
-.ракета.живая .ракета-пламя {
+.rocket.animated .rocket-flame {
   transform-origin: 24px 88px;
-  animation: пламя-дышит 2.4s ease-in-out infinite;
+  animation: flame-breathe 2.4s ease-in-out infinite;
 }
-.ракета.живая .пламя-верх {
-  animation: пламя-верх 3.2s ease-in-out infinite alternate;
+.rocket.animated .flame-top {
+  animation: flame-top-shift 3.2s ease-in-out infinite alternate;
 }
-.ракета.живая .пламя-середина {
-  animation: пламя-середина 3.2s ease-in-out infinite alternate;
+.rocket.animated .flame-mid {
+  animation: flame-mid-shift 3.2s ease-in-out infinite alternate;
 }
-.ракета.живая .пламя-низ {
-  animation: пламя-низ 3.2s ease-in-out infinite alternate;
+.rocket.animated .flame-bottom {
+  animation: flame-bottom-shift 3.2s ease-in-out infinite alternate;
 }
 
-@keyframes пламя-дышит {
+@keyframes flame-breathe {
   0%,
   100% {
     transform: scaleY(1) scaleX(1);
@@ -282,7 +282,7 @@ h3 {
     transform: scaleY(1.18) scaleX(0.92);
   }
 }
-@keyframes пламя-верх {
+@keyframes flame-top-shift {
   from {
     stop-color: #ff6b3d;
   }
@@ -290,7 +290,7 @@ h3 {
     stop-color: #e060b4;
   }
 }
-@keyframes пламя-середина {
+@keyframes flame-mid-shift {
   from {
     stop-color: #ffb336;
   }
@@ -298,7 +298,7 @@ h3 {
     stop-color: #ff7a4d;
   }
 }
-@keyframes пламя-низ {
+@keyframes flame-bottom-shift {
   from {
     stop-color: #ffe08a;
   }
@@ -306,14 +306,14 @@ h3 {
     stop-color: #ffc46b;
   }
 }
-.лого .написание {
+.logo .wordmark {
   display: flex;
   align-items: baseline;
   gap: 7px;
   /* Не даём написанию растянуть шапку: на узком экране оно ужмётся первым. */
   min-width: 0;
 }
-.лого .journey {
+.logo .wordmark-tail {
   font-family: Unbounded, system-ui, sans-serif;
   font-weight: 400;
   font-size: clamp(10px, 2.6vw, 13px);
@@ -322,7 +322,7 @@ h3 {
   white-space: nowrap;
 }
 
-.меню {
+.nav {
   display: flex;
   align-items: center;
   gap: clamp(8px, 2vw, 22px);
@@ -334,22 +334,22 @@ h3 {
 }
 /* Разделы — тоже не подчёркиваем: в шапке это навигация, а не текст со
    ссылками внутри. Наведение показываем цветом. */
-.меню a {
+.nav a {
   color: var(--fg);
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
   white-space: nowrap;
 }
-.меню a:hover,
-.меню a:focus {
+.nav a:hover,
+.nav a:focus {
   text-decoration: none;
   color: var(--brand-2);
 }
-.меню a.кнопка-знак:hover {
+.nav a.button-brand:hover {
   color: #ffffff;
 }
 /* Имя вошедшего может быть длинным: обрезаем, а не ломаем шапку. */
-.меню .имя {
+.nav .user-name {
   max-width: min(40vw, 12rem);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -360,12 +360,12 @@ h3 {
 /* На узком экране кнопки в шапке ужимаются: четыре полноразмерные в ряд не
    помещаются, а перенос каждой на свою строку выглядит рвано. */
 @media (max-width: 30rem) {
-  .шапка .кнопка,
-  .шапка .кнопка-знак {
+  .site-header .button,
+  .site-header .button-brand {
     padding: 0 14px;
     font-size: 14px;
   }
-  .лого .journey {
+  .logo .wordmark-tail {
     display: none;
   }
 }
@@ -373,60 +373,60 @@ h3 {
 main {
   max-width: 68rem;
   margin: 0 auto;
-  padding: clamp(24px, 5vw, 56px) clamp(var(--поле), 4vw, 48px);
+  padding: clamp(24px, 5vw, 56px) clamp(var(--gap), 4vw, 48px);
 }
 
-.подпись-бренда {
+.tagline {
   font-size: 12px;
   letter-spacing: 0.28em;
   text-transform: uppercase;
   color: var(--teal);
 }
 
-.подсказка {
+.hint {
   font-size: 13px;
   color: var(--muted);
 }
 
 /* --- Элементы управления ------------------------------------------------- */
 
-.кнопка,
-.кнопка-знак {
+.button,
+.button-brand {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
-  min-height: var(--цель);
+  min-height: var(--tap-target);
   padding: 0 22px;
   border: 0;
-  border-radius: var(--скругление);
+  border-radius: var(--radius);
   font: inherit;
   font-weight: 500;
   cursor: pointer;
   text-decoration: none;
 }
-.кнопка-знак {
+.button-brand {
   color: #ffffff;
 }
-.кнопка-знак:hover {
+.button-brand:hover {
   text-decoration: none;
   filter: brightness(1.08);
 }
-.кнопка {
+.button {
   background: transparent;
   border: 1px solid var(--line);
   color: var(--fg);
 }
-.кнопка:hover {
+.button:hover {
   text-decoration: none;
   border-color: var(--brand-2);
 }
 
-.тема {
-  min-height: var(--цель);
-  min-width: var(--цель);
+.theme-toggle {
+  min-height: var(--tap-target);
+  min-width: var(--tap-target);
   border: 1px solid var(--line);
-  border-radius: var(--скругление);
+  border-radius: var(--radius);
   background: transparent;
   color: var(--fg);
   cursor: pointer;
@@ -434,7 +434,7 @@ main {
   line-height: 1;
 }
 
-.карточка {
+.card {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 18px;
@@ -442,12 +442,12 @@ main {
 }
 
 footer {
-  padding: 20px clamp(var(--поле), 4vw, 48px);
+  padding: 20px clamp(var(--gap), 4vw, 48px);
   border-top: 1px solid var(--line);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: var(--поле);
+  gap: var(--gap);
   flex-wrap: wrap;
   font-size: 13px;
   color: var(--muted);
@@ -455,29 +455,29 @@ footer {
 
 /* --- Страница входа ------------------------------------------------------ */
 
-.вход {
+.login {
   max-width: 26rem;
   margin: 0 auto;
   text-align: center;
 }
-.вход .знак-крупно {
+.login .login-mark {
   width: 76px;
   height: 76px;
   border-radius: 50%;
   margin-bottom: 20px;
 }
-.вход .способы {
+.login .login-methods {
   display: flex;
   flex-direction: column;
   gap: 12px;
   text-align: left;
 }
-.вход .способы .кнопка,
-.вход .способы .кнопка-знак {
+.login .login-methods .button,
+.login .login-methods .button-brand {
   width: 100%;
   min-height: 52px;
 }
-.разделитель {
+.divider {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -487,24 +487,24 @@ footer {
   text-transform: uppercase;
   color: var(--muted);
 }
-.разделитель::before,
-.разделитель::after {
+.divider::before,
+.divider::after {
   content: '';
   height: 1px;
   flex-grow: 1;
   background: var(--line);
 }
-.скоро {
+.soon {
   display: flex;
   gap: 10px;
 }
-.скоро span {
+.soon span {
   flex-grow: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 46px;
-  border-radius: var(--скругление);
+  border-radius: var(--radius);
   background: var(--surface-2);
   color: var(--muted);
   font-size: 15px;
@@ -512,7 +512,7 @@ footer {
 
 /* Виджет Telegram — чужой iframe, выровнять его по нашей сетке можно только
    снаружи. */
-#виджет-telegram {
+#telegram-widget {
   display: flex;
   justify-content: center;
   min-height: 52px;
@@ -520,13 +520,13 @@ footer {
 
 /* --- Витрина ------------------------------------------------------------- */
 
-.лид {
+.lead {
   font-size: clamp(16px, 2.4vw, 18px);
   color: var(--muted);
   max-width: 34rem;
 }
 
-.мета {
+.meta {
   font-size: 12px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -536,13 +536,13 @@ footer {
 
 /* auto-fit со свободной минимальной шириной: на телефоне одна колонка, на
    ноутбуке три — без единого медиазапроса и без пересчёта на JS. */
-.сетка-уроков {
+.lessons-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
   gap: 20px;
 }
 
-.урок-карточка {
+.lesson-card {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 18px;
@@ -550,38 +550,38 @@ footer {
   display: flex;
   flex-direction: column;
 }
-.урок-карточка .тело {
+.lesson-card .card-body {
   padding: 18px;
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
-.урок-карточка h3 {
+.lesson-card h3 {
   margin: 0;
 }
-.урок-карточка h3 a {
+.lesson-card h3 a {
   color: var(--fg);
 }
-.урок-карточка .описание {
+.lesson-card .card-text {
   margin: 0;
   color: var(--muted);
   font-size: 14px;
 }
 
-.обложка {
+.cover {
   display: block;
   width: 100%;
   aspect-ratio: 16 / 9;
   object-fit: cover;
 }
 
-.теги {
+.tags {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin: 0;
 }
-.тег {
+.tag {
   min-height: 32px;
   display: inline-flex;
   align-items: center;
@@ -591,46 +591,46 @@ footer {
   color: var(--muted);
   font-size: 13px;
 }
-.тег:hover {
+.tag:hover {
   text-decoration: none;
   color: var(--fg);
 }
 
 /* --- Карточка урока ------------------------------------------------------ */
 
-.урок {
+.lesson {
   max-width: 44rem;
 }
 
-.площадки {
+.platforms {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
   margin: 24px 0;
 }
 
-.оценка {
+.rating {
   padding-bottom: 24px;
   border-bottom: 1px solid var(--line);
 }
 
 /* Девять ступеней в ряд. На узком экране переносятся, но порядок сохраняется:
    человек запоминает положение смайлика, а не сам смайлик. */
-.шкала {
+.rating-scale {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   margin-bottom: 12px;
 }
 
-.ступень {
-  min-height: var(--цель);
-  min-width: var(--цель);
+.rating-step {
+  min-height: var(--tap-target);
+  min-width: var(--tap-target);
   padding: 0;
   font-size: 22px;
   line-height: 1;
   border: 1px solid var(--line);
-  border-radius: var(--скругление);
+  border-radius: var(--radius);
   background: var(--surface);
   cursor: pointer;
   /* Смайлики в разных системах разной ширины; фиксируем шаг, иначе шкала
@@ -639,13 +639,13 @@ footer {
   filter: grayscale(0.55);
   transition: filter 0.15s ease;
 }
-.ступень:hover {
+.rating-step:hover {
   border-color: var(--brand-2);
   filter: none;
 }
 /* Отданная ступень залита фирменным градиентом и показана в полном цвете:
    видно, что оценка уже поставлена и что повторное нажатие её снимет. */
-.ступень.отдана {
+.rating-step.chosen {
   border-color: transparent;
   filter: none;
   background: linear-gradient(
@@ -657,15 +657,15 @@ footer {
     var(--brand-1) 100%
   );
   background-size: 300% 100%;
-  animation: перелив 9s ease-in-out infinite;
+  animation: shimmer 9s ease-in-out infinite;
 }
 
 /* Середина шкалы отмечена: без метки девять смайликов читаются как набор, а
    не как шкала с нейтральной серединой. */
-.ступень[data-оценка='5'] {
+.rating-step[data-rating='5'] {
   position: relative;
 }
-.ступень[data-оценка='5']::after {
+.rating-step[data-rating='5']::after {
   content: '';
   position: absolute;
   left: 50%;
@@ -677,25 +677,25 @@ footer {
   background: var(--muted);
 }
 
-.итог-оценки {
+.rating-summary {
   margin: 0;
   font-size: 15px;
   color: var(--muted);
 }
-.итог-оценки b {
+.rating-summary b {
   font-family: Unbounded, system-ui, sans-serif;
   font-size: 19px;
   color: var(--fg);
 }
 
-.отзывы ul {
+.comments ul {
   list-style: none;
   padding: 0;
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
-.отзыв {
+.comment {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -703,19 +703,19 @@ footer {
 }
 /* Ожидающий проверки отзыв виден только своему автору и админу — приглушаем,
    чтобы человек не решил, что он уже в общей ленте. */
-.отзыв.ждёт {
+.comment.pending {
   opacity: 0.72;
   border-style: dashed;
 }
-.отзыв .автор {
+.comment .comment-author {
   margin: 0 0 6px;
   font-weight: 500;
 }
-.отзыв p:last-child {
+.comment p:last-child {
   margin: 0;
   color: var(--muted);
 }
-.метка {
+.badge {
   font-size: 11px;
   font-weight: 400;
   color: var(--muted);
@@ -724,21 +724,21 @@ footer {
   padding: 3px 8px;
 }
 
-#форма-отзыва textarea {
+#comment-form textarea {
   width: 100%;
   font: inherit;
   color: var(--fg);
   background: var(--bg);
   border: 1px solid var(--line);
-  border-radius: var(--скругление);
+  border-radius: var(--radius);
   padding: 12px;
   resize: vertical;
 }
-#форма-отзыва textarea:focus {
+#comment-form textarea:focus {
   outline: 2px solid var(--brand-2);
   outline-offset: 1px;
 }
-#форма-отзыва .строка {
+#comment-form .form-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -749,7 +749,7 @@ footer {
 
 /* --- Борд идей ----------------------------------------------------------- */
 
-.борд {
+.ideas-board {
   list-style: none;
   padding: 0;
   display: flex;
@@ -757,7 +757,7 @@ footer {
   gap: 12px;
 }
 
-.идея {
+.idea {
   display: flex;
   gap: 16px;
   align-items: flex-start;
@@ -766,23 +766,23 @@ footer {
   border-radius: 16px;
   padding: 16px;
 }
-.идея h3 {
+.idea h3 {
   margin: 0 0 6px;
 }
-.идея p {
+.idea p {
   margin: 0 0 6px;
   color: var(--muted);
 }
-.идея .суть {
+.idea .idea-text {
   flex-grow: 1;
 }
 
 /* Кнопка голоса — колонкой: стрелка над счётчиком читается как «поднять», а
    не как обычная кнопка с числом. */
-.голос {
+.vote {
   flex: 0 0 auto;
   min-width: 56px;
-  min-height: var(--цель);
+  min-height: var(--tap-target);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -790,21 +790,21 @@ footer {
   gap: 2px;
   padding: 8px 0;
   border: 1px solid var(--line);
-  border-radius: var(--скругление);
+  border-radius: var(--radius);
   background: transparent;
   color: var(--fg);
   font: inherit;
   font-size: 13px;
   cursor: pointer;
 }
-.голос span {
+.vote span {
   font-family: Unbounded, system-ui, sans-serif;
   font-size: 16px;
 }
-.голос:hover {
+.vote:hover {
   border-color: var(--brand-2);
 }
-.голос.отдан {
+.vote.voted {
   border-color: transparent;
   color: #ffffff;
   background: linear-gradient(
@@ -816,37 +816,37 @@ footer {
     var(--brand-1) 100%
   );
   background-size: 300% 100%;
-  animation: перелив 9s ease-in-out infinite;
+  animation: shimmer 9s ease-in-out infinite;
 }
 
-#форма-идеи {
+#idea-form {
   display: flex;
   flex-direction: column;
   gap: 10px;
   margin-bottom: 24px;
 }
-#форма-идеи input,
-#форма-идеи textarea {
+#idea-form input,
+#idea-form textarea {
   width: 100%;
   font: inherit;
   color: var(--fg);
   background: var(--bg);
   border: 1px solid var(--line);
-  border-radius: var(--скругление);
+  border-radius: var(--radius);
   padding: 12px;
 }
-#форма-идеи input {
-  min-height: var(--цель);
+#idea-form input {
+  min-height: var(--tap-target);
 }
-#форма-идеи textarea {
+#idea-form textarea {
   resize: vertical;
 }
-#форма-идеи input:focus,
-#форма-идеи textarea:focus {
+#idea-form input:focus,
+#idea-form textarea:focus {
   outline: 2px solid var(--brand-2);
   outline-offset: 1px;
 }
-#форма-идеи .строка {
+#idea-form .form-row {
   display: flex;
   align-items: center;
   justify-content: space-between;

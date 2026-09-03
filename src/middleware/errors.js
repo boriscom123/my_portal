@@ -60,7 +60,7 @@ function errorPage(status, message) {
 <main>
   <h1>${status}</h1>
   <p>${escapeHtml(message)}</p>
-  <p><a class="кнопка-знак" href="/">На главную</a></p>
+  <p><a class="button-brand" href="/">На главную</a></p>
 </main>
 </body>
 </html>`;

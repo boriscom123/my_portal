@@ -38,7 +38,7 @@ export async function запрос(адрес, options = {}) {
  * Вызывается из onTelegramAuth в src/views/login.js.
  */
 window.войтиЧерезTelegram = async (user) => {
-  const сообщение = document.querySelector('.ошибка-входа');
+  const сообщение = document.querySelector('.login-error');
   try {
     const ответ = await запрос('/api/auth/telegram', {
       method: 'POST',
@@ -57,7 +57,7 @@ window.войтиЧерезTelegram = async (user) => {
 if (window.очередьВхода) window.войтиЧерезTelegram(window.очередьВхода);
 
 // Выход. Кука httpOnly, скриптом её не стереть — гасит её сервер.
-document.querySelector('[data-выход]')?.addEventListener('click', async () => {
+document.querySelector('[data-logout]')?.addEventListener('click', async () => {
   await запрос('/api/auth/logout', { method: 'POST' });
   location.href = '/';
 });
@@ -111,7 +111,7 @@ async function включитьУведомления(кнопка) {
   кнопка.disabled = true;
 }
 
-const кнопкаУведомлений = document.querySelector('[data-уведомления]');
+const кнопкаУведомлений = document.querySelector('[data-notifications]');
 if (кнопкаУведомлений && 'Notification' in window && 'serviceWorker' in navigator) {
   запрос('/api/push/key')
     .then(async (ответ) => {
@@ -167,7 +167,7 @@ window
   .matchMedia('(prefers-color-scheme: dark)')
   .addEventListener('change', обновитьЦветСтроки);
 
-document.querySelector('[data-тема]')?.addEventListener('click', () => {
+document.querySelector('[data-theme-toggle]')?.addEventListener('click', () => {
   const системнаяТёмная = window.matchMedia('(prefers-color-scheme: dark)').matches;
   const сейчас = document.documentElement.dataset.theme || (системнаяТёмная ? 'dark' : 'light');
   const следующая = сейчас === 'dark' ? 'light' : 'dark';
@@ -181,24 +181,24 @@ document.querySelector('[data-тема]')?.addEventListener('click', () => {
 
 /* --- Карточка урока: реакции и отзывы ----------------------------------- */
 
-const карточкаУрока = document.querySelector('[data-урок]');
+const карточкаУрока = document.querySelector('[data-lesson]');
 if (карточкаУрока) {
-  const objectId = Number(карточкаУрока.dataset.урок);
+  const objectId = Number(карточкаУрока.dataset.lesson);
 
-  for (const кнопка of карточкаУрока.querySelectorAll('[data-оценка]')) {
+  for (const кнопка of карточкаУрока.querySelectorAll('[data-rating]')) {
     кнопка.addEventListener('click', async () => {
       // Нажатие по уже отданной оценке снимает её: иначе передумать нельзя,
       // а сервер всё равно хранит одну оценку на человека.
       const отдана = кнопка.classList.contains('отдана');
       const ответ = await запрос('/api/reactions', {
         method: отдана ? 'DELETE' : 'POST',
-        body: JSON.stringify({ objectType: 'lesson', objectId, kind: кнопка.dataset.оценка })
+        body: JSON.stringify({ objectType: 'lesson', objectId, kind: кнопка.dataset.rating })
       });
       if (ответ) location.reload();
     });
   }
 
-  const форма = document.querySelector('#форма-отзыва');
+  const форма = document.querySelector('#comment-form');
   форма?.addEventListener('submit', async (event) => {
     event.preventDefault();
     const кнопка = форма.querySelector('button');
@@ -225,10 +225,10 @@ if (карточкаУрока) {
 
 // Счётчик правим на месте, без перезагрузки: голосуют подряд за несколько идей,
 // и перезагрузка на каждый голос сбрасывала бы прокрутку к началу списка.
-for (const кнопка of document.querySelectorAll('[data-голос]')) {
+for (const кнопка of document.querySelectorAll('[data-vote]')) {
   кнопка.addEventListener('click', async () => {
     const отдан = кнопка.classList.contains('отдан');
-    const ответ = await запрос(`/api/ideas/${кнопка.dataset.голос}/vote`, {
+    const ответ = await запрос(`/api/ideas/${кнопка.dataset.vote}/vote`, {
       method: отдан ? 'DELETE' : 'POST'
     });
     if (!ответ) return;
@@ -239,7 +239,7 @@ for (const кнопка of document.querySelectorAll('[data-голос]')) {
   });
 }
 
-const формаИдеи = document.querySelector('#форма-идеи');
+const формаИдеи = document.querySelector('#idea-form');
 формаИдеи?.addEventListener('submit', async (событие) => {
   событие.preventDefault();
   const данные = new FormData(формаИдеи);
