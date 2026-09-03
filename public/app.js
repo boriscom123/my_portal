@@ -30,12 +30,31 @@ export async function запрос(адрес, options = {}) {
   return res.json();
 }
 
-// Виджет Telegram зовёт эту функцию по имени из атрибута data-onauth, поэтому
-// она обязана лежать в window, а не в области видимости модуля.
+/**
+ * Завершает вход через виджет Telegram.
+ * Живёт в window, потому что зовётся из разметки страницы входа. Молчать при
+ * неудаче нельзя: человек нажал кнопку и обязан узнать, что произошло, —
+ * прежняя версия при сбое просто ничего не делала.
+ * Вызывается из onTelegramAuth в src/views/login.js.
+ */
 window.войтиЧерезTelegram = async (user) => {
-  await запрос('/api/auth/telegram', { method: 'POST', body: JSON.stringify(user) });
-  location.href = '/';
+  const сообщение = document.querySelector('.ошибка-входа');
+  try {
+    const ответ = await запрос('/api/auth/telegram', {
+      method: 'POST',
+      body: JSON.stringify(user)
+    });
+    if (ответ) location.href = '/';
+  } catch (ошибка) {
+    if (сообщение) {
+      сообщение.textContent = `Войти не удалось: ${ошибка.message}. Попробуйте ещё раз.`;
+      сообщение.hidden = false;
+    }
+  }
 };
+
+// Если виджет успел сработать до загрузки этого модуля, данные ждут в очереди.
+if (window.очередьВхода) window.войтиЧерезTelegram(window.очередьВхода);
 
 // Выход. Кука httpOnly, скриптом её не стереть — гасит её сервер.
 document.querySelector('[data-выход]')?.addEventListener('click', async () => {

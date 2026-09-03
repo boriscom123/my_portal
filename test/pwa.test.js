@@ -33,6 +33,8 @@ test('манифест собран из адреса портала', async () 
   // не считает страницу приложением и не даёт Web Push.
   assert.equal(manifest.display, 'standalone');
   assert.equal(manifest.lang, 'ru');
+  // Имя под иконкой на телефоне: длинное обрезается многоточием.
+  assert.equal(manifest.short_name, 'Solo');
   assert.ok(manifest.icons.some((i) => i.sizes === '512x512'));
   // maskable нужен Android: без него иконку обрежут в круг по-своему.
   assert.ok(manifest.icons.some((i) => i.purpose === 'maskable'));

@@ -14,13 +14,26 @@ function виджетTelegram(botUsername) {
   if (!botUsername) {
     return '<p class="подсказка">Вход через Telegram пока не настроен.</p>';
   }
+  // Обработчик объявляется здесь, обычным скриптом, ДО подключения виджета.
+  // Раньше он жил в app.js — модуле, который выполняется после разбора
+  // страницы; виджет успевал вызвать ещё не существующую функцию, и первое
+  // нажатие уходило в никуда молча. Данные складываются в очередь, а забирает
+  // их app.js, когда загрузится.
   return `<div id="виджет-telegram">
+  <script>
+    window.очередьВхода = null;
+    window.onTelegramAuth = function (user) {
+      if (window.войтиЧерезTelegram) window.войтиЧерезTelegram(user);
+      else window.очередьВхода = user;
+    };
+  </script>
   <script async src="https://telegram.org/js/telegram-widget.js?22"
     data-telegram-login="${escapeHtml(botUsername)}"
     data-size="large"
     data-radius="12"
-    data-onauth="войтиЧерезTelegram(user)"
+    data-onauth="onTelegramAuth(user)"
     data-request-access="write"></script>
+  <p class="ошибка-входа подсказка" hidden></p>
 </div>`;
 }
 

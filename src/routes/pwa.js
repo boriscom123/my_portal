@@ -16,7 +16,9 @@ export function pwaRoutes(config) {
   router.get('/manifest.webmanifest', (req, res) => {
     res.type('application/manifest+json').json({
       name: 'Solo AI Journey — портал видеоуроков',
-      short_name: 'Solo AI',
+      // Имя под иконкой на домашнем экране. iOS обрезает его примерно на
+      // двенадцати знаках, поэтому короче некуда — и так лучше.
+      short_name: 'Solo',
       description: 'Видеоуроки о разработке с ИИ, новости и борд идей.',
       start_url: `${config.publicBaseUrl}/`,
       scope: `${config.publicBaseUrl}/`,

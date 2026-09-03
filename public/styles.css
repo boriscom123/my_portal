@@ -217,12 +217,15 @@ h3 {
 
 /* --- Каркас страницы ----------------------------------------------------- */
 
+/* Шапка. На телефоне переносится в две строки: знак сверху, меню под ним —
+   иначе четыре элемента в один ряд наезжают друг на друга. Ни одного
+   медиазапроса: перенос делает flex-wrap, а размеры — clamp. */
 .шапка {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--поле);
-  padding: 14px clamp(var(--поле), 4vw, 48px);
+  gap: 10px 16px;
+  padding: 12px clamp(var(--поле), 4vw, 48px);
   border-bottom: 1px solid var(--line);
   flex-wrap: wrap;
 }
@@ -230,35 +233,85 @@ h3 {
 .лого {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  text-decoration: none;
+  /* Знак — не текстовая ссылка: подчёркивание при нажатии делает из логотипа
+     обычную строку с гиперссылкой. Заметно на телефоне, где :hover заменяется
+     подсветкой нажатия. */
+  -webkit-tap-highlight-color: transparent;
+}
+.лого:hover,
+.лого:focus {
   text-decoration: none;
 }
 .лого img {
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
+  flex-shrink: 0;
 }
 .лого .написание {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: 7px;
+  /* Не даём написанию растянуть шапку: на узком экране оно ужмётся первым. */
+  min-width: 0;
 }
 .лого .journey {
   font-family: Unbounded, system-ui, sans-serif;
   font-weight: 400;
-  font-size: 13px;
-  letter-spacing: 0.3em;
+  font-size: clamp(10px, 2.6vw, 13px);
+  letter-spacing: 0.26em;
   color: var(--fg);
+  white-space: nowrap;
 }
 
 .меню {
   display: flex;
   align-items: center;
-  gap: clamp(12px, 2vw, 26px);
+  gap: clamp(8px, 2vw, 22px);
   font-size: 15px;
+  flex-wrap: wrap;
+  /* На узком экране меню занимает свою строку целиком и выравнивается по
+     правому краю — так оно не липнет к знаку. */
+  margin-left: auto;
 }
+/* Разделы — тоже не подчёркиваем: в шапке это навигация, а не текст со
+   ссылками внутри. Наведение показываем цветом. */
 .меню a {
   color: var(--fg);
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+  white-space: nowrap;
+}
+.меню a:hover,
+.меню a:focus {
+  text-decoration: none;
+  color: var(--brand-2);
+}
+.меню a.кнопка-знак:hover {
+  color: #ffffff;
+}
+/* Имя вошедшего может быть длинным: обрезаем, а не ломаем шапку. */
+.меню .имя {
+  max-width: min(40vw, 12rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+}
+
+/* На узком экране кнопки в шапке ужимаются: четыре полноразмерные в ряд не
+   помещаются, а перенос каждой на свою строку выглядит рвано. */
+@media (max-width: 30rem) {
+  .шапка .кнопка,
+  .шапка .кнопка-знак {
+    padding: 0 14px;
+    font-size: 14px;
+  }
+  .лого .journey {
+    display: none;
+  }
 }
 
 main {

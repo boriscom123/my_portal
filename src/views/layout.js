@@ -56,7 +56,7 @@ ${image ? `<meta property="og:image" content="${escapeHtml(image)}">\n` : ''}<me
     <a href="/ideas">Идеи</a>
     ${
       user
-        ? `<span title="Вы вошли">${escapeHtml(user.displayName)}</span>
+        ? `<span class="имя" title="Вы вошли">${escapeHtml(user.displayName)}</span>
        <button class="тема" type="button" data-уведомления hidden
          title="Уведомления о новых уроках">🔔</button>
        <button class="кнопка" type="button" data-выход>Выйти</button>`
