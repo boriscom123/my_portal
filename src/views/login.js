@@ -21,10 +21,10 @@ function telegramWidget(botUsername) {
   // их app.js, когда загрузится.
   return `<div id="telegram-widget">
   <script>
-    window.очередьВхода = null;
+    window.pendingTelegramAuth = null;
     window.onTelegramAuth = function (user) {
-      if (window.войтиЧерезTelegram) window.войтиЧерезTelegram(user);
-      else window.очередьВхода = user;
+      if (window.signInWithTelegram) window.signInWithTelegram(user);
+      else window.pendingTelegramAuth = user;
     };
   </script>
   <script async src="https://telegram.org/js/telegram-widget.js?22"

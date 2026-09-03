@@ -44,6 +44,12 @@ test('гостю показывается вход, вошедшему — ег�
   assert.ok(!mine.includes('>Войти<'));
 });
 
+test('значок вкладки — ракета без фона, с запасным растром', () => {
+  const html = layout({ config, title: 'Т', description: 'о', body: '' });
+  assert.match(html, /rel="icon" type="image\/svg\+xml" href="\/icons\/favicon\.svg"/);
+  assert.match(html, /rel="icon" type="image\/png"[^>]*favicon-32\.png/);
+});
+
 test('у iPhone своё имя приложения — short_name он не читает', () => {
   const html = layout({ config, title: 'Solo AI Journey — портал видеоуроков', description: 'о', body: '' });
   assert.match(html, /apple-mobile-web-app-title" content="Solo"/);

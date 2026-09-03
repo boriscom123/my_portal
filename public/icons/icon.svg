@@ -2,30 +2,30 @@
 <rect width="512" height="512" rx="0" fill="#0C0A20"/>
 <g transform="translate(164.8993103448276 35.84) scale(3.7958620689655174)">
 <defs>
-  <linearGradient id="иконка-нос" x1="0" y1="0" x2="1" y2="0.4">
+  <linearGradient id="icon-nose" x1="0" y1="0" x2="1" y2="0.4">
     <stop offset="0" stop-color="#8A4BD6"/>
     <stop offset="0.55" stop-color="#B45CE8"/>
     <stop offset="1" stop-color="#E88A7A"/>
   </linearGradient>
-  <linearGradient id="иконка-корпус" x1="0" y1="0" x2="0" y2="1">
+  <linearGradient id="icon-body" x1="0" y1="0" x2="0" y2="1">
     <stop offset="0" stop-color="#29BDE8"/>
     <stop offset="0.5" stop-color="#5B9BE0"/>
     <stop offset="1" stop-color="#A38DE2"/>
   </linearGradient>
-  <linearGradient id="иконка-крыло" x1="0" y1="0" x2="1" y2="1">
+  <linearGradient id="icon-fin" x1="0" y1="0" x2="1" y2="1">
     <stop offset="0" stop-color="#9B5CF0"/>
     <stop offset="1" stop-color="#7B3BC4"/>
   </linearGradient>
-  <linearGradient id="иконка-пламя" x1="0" y1="0" x2="0" y2="1">
-    <stop class="пламя-верх" offset="0" stop-color="#FF6B3D"/>
-    <stop class="пламя-середина" offset="0.55" stop-color="#FFB336"/>
-    <stop class="пламя-низ" offset="1" stop-color="#FFE08A"/>
+  <linearGradient id="icon-flame" x1="0" y1="0" x2="0" y2="1">
+    <stop class="flame-top" offset="0" stop-color="#FF6B3D"/>
+    <stop class="flame-mid" offset="0.55" stop-color="#FFB336"/>
+    <stop class="flame-bottom" offset="1" stop-color="#FFE08A"/>
   </linearGradient>
 </defs>
-<path class="ракета-крыло" d="M16.5 57 Q4.5 69 4.5 88 Q10 76 16.5 72 Z" fill="url(#иконка-крыло)"/>
-<path class="ракета-крыло" d="M31.5 57 Q43.5 69 43.5 88 Q38 76 31.5 72 Z" fill="url(#иконка-крыло)"/>
-<path class="ракета-корпус" d="M19 26 H29 V79 Q29 87 24 90 Q19 87 19 79 Z" fill="url(#иконка-корпус)"/>
-<path class="ракета-нос" d="M24 2 L35.5 35 Q24 25.5 12.5 35 Z" fill="url(#иконка-нос)"/>
-<path class="ракета-пламя" d="M24 88 Q28.5 95 26 102 Q24.8 107 24 109 Q23.2 107 22 102 Q19.5 95 24 88 Z" fill="url(#иконка-пламя)"/>
+<path class="rocket-fin" d="M16.5 57 Q4.5 69 4.5 88 Q10 76 16.5 72 Z" fill="url(#icon-fin)"/>
+<path class="rocket-fin" d="M31.5 57 Q43.5 69 43.5 88 Q38 76 31.5 72 Z" fill="url(#icon-fin)"/>
+<path class="rocket-body" d="M19 26 H29 V79 Q29 87 24 90 Q19 87 19 79 Z" fill="url(#icon-body)"/>
+<path class="rocket-nose" d="M24 2 L35.5 35 Q24 25.5 12.5 35 Z" fill="url(#icon-nose)"/>
+<path class="rocket-flame" d="M24 88 Q28.5 95 26 102 Q24.8 107 24 109 Q23.2 107 22 102 Q19.5 95 24 88 Z" fill="url(#icon-flame)"/>
 </g>
 </svg>

@@ -39,7 +39,12 @@ export function layout({
 <meta property="og:url" content="${escapeHtml(pageUrl)}">
 <link rel="canonical" href="${escapeHtml(pageUrl)}">
 ${image ? `<meta property="og:image" content="${escapeHtml(image)}">\n` : ''}<meta name="theme-color" content="#0c0a20">
-<link rel="icon" href="/icons/icon-192.png">
+<!-- Значок вкладки — одна ракета на прозрачном: во вкладке он ложится на
+     цвет темы браузера, и тёмный квадрат смотрелся бы заплаткой. SVG для тех,
+     кто умеет, растр запасным. Иконка приложения при этом с фоном: iOS кладёт
+     прозрачную на чёрное. -->
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="Solo">
 <link rel="apple-touch-icon" href="/icons/icon-180.png">

@@ -38,9 +38,29 @@ function canvas(share, radius) {
 </svg>`;
 }
 
+/**
+ * Значок вкладки: одна ракета, фон прозрачный.
+ * Зачем отдельно от иконки приложения: во вкладке значок ложится на цвет темы
+ * браузера, и тёмный квадрат там смотрится заплаткой. У иконки приложения
+ * наоборот — фон обязателен: iOS кладёт прозрачную иконку на чёрное.
+ * Вызывается ниже, при сборке.
+ */
+function favicon() {
+  const side = 64;
+  const height = side * 0.94;
+  const width = (height * 48) / 116;
+  const mark = rocket({ height, id: 'favicon', animated: false })
+    .replace(/^<svg[^>]*>/, '')
+    .replace('</svg>', '');
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${side} ${side}" width="${side}" height="${side}">
+<g transform="translate(${(side - width) / 2} ${(side - height) / 2}) scale(${height / 116})">${mark}</g>
+</svg>`;
+}
+
 mkdirSync(OUT_DIR, { recursive: true });
 // Обычная иконка: ракета занимает две трети — так она читается на мелком
 // значке. Maskable: система обрежет края по своей маске, поэтому запас больше.
 writeFileSync(new URL('icon.svg', OUT_DIR), canvas(0.86, 0));
 writeFileSync(new URL('icon-maskable.svg', OUT_DIR), canvas(0.62, 0));
+writeFileSync(new URL('favicon.svg', OUT_DIR), favicon());
 console.log('Векторы иконок собраны в public/icons/');
