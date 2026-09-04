@@ -28,6 +28,23 @@ test('аргументы называют модель, файл, язык и ч
   assert.ok(args.includes('--output-json'));
 });
 
+test('тишина отсекается до распознавания', () => {
+  // На уроке заказчика модель сорвалась на длинных паузах и до конца записи
+  // печатала строку из чужих титров: 895 повторов из 1077 реплик. Перенос
+  // контекста между окнами тут ни при чём — с -mc 0 петля осталась. Помогает
+  // только одно: не давать модели тишину.
+  const args = whisperArgs({ model: '/m/small.bin', input: '/tmp/a.wav', vadModel: '/m/vad.bin' });
+  assert.ok(args.includes('--vad'));
+  assert.equal(args[args.indexOf('-vm') + 1], '/m/vad.bin');
+});
+
+test('без модели отсечения распознавание всё равно работает', () => {
+  // Модель могла не скачаться: расшифровка станет хуже, но урок обработается.
+  const args = whisperArgs({ model: '/m/small.bin', input: '/tmp/a.wav' });
+  assert.ok(!args.includes('--vad'));
+  assert.ok(!args.includes('-vm'));
+});
+
 test('вывод разбирается в сегменты с временами в миллисекундах', () => {
   const raw = JSON.stringify({
     transcription: [

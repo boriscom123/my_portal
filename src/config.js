@@ -108,6 +108,13 @@ export function loadConfig(env = process.env) {
         env.WHISPER_MODEL_URL ??
         'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q5_1.bin',
       language: env.WHISPER_LANGUAGE ?? 'ru',
+      // Модель отсечения тишины. Без неё модель распознавания залипает на
+      // паузах и до конца записи печатает одну и ту же строку — проверено на
+      // настоящем уроке. Весит меньше мегабайта и качается в тот же том.
+      vadModel: env.WHISPER_VAD_MODEL ?? '/app/models/ggml-silero-v5.1.2.bin',
+      vadModelUrl:
+        env.WHISPER_VAD_MODEL_URL ??
+        'https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v5.1.2.bin',
       // Два потока — все ядра машины. Приоритет при этом понижен, иначе портал
       // перестаёт открываться на всё время счёта.
       threads: Number(env.WHISPER_THREADS ?? 2)

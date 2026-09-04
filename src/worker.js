@@ -33,11 +33,16 @@ if (!schema.waited) {
 // в каждой сборке на сборщике GitHub. Не скачалась — работаем без расшифровки:
 // остальные шаги конвейера от неё не зависят.
 const speech = createSpeech(config);
-try {
-  const { downloaded, bytes } = await ensureModel(config.whisper);
-  if (downloaded) console.log(`Модель распознавания скачана: ${bytes} байт`);
-} catch (error) {
-  console.error(`Модель распознавания недоступна: ${error.message}`);
+for (const [name, model, modelUrl] of [
+  ['распознавания', config.whisper.model, config.whisper.modelUrl],
+  ['отсечения тишины', config.whisper.vadModel, config.whisper.vadModelUrl]
+]) {
+  try {
+    const { downloaded, bytes } = await ensureModel({ model, modelUrl });
+    if (downloaded) console.log(`Модель ${name} скачана: ${bytes} байт`);
+  } catch (error) {
+    console.error(`Модель ${name} недоступна: ${error.message}`);
+  }
 }
 
 // Обработчики шагов конвейера. Добавляются по мере готовности.

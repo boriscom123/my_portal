@@ -19,7 +19,7 @@ import { whisperArgs, runWhisper, parseWhisperJson, jsonPathFor } from '../lib/w
  * витрина и отзывы от неё не зависят. Шаг конвейера скажет об этом внятно.
  */
 export function createSpeech(config) {
-  const { bin, model, language, threads } = config.whisper ?? {};
+  const { bin, model, language, threads, vadModel } = config.whisper ?? {};
   if (!bin || !model) return null;
 
   return {
@@ -33,7 +33,7 @@ export function createSpeech(config) {
       const json = jsonPathFor(wav);
       try {
         await runFfmpeg(ffmpegArgsForWav(audioPath, wav));
-        await runWhisper(bin, whisperArgs({ model, input: wav, language, threads }));
+        await runWhisper(bin, whisperArgs({ model, input: wav, language, threads, vadModel }));
         return parseWhisperJson(await readFile(json, 'utf8'));
       } finally {
         // force: true — файлов может не быть, если упало раньше их создания.
