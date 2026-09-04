@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { pickClipRanges, shiftSegments } from '../src/jobs/make-clips.js';
-import { ffmpegArgsForClip } from '../src/lib/ffmpeg.js';
+import { ffmpegArgsForClip, findComplaint } from '../src/lib/ffmpeg.js';
 
 /** Урок с речью: реплика каждые пять секунд на протяжении получаса. */
 function speech(count = 360, everyMs = 5000) {
@@ -100,4 +100,30 @@ test('знаки в пути к субтитрам не рвут фильтр', 
   });
   const filter = args[args.indexOf('-vf') + 1];
   assert.match(filter, /lesson\\: 1\\, часть \\'вторая\\'/);
+});
+
+test('фильтр называет шрифт по имени', () => {
+  const args = ffmpegArgsForClip({
+    input: '/media/a.mp4',
+    subtitles: '/media/c.srt',
+    startSeconds: 0,
+    durationSeconds: 45,
+    output: '/media/c.mp4'
+  });
+  // Без имени libass просит Arial, которого в образе нет, и подписи молча не
+  // рисуются: ролик выходит пустым, а ffmpeg — успешным.
+  assert.match(args[args.indexOf('-vf') + 1], /FontName=DejaVu Sans/);
+});
+
+test('пропавший шрифт считается отказом, а не мелочью', () => {
+  const failOn = /fontconfig|failed to find any fallback|Glyph 0x/i;
+  const output = [
+    '[Parsed_subtitles_2 @ 0x1] Failed to load fontconfig fonts!',
+    '[Parsed_subtitles_2 @ 0x1] fontselect: failed to find any fallback with glyph 0x0'
+  ];
+  // Настоящий вывод из образа без шрифтов: ffmpeg вышел с кодом 0 и отдал
+  // ролик без единой подписи. Ради подписей нарезка и делается.
+  assert.match(findComplaint(output, failOn), /Failed to load fontconfig/);
+  assert.equal(findComplaint(['frame= 45 fps=12'], failOn), null);
+  assert.equal(findComplaint(output, null), null, 'без назначенной жалобы не придираемся');
 });

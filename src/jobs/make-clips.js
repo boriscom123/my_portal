@@ -135,7 +135,11 @@ export function makeMakeClips(config, pool, queue) {
             startSeconds: range.startedMs / 1000,
             durationSeconds: (range.endedMs - range.startedMs) / 1000,
             output: mediaPath(config, relative)
-          })
+          }),
+          // Ролик без подписей смотрят без звука и не понимают — ради подписей
+          // нарезка и делается. Пропавший шрифт должен ронять шаг, а не
+          // выдавать пустой результат за готовый.
+          { failOn: /fontconfig|failed to find any fallback|Glyph 0x/i }
         );
       } finally {
         // Файл субтитров нужен только на время счёта: в буфере он повторяет

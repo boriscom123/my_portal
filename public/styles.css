@@ -1098,3 +1098,51 @@ footer {
 main > .card + .card {
   margin-top: var(--gap);
 }
+
+/* --- Поиск по урокам ----------------------------------------------------- */
+
+.search-results {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+  margin-top: var(--gap);
+}
+.search-result {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.search-result > a {
+  font-weight: 600;
+  text-decoration: none;
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+.search-result .excerpt {
+  margin: 6px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+/* Подсветку ставит postgres тегом <mark>. Собственный фон вместо жёлтого от
+   браузера: жёлтый на тёмной теме читается как ошибка. */
+.search-result mark {
+  background: transparent;
+  color: var(--fg);
+  font-weight: 600;
+  box-shadow: inset 0 -0.5em 0 color-mix(in srgb, var(--flame) 30%, transparent);
+}
+#search-form input,
+form[action='/search'] input {
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px;
+  min-height: var(--tap-target);
+  flex: 1 1 200px;
+}

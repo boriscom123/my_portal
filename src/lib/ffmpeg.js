@@ -93,7 +93,9 @@ export function ffmpegArgsForClip({ input, subtitles, startSeconds, durationSeco
     // остаётся, если из горизонтали вырезать вертикаль.
     'crop=ih*9/16:ih',
     'scale=1080:1920',
-    `subtitles=${escaped}:force_style='Fontsize=18,Outline=2,Alignment=2,MarginV=120'`
+    // Шрифт называем явно: без имени libass просит Arial, которого в образе
+    // нет, и подписи молча не рисуются.
+    `subtitles=${escaped}:force_style='FontName=DejaVu Sans,Fontsize=18,Outline=2,Alignment=2,MarginV=120'`
   ].join(',');
 
   return [
@@ -124,6 +126,20 @@ export function parseDuration(text) {
   return Number.isFinite(value) ? value : null;
 }
 
+/**
+ * Ищет в выводе назначенную жалобу.
+ *
+ * Не всякая беда ffmpeg — ненулевой код возврата. Пропавший шрифт он считает
+ * мелочью: пишет предупреждение, рисует ролик без единой подписи и выходит
+ * успешно. Обнаружить такое можно только глазами на готовом ролике, поэтому
+ * назначенные предупреждения считаются отказом.
+ */
+export function findComplaint(lines, failOn) {
+  if (!failOn) return null;
+  const line = lines.find((item) => failOn.test(item));
+  return line ? line.trim() : null;
+}
+
 /** Складывает объяснение отказа из кода возврата и хвоста вывода. */
 export function describeFailure(code, lines) {
   const tail = lines.slice(-TAIL_LINES).join('\n').trim();
@@ -135,7 +151,7 @@ export function describeFailure(code, lines) {
  * nice повышает уступчивость процесса: на двух ядрах ffmpeg иначе съедает оба,
  * и портал перестаёт отвечать на запросы, пока идёт обработка.
  */
-export function runFfmpeg(args) {
+export function runFfmpeg(args, { failOn = null } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn('nice', ['-n', '10', 'ffmpeg', ...args]);
     const lines = [];
@@ -144,8 +160,13 @@ export function runFfmpeg(args) {
     });
     child.on('error', reject);
     child.on('close', (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(describeFailure(code, lines)));
+      if (code !== 0) {
+        reject(new Error(describeFailure(code, lines)));
+        return;
+      }
+      const complaint = findComplaint(lines, failOn);
+      if (complaint) reject(new Error(complaint));
+      else resolve();
     });
   });
 }
