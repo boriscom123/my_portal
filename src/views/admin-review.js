@@ -47,6 +47,7 @@ export function adminReviewPage({ config, user, lesson, assets, transcript, link
     body: `
 <nav class="admin-nav">
   <a class="button" href="/admin">← Кабинет</a>
+  <a class="button-brand" href="/admin/lesson/${encodeURIComponent(lesson.slug)}/preview">Смотреть с субтитрами</a>
   <a class="button" href="/lesson/${encodeURIComponent(lesson.slug)}">Как видит зритель</a>
 </nav>
 

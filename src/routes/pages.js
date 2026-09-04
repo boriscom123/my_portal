@@ -9,6 +9,7 @@ import { telegramReturnPage } from '../views/telegram-return.js';
 import { adminUploadPage } from '../views/admin-upload.js';
 import { adminHomePage } from '../views/admin-home.js';
 import { adminReviewPage } from '../views/admin-review.js';
+import { adminPreviewPage } from '../views/admin-preview.js';
 import { mediaLink } from '../lib/media-token.js';
 import { requireAdmin } from '../middleware/guards.js';
 import { feedPage } from '../views/feed.js';
@@ -165,6 +166,41 @@ export function pageRoutes(config, pool) {
               url: mediaLink(config, Number(row.id))
             }))
         }
+      })
+    );
+  });
+
+  // Просмотр записи с субтитрами. Отдельной страницей от проверки: плеер
+  // тянет полгигабайта, и открывать его при каждом заходе на экран проверки
+  // незачем.
+  router.get('/admin/lesson/:slug/preview', requireAdmin, async (req, res) => {
+    const user = await currentUser(pool, req);
+    const lesson = await getLessonBySlug(pool, req.params.slug, { includeDrafts: true });
+    if (!lesson) throw new PublicError('Урок не найден', 404);
+
+    // Исходник берём по указателю урока, а не первый попавшийся файл вида
+    // source: при повторной загрузке их в буфере остаётся два, и старый уходит
+    // только по сроку. Первая проверка на живом сервере открыла именно старый.
+    const { rows } = await pool.query(
+      `SELECT a.id, a.kind, a.path
+         FROM assets a JOIN lessons l ON l.id = a.lesson_id
+        WHERE a.lesson_id = $1
+          AND (a.id = l.source_asset_id OR a.kind = 'subtitles')`,
+      [lesson.id]
+    );
+    const source = rows.find((row) => row.kind === 'source');
+    // Именно vtt: srt браузеры не понимают, а различаются они одним знаком в
+    // записи времени.
+    const subtitles = rows.find((row) => row.kind === 'subtitles' && row.path.endsWith('.vtt'));
+
+    res.type('html').send(
+      adminPreviewPage({
+        config,
+        user,
+        lesson,
+        // Ссылка на три часа: просмотр урока целиком в час не укладывается.
+        videoUrl: source ? mediaLink(config, Number(source.id), 3 * 3600) : null,
+        subtitlesUrl: subtitles ? mediaLink(config, Number(subtitles.id), 3 * 3600) : null
       })
     );
   });
