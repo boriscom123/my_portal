@@ -150,10 +150,16 @@ export function pageRoutes(config, pool) {
         })),
         transcript: transcript[0]?.text ?? null,
         links: {
-          // Субтитры лежат в буфере и по прямому адресу наружу не смотрят:
-          // автору они выдаются подписанной ссылкой на час.
+          // Субтитры и нарезки лежат в буфере и по прямому адресу наружу не
+          // смотрят: автору они выдаются подписанной ссылкой на час.
           subtitles: assets
             .filter((row) => row.kind === 'subtitles')
+            .map((row) => ({
+              name: row.path.split('/').pop(),
+              url: mediaLink(config, Number(row.id))
+            })),
+          clips: assets
+            .filter((row) => row.kind === 'clip')
             .map((row) => ({
               name: row.path.split('/').pop(),
               url: mediaLink(config, Number(row.id))

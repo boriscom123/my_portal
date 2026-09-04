@@ -38,7 +38,9 @@ test('оба файла ложатся в буфер и попадают в уч
       `SELECT count(*)::int AS n FROM assets WHERE kind = 'subtitles'`
     );
     assert.equal(rows[0].n, 2);
-    assert.equal(added[0].n, 'makeCover');
+    // Следующий шаг — нарезки: им нужны и субтитры, и реплики с временами.
+    // Обложка идёт последней, потому что она ставит урок на проверку.
+    assert.equal(added[0].n, 'makeClips');
   });
 });
 

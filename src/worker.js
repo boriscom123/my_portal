@@ -12,6 +12,7 @@ import { makeFetchSource } from './jobs/fetch-source.js';
 import { makeExtractAudio } from './jobs/extract-audio.js';
 import { makeSubtitles } from './jobs/subtitles.js';
 import { makeMakeCover } from './jobs/make-cover.js';
+import { makeMakeClips } from './jobs/make-clips.js';
 import { makeCleanupMedia } from './jobs/cleanup-media.js';
 import { makeTranscribe } from './jobs/transcribe.js';
 import { createSpeech } from './services/speech.js';
@@ -45,6 +46,7 @@ const handlers = {
   [JOBS.extractAudio]: makeExtractAudio(config, pool, queue),
   [JOBS.transcribe]: makeTranscribe(config, pool, queue, speech),
   [JOBS.subtitles]: makeSubtitles(config, pool, queue),
+  [JOBS.makeClips]: makeMakeClips(config, pool, queue),
   [JOBS.makeCover]: makeMakeCover(config, pool),
   [JOBS.cleanupMedia]: makeCleanupMedia(config, pool)
 };

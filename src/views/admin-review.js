@@ -125,6 +125,24 @@ ${
   }
 </section>
 
+${
+  links.clips.length
+    ? `<section class="card">
+  <h2>Вертикальные ролики</h2>
+  <p class="hint">
+    Нарезаны из мест, где вы говорите плотнее всего, с вшитыми субтитрами.
+    Ссылка живёт час — посмотрите и решите, годится ли.
+  </p>
+  <ul>${links.clips
+    .map(
+      (item) =>
+        `<li><a href="${escapeHtml(item.url)}">${escapeHtml(item.name)}</a></li>`
+    )
+    .join('')}</ul>
+</section>`
+    : ''
+}
+
 <section class="card">
   <h2>Файлы в буфере</h2>
   ${
