@@ -112,7 +112,14 @@ export function loadConfig(env = process.env) {
       // Поэтому перебираем: первая ответившая и делает работу.
       model:
         env.GEMINI_MODEL ??
-        'gemini-flash-latest,gemini-3-flash-preview,gemini-flash-lite-latest'
+        'gemini-flash-latest,gemini-3-flash-preview,gemini-flash-lite-latest',
+      // Модели рисования — отдельным списком: они и называются иначе, и
+      // квотируются отдельно. На бесплатной доле все шесть отвечают отказом по
+      // квоте сразу же, поэтому рисование включается только с оплатой на
+      // проекте: подписка в приложении Gemini на API не распространяется.
+      imageModel:
+        env.GEMINI_IMAGE_MODEL ??
+        'gemini-3-pro-image,gemini-3.1-flash-image,gemini-2.5-flash-image'
     },
     // Распознавание речи считается на самом сервере. Пути задаются
     // окружением, потому что в образе бинарник и модель лежат в разных местах:

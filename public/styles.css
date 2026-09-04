@@ -1209,3 +1209,24 @@ form[action='/search'] input {
   border-color: var(--flame);
   outline: none;
 }
+
+/* --- Выбор обложки ------------------------------------------------------- */
+
+.cover-choice {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+.cover-choice li {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+.cover-choice img {
+  width: 100%;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  display: block;
+}

@@ -16,6 +16,8 @@ import { makeMakeClips } from './jobs/make-clips.js';
 import { makeTrimPauses } from './jobs/trim-pauses.js';
 import { makeSuggestTexts } from './jobs/suggest-texts.js';
 import { createTexts } from './services/texts.js';
+import { makeMakeCoverImage } from './jobs/make-cover-image.js';
+import { createImages } from './services/images.js';
 import { makeCleanupMedia } from './jobs/cleanup-media.js';
 import { makeTranscribe } from './jobs/transcribe.js';
 import { createSpeech } from './services/speech.js';
@@ -55,6 +57,7 @@ const handlers = {
   [JOBS.transcribe]: makeTranscribe(config, pool, queue, speech),
   [JOBS.subtitles]: makeSubtitles(config, pool, queue),
   [JOBS.suggestTexts]: makeSuggestTexts(config, pool, createTexts(config)),
+  [JOBS.makeCoverImage]: makeMakeCoverImage(config, pool, createImages(config)),
   [JOBS.trimPauses]: makeTrimPauses(config, pool, queue),
   [JOBS.makeClips]: makeMakeClips(config, pool, queue),
   [JOBS.makeCover]: makeMakeCover(config, pool),

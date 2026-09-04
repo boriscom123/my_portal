@@ -374,3 +374,42 @@ autofillButton?.addEventListener('click', async () => {
     toast(`Не заполнилось: ${error.message}`, true);
   }
 });
+
+/* --- Обложка ------------------------------------------------------------- */
+
+// Рисование идёт минуту с лишним, поэтому кнопка только ставит задачу, а
+// готовность видно по перечитанной странице: обложка — картинка, и подменять
+// её на месте значит показывать половину загруженного файла.
+const drawCoverButton = document.querySelector('[data-draw-cover]');
+drawCoverButton?.addEventListener('click', async () => {
+  try {
+    await withButtonState(drawCoverButton, 'Рисую…', 'Запущено', async () => {
+      const answer = await request(
+        `/api/admin/lessons/${drawCoverButton.dataset.drawCover}/cover-image`,
+        { method: 'POST' }
+      );
+      if (!answer) return;
+      toast('Рисую обложку. Это минута-две — обновите страницу, когда будет готово.');
+    });
+  } catch (error) {
+    toast(`Не нарисовалось: ${error.message}`, true);
+  }
+});
+
+// Выбор между кадром из записи и нарисованной. Отдельно от рисования:
+// возвращаться к кадру перерисовкой значило бы тратить минуту машины на то,
+// что уже лежит в буфере.
+document.querySelectorAll('[data-cover]').forEach((button) => {
+  button.addEventListener('click', async () => {
+    // Адрес урока берём у формы проверки: отдельный атрибут на каждой кнопке
+    // был бы четвёртой копией одного и того же значения на странице.
+    const slug = document.querySelector('[data-approve]')?.dataset.approve;
+    if (!slug) return;
+    button.disabled = true;
+    const answer = await request(`/api/admin/lessons/${slug}/cover/${button.dataset.cover}`, {
+      method: 'POST'
+    });
+    if (answer) location.reload();
+    else button.disabled = false;
+  });
+});

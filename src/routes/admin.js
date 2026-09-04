@@ -173,6 +173,40 @@ export function adminRoutes(config, pool) {
     res.json({ started: true });
   });
 
+  // Нарисовать обложку моделью. Очередью, как и тексты: рисование идёт минуту
+  // с лишним, а запрос через nginx рвётся на шестидесяти секундах.
+  router.post('/lessons/:slug/cover-image', async (req, res) => {
+    const lesson = await getLessonBySlug(pool, req.params.slug, { includeDrafts: true });
+    if (!lesson) throw new PublicError('Урок не найден', 404);
+    if (!lesson.title) throw new PublicError('Сначала нужен заголовок — по нему и рисуем', 409);
+    if (!req.app.locals.queue) throw new PublicError('Очередь недоступна', 503);
+
+    await addJob(req.app.locals.queue, 'makeCoverImage', { lessonId: lesson.id });
+    res.json({ started: true });
+  });
+
+  // Выбор обложки из тех, что уже есть: кадр из записи или нарисованная.
+  // Отдельным действием, потому что перерисовывать ради возврата к кадру —
+  // это минута работы машины вместо одного нажатия.
+  router.post('/lessons/:slug/cover/:assetId', async (req, res) => {
+    const lesson = await getLessonBySlug(pool, req.params.slug, { includeDrafts: true });
+    if (!lesson) throw new PublicError('Урок не найден', 404);
+
+    // Сверяем и урок, и вид файла: иначе обложкой можно было бы назначить
+    // исходник чужого урока.
+    const { rows } = await pool.query(
+      `SELECT id FROM assets WHERE id = $1 AND lesson_id = $2 AND kind = 'cover'`,
+      [Number(req.params.assetId), lesson.id]
+    );
+    if (!rows[0]) throw new PublicError('Такой обложки у урока нет', 404);
+
+    await pool.query('UPDATE lessons SET cover_url = $1 WHERE id = $2', [
+      `/media/asset/${rows[0].id}`,
+      lesson.id
+    ]);
+    res.json({ coverUrl: `/media/asset/${rows[0].id}` });
+  });
+
   // Повтор упавшего шага. Ставится ровно та задача, что упала, с теми же
   // данными: шаг «забрать с Диска» без пути к файлу повторить нельзя, а
   // угадывать имя шага по тексту ошибки — способ однажды запустить не тот.

@@ -31,6 +31,7 @@ export const STEP_LABELS = {
   suggestTexts: 'готовится заголовок и описание',
   trimPauses: 'вырезаются паузы',
   makeCover: 'выбирается обложка',
+  makeCoverImage: 'рисуется обложка',
   makeClips: 'режутся вертикальные ролики'
 };
 

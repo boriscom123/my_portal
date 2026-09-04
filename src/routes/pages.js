@@ -169,6 +169,14 @@ export function pageRoutes(config, pool) {
           expiresLabel: new Date(row.expires_at).toLocaleDateString('ru-RU')
         })),
         transcript: transcript[0]?.text ?? null,
+        // Обложек у урока бывает две: кадр из записи и нарисованная. Автор
+        // выбирает, какая идёт в карточку.
+        covers: assets
+          .filter((row) => row.kind === 'cover')
+          .map((row) => ({
+            id: Number(row.id),
+            label: row.path.includes('cover-drawn') ? 'нарисованная' : 'кадр из записи'
+          })),
         segments: segmentRows.map((row) => ({
           id: Number(row.id),
           startedMs: Number(row.started_ms),

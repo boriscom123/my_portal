@@ -43,6 +43,7 @@ export function adminReviewPage({
   assets,
   transcript,
   segments = [],
+  covers = [],
   links
 }) {
   const state = stateLabel(lesson);
@@ -87,14 +88,48 @@ ${
     : ''
 }
 
-${
-  lesson.coverUrl
-    ? `<figure class="review-cover">
-  <img src="${escapeHtml(lesson.coverUrl)}" alt="Обложка урока">
-  <figcaption class="hint">Кадр взят с десятой части урока. Не подошёл — повторите шаг обложки.</figcaption>
-</figure>`
-    : '<p class="hint">Обложки пока нет.</p>'
-}
+<section class="card">
+  <h2>Обложка</h2>
+  ${
+    lesson.coverUrl
+      ? `<figure class="review-cover">
+    <img src="${escapeHtml(lesson.coverUrl)}" alt="Обложка урока">
+  </figure>`
+      : '<p class="hint">Обложки пока нет.</p>'
+  }
+  ${
+    covers.length > 1
+      ? `<p class="hint">Есть несколько — выберите, какая идёт в карточку и в превью ссылки:</p>
+         <ul class="cover-choice">${covers
+           .map(
+             (cover) => `<li>
+             <img src="/media/asset/${cover.id}" alt="">
+             <span class="meta">${escapeHtml(cover.label)}</span>
+             ${
+               lesson.coverUrl === `/media/asset/${cover.id}`
+                 ? '<span class="badge">выбрана</span>'
+                 : `<button class="button" type="button" data-cover="${cover.id}">
+                      Сделать обложкой
+                    </button>`
+             }
+           </li>`
+           )
+           .join('')}</ul>`
+      : ''
+  }
+  <p class="form-row">
+    <button class="button" type="button" data-draw-cover="${escapeHtml(lesson.slug)}"
+      ${lesson.title ? '' : 'disabled title="Сначала нужен заголовок"'}>
+      Нарисовать обложку
+    </button>
+  </p>
+  <p class="hint">
+    Кадр из записи берётся с десятой части урока и часто показывает экран
+    редактора. Рисование идёт минуту с лишним и требует включённой оплаты на
+    проекте Google: на бесплатной доле квота на картинки нулевая. Кадр при этом
+    никуда не девается — к нему можно вернуться одним нажатием.
+  </p>
+</section>
 
 <section class="card">
   <h2>Что видит зритель</h2>
