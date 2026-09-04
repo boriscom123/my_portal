@@ -11,6 +11,9 @@ import { adminHomePage } from '../views/admin-home.js';
 import { adminReviewPage } from '../views/admin-review.js';
 import { adminPreviewPage } from '../views/admin-preview.js';
 import { mediaLink } from '../lib/media-token.js';
+import { probeDuration } from '../lib/ffmpeg.js';
+import { mediaPath } from '../services/media.js';
+import { timeLabel } from '../views/search.js';
 import { requireAdmin } from '../middleware/guards.js';
 import { feedPage } from '../views/feed.js';
 import { lessonPage } from '../views/lesson.js';
@@ -133,10 +136,20 @@ export function pageRoutes(config, pool) {
         WHERE lesson_id = $1 ORDER BY kind, id`,
       [lesson.id]
     );
+    const trimmed = assets.find((row) => row.kind === 'trimmed');
     const { rows: transcript } = await pool.query(
       'SELECT text FROM transcripts WHERE lesson_id = $1',
       [lesson.id]
     );
+
+    // Длительность смонтированной записи спрашиваем у файла: в учёте лежит
+    // только размер, а автору нужно знать, насколько урок укоротился.
+    // Файла может не быть — том пересоздали, срок вышел. Тогда просто не
+    // показываем длительность: ронять из-за неё весь экран проверки незачем.
+    const trimmedSeconds = trimmed
+      ? await probeDuration(mediaPath(config, trimmed.path)).catch(() => null)
+      : null;
+    const trimmedLabel = trimmedSeconds ? timeLabel(Math.round(trimmedSeconds * 1000)) : '—';
 
     res.type('html').send(
       adminReviewPage({
@@ -164,7 +177,14 @@ export function pageRoutes(config, pool) {
             .map((row) => ({
               name: row.path.split('/').pop(),
               url: mediaLink(config, Number(row.id))
-            }))
+            })),
+          trimmed: trimmed
+            ? {
+                name: trimmed.path.split('/').pop(),
+                url: mediaLink(config, Number(trimmed.id)),
+                duration: trimmedLabel
+              }
+            : null
         }
       })
     );
@@ -185,13 +205,23 @@ export function pageRoutes(config, pool) {
       `SELECT a.id, a.kind, a.path
          FROM assets a JOIN lessons l ON l.id = a.lesson_id
         WHERE a.lesson_id = $1
-          AND (a.id = l.source_asset_id OR a.kind = 'subtitles')`,
+          AND (a.id = l.source_asset_id OR a.kind IN ('subtitles', 'trimmed'))`,
       [lesson.id]
     );
-    const source = rows.find((row) => row.kind === 'source');
+    // Смонтированную запись и её субтитры показываем по явной просьбе: по
+    // умолчанию автор смотрит то, что снял.
+    const wantTrimmed = req.query.trimmed === '1';
+    const source = wantTrimmed
+      ? rows.find((row) => row.kind === 'trimmed')
+      : rows.find((row) => row.kind === 'source');
     // Именно vtt: srt браузеры не понимают, а различаются они одним знаком в
-    // записи времени.
-    const subtitles = rows.find((row) => row.kind === 'subtitles' && row.path.endsWith('.vtt'));
+    // записи времени. У смонтированной записи субтитры свои — по старым она
+    // показывала бы реплики с нарастающим опозданием.
+    const subtitles = rows.find(
+      (row) =>
+        row.kind === 'subtitles' &&
+        row.path.endsWith(wantTrimmed ? 'trimmed.vtt' : 'subtitles.vtt')
+    );
 
     res.type('html').send(
       adminPreviewPage({

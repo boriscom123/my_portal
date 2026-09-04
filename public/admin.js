@@ -197,3 +197,39 @@ retryButton?.addEventListener('click', async () => {
     retryButton.disabled = false;
   }
 });
+
+/* --- Настройки подготовки урока ------------------------------------------ */
+
+// Вид подписей и монтаж — решения автора, а не разработчика. Пересборка идёт
+// отдельной кнопкой: она занимает у сервера полчаса.
+const settingsForm = document.querySelector('[data-settings]');
+settingsForm?.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const data = new FormData(settingsForm);
+  const rebuild = event.submitter?.value === 'yes';
+  const buttons = settingsForm.querySelectorAll('button');
+  buttons.forEach((button) => (button.disabled = true));
+
+  try {
+    const answer = await request(`/api/admin/lessons/${settingsForm.dataset.settings}/settings`, {
+      method: 'POST',
+      body: JSON.stringify({
+        subtitleOutline: data.get('subtitleOutline'),
+        subtitleColor: data.get('subtitleColor'),
+        cutPauses: data.get('cutPauses') === 'on',
+        minPauseSeconds: data.get('minPauseSeconds'),
+        rebuild
+      })
+    });
+    if (answer) {
+      toast(
+        rebuild
+          ? 'Настройки сохранены, пересборка запущена. Монтаж часовой записи занимает около получаса.'
+          : 'Настройки сохранены. Применятся при следующей сборке.'
+      );
+      if (rebuild) setTimeout(() => location.reload(), 1500);
+    }
+  } finally {
+    buttons.forEach((button) => (button.disabled = false));
+  }
+});

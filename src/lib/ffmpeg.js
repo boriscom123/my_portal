@@ -83,7 +83,14 @@ export function ffmpegArgsForCover({ input, atSeconds, output }) {
  * нулю — перемотка до -i обнуляет времена, и общий файл показывал бы реплики
  * не в такт.
  */
-export function ffmpegArgsForClip({ input, subtitles, startSeconds, durationSeconds, output }) {
+export function ffmpegArgsForClip({
+  input,
+  subtitles,
+  startSeconds,
+  durationSeconds,
+  output,
+  style = {}
+}) {
   // Запятые и двоеточия в пути ffmpeg считает разделителями фильтра, а
   // одинарная кавычка обрывает имя. Экранируем — иначе урок с двоеточием в
   // имени файла уронил бы нарезку.
@@ -102,7 +109,9 @@ export function ffmpegArgsForClip({ input, subtitles, startSeconds, durationSeco
     // кадра. Десять и сорок — это буквы в семьдесят точек внизу кадра:
     // читается с телефона, не закрывает показываемое и не лезет под кнопки
     // площадки.
-    `subtitles=${escaped}:force_style='FontName=DejaVu Sans,Fontsize=10,Outline=0.8,Shadow=0,Alignment=2,MarginV=40'`
+    `subtitles=${escaped}:force_style='FontName=DejaVu Sans,Fontsize=10,` +
+      `PrimaryColour=${style.color ?? '&HFFFFFF'},Outline=${style.outline ?? 0.8},` +
+      `Shadow=0,Alignment=2,MarginV=40'`
   ].join(',');
 
   return [
@@ -116,6 +125,35 @@ export function ffmpegArgsForClip({ input, subtitles, startSeconds, durationSeco
     '-vf', filter,
     // Пресет быстрее обычного: на двух ядрах медленный отнимает машину
     // вчетверо дольше, а разница в весе ролика на минуту незаметна.
+    '-c:v', 'libx264',
+    '-preset', 'veryfast',
+    '-crf', '23',
+    '-c:a', 'aac',
+    '-b:a', '128k',
+    '-movflags', '+faststart',
+    '-y',
+    output
+  ];
+}
+
+/**
+ * Аргументы для склейки кусков записи по списку.
+ *
+ * Пересжатие обязательно: куски начинаются в произвольных местах, а без
+ * пересжатия склейка возможна только по опорным кадрам — срез уехал бы на
+ * секунды и попал в середину фразы.
+ * genpts нужен, потому что у склеенных кусков времена начинаются заново, и без
+ * их пересчёта плеер показывает запись с рывками.
+ */
+export function ffmpegArgsForTrim({ listPath, output }) {
+  return [
+    '-hide_banner',
+    '-loglevel', 'error',
+    '-fflags', '+genpts',
+    '-f', 'concat',
+    // Список составляем мы сами, а не человек: путь в нём наш собственный.
+    '-safe', '0',
+    '-i', listPath,
     '-c:v', 'libx264',
     '-preset', 'veryfast',
     '-crf', '23',

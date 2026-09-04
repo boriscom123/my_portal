@@ -10,6 +10,7 @@ import { escapeHtml } from '../lib/html.js';
 import { assetUrl } from '../lib/assets.js';
 import { layout } from './layout.js';
 import { stateLabel } from './admin-home.js';
+import { readSettings } from '../lib/settings.js';
 
 /** Байты человеку. Гигабайты для исходника, мегабайты для остального. */
 export function humanBytes(bytes) {
@@ -37,6 +38,7 @@ function assetRow(asset) {
 export function adminReviewPage({ config, user, lesson, assets, transcript, links }) {
   const state = stateLabel(lesson);
   const failed = lesson.pipelineState === 'failed';
+  const settings = readSettings(lesson.settings);
 
   return layout({
     config,
@@ -106,6 +108,38 @@ ${
 </section>
 
 <section class="card">
+  <h2>Как готовить урок</h2>
+  <form id="settings-form" data-settings="${escapeHtml(lesson.slug)}">
+    <label>Толщина обводки подписей
+      <input name="subtitleOutline" type="number" min="0" max="4" step="0.1"
+             value="${escapeHtml(String(settings.subtitleOutline))}">
+    </label>
+    <label>Цвет подписей
+      <input name="subtitleColor" type="color" value="${escapeHtml(settings.subtitleColor)}">
+    </label>
+    <label class="checkbox-row">
+      <input name="cutPauses" type="checkbox" ${settings.cutPauses ? 'checked' : ''}>
+      Готовить вариант с вырезанными паузами
+    </label>
+    <label>Пауза короче этой не режется, секунд
+      <input name="minPauseSeconds" type="number" min="0.5" max="30" step="0.5"
+             value="${escapeHtml(String(settings.minPauseSeconds))}">
+    </label>
+    <div class="form-row">
+      <button class="button" type="submit">Сохранить настройки</button>
+      <button class="button-brand" type="submit" name="rebuild" value="yes">
+        Сохранить и пересобрать
+      </button>
+    </div>
+  </form>
+  <p class="hint">
+    Настройки применяются при сборке роликов и монтаже. «Пересобрать» запускает
+    её заново на уже загруженной записи — расшифровывать повторно не нужно.
+    Монтаж часовой записи занимает у сервера около получаса.
+  </p>
+</section>
+
+<section class="card">
   <h2>Расшифровка</h2>
   ${
     transcript
@@ -127,6 +161,23 @@ ${
       : ''
   }
 </section>
+
+${
+  links.trimmed
+    ? `<section class="card">
+  <h2>Запись с вырезанными паузами</h2>
+  <p class="hint">
+    Было ${escapeHtml(humanDuration(lesson.durationSeconds))}, стало
+    ${escapeHtml(links.trimmed.duration)}. Субтитры к ней свои, с пересчитанными
+    временами.
+  </p>
+  <p><a class="button-brand" href="/admin/lesson/${encodeURIComponent(lesson.slug)}/preview?trimmed=1">
+    Смотреть смонтированную
+  </a></p>
+  <ul><li><a href="${escapeHtml(links.trimmed.url)}">${escapeHtml(links.trimmed.name)}</a></li></ul>
+</section>`
+    : ''
+}
 
 ${
   links.clips.length

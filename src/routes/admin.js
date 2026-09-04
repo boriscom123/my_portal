@@ -10,6 +10,7 @@ import { requireAdmin } from '../middleware/guards.js';
 import { PublicError } from '../middleware/errors.js';
 import { saveLesson, setLessonTags, getLessonBySlug } from '../services/lessons.js';
 import { notifyAboutLesson } from '../services/notify/lesson.js';
+import { readSettings } from '../lib/settings.js';
 import { addJob } from '../queue.js';
 
 /** Теги строкой из формы — в список: «docker, vps» → ['docker', 'vps']. */
@@ -59,6 +60,31 @@ export function adminRoutes(config, pool) {
 
     if (publish) await notifyAboutLesson(pool, req.app.locals.channels, lesson);
     res.json({ lesson, published: publish });
+  });
+
+  // Настройки подготовки урока: вид подписей и монтаж. Значения приходят от
+  // человека и попадают в аргументы ffmpeg, поэтому проверяются в
+  // readSettings, а не по дороге.
+  router.post('/lessons/:slug/settings', async (req, res) => {
+    const settings = readSettings(req.body);
+    const { rows } = await pool.query(
+      'UPDATE lessons SET settings = $1::jsonb WHERE slug = $2 RETURNING id',
+      [JSON.stringify(settings), req.params.slug]
+    );
+    if (!rows[0]) throw new PublicError('Урок не найден', 404);
+
+    // Пересборка — по отдельной просьбе: она занимает у машины полчаса, и
+    // запускать её при каждом сохранении настроек нельзя.
+    if (req.body.rebuild === true) {
+      if (!req.app.locals.queue) throw new PublicError('Очередь недоступна', 503);
+      await pool.query(
+        `UPDATE lessons SET pipeline_state = 'processing', pipeline_error = NULL WHERE id = $1`,
+        [rows[0].id]
+      );
+      await addJob(req.app.locals.queue, 'trimPauses', { lessonId: Number(rows[0].id) });
+    }
+
+    res.json({ settings, rebuilding: req.body.rebuild === true });
   });
 
   // Повтор упавшего шага. Ставится ровно та задача, что упала, с теми же

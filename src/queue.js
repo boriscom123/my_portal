@@ -17,6 +17,7 @@ export const JOBS = {
   extractAudio: 'extractAudio',
   transcribe: 'transcribe',
   subtitles: 'subtitles',
+  trimPauses: 'trimPauses',
   // generateTexts здесь был и убран: тексты от модели отменены вместе с
   // облаком. Имя без обработчика — ловушка: задача с ним встала бы в очередь и
   // не выполнилась никогда, а урок застрял бы на середине без объяснения.
@@ -111,7 +112,7 @@ const RETRY = { attempts: 3, backoff: { type: 'exponential', delay: 30_000 } };
  * одного и того же отказа, и всё это время автор видел бы «обрабатывается».
  * Решение о повторе тут за человеком: в кабинете для этого есть кнопка.
  */
-const NO_RETRY_JOBS = new Set([JOBS.transcribe, JOBS.makeClips]);
+const NO_RETRY_JOBS = new Set([JOBS.transcribe, JOBS.makeClips, JOBS.trimPauses]);
 
 /**
  * Настройки для конкретного шага.

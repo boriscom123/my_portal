@@ -28,6 +28,7 @@ export const STEP_LABELS = {
   extractAudio: 'извлекается звук',
   transcribe: 'распознаётся речь',
   subtitles: 'собираются субтитры',
+  trimPauses: 'вырезаются паузы',
   makeCover: 'выбирается обложка',
   makeClips: 'режутся вертикальные ролики'
 };

@@ -12,6 +12,7 @@
 import { mkdir, stat, writeFile, rm, access } from 'node:fs/promises';
 import { runFfmpeg, ffmpegArgsForClip } from '../lib/ffmpeg.js';
 import { toSrt, splitLongSegments } from '../lib/srt.js';
+import { readSettings, toAssColor } from '../lib/settings.js';
 import { mediaPath, registerAsset, assetById } from '../services/media.js';
 import { addJob } from '../queue.js';
 
@@ -89,7 +90,7 @@ export function pickClipRanges(segments, durationSeconds, { count = MAX_CLIPS } 
 export function makeMakeClips(config, pool, queue) {
   return async ({ lessonId }) => {
     const { rows } = await pool.query(
-      'SELECT source_asset_id, duration_seconds FROM lessons WHERE id = $1',
+      'SELECT source_asset_id, duration_seconds, settings FROM lessons WHERE id = $1',
       [lessonId]
     );
     if (!rows[0]?.source_asset_id) throw new Error('у урока нет исходника');
@@ -115,6 +116,8 @@ export function makeMakeClips(config, pool, queue) {
       text: row.text
     }));
 
+    const settings = readSettings(rows[0].settings);
+    const style = { outline: settings.subtitleOutline, color: toAssColor(settings.subtitleColor) };
     const ranges = pickClipRanges(segments, rows[0].duration_seconds);
     const dir = `lesson-${lessonId}`;
     await mkdir(mediaPath(config, dir), { recursive: true });
@@ -135,7 +138,8 @@ export function makeMakeClips(config, pool, queue) {
             subtitles,
             startSeconds: range.startedMs / 1000,
             durationSeconds: (range.endedMs - range.startedMs) / 1000,
-            output: mediaPath(config, relative)
+            output: mediaPath(config, relative),
+            style
           }),
           // Ролик без подписей смотрят без звука и не понимают — ради подписей
           // нарезка и делается. Пропавший шрифт должен ронять шаг, а не
