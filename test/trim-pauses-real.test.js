@@ -18,13 +18,19 @@ const hasFfmpeg = await new Promise((resolve) => {
   child.on('close', (code) => resolve(code === 0));
 });
 
-/** Ролик на минуту: настоящий файл, а не подделка. */
+/**
+ * Ролик на минуту со звуком в первые и последние десять секунд и тишиной
+ * посередине. Настоящий файл: монтаж меряет именно звук, и на ролике с ровным
+ * тоном по всей длине резать было бы нечего.
+ */
 function makeSample(file) {
   return new Promise((resolve, reject) => {
     const child = spawn('ffmpeg', [
       '-hide_banner', '-loglevel', 'error',
       '-f', 'lavfi', '-i', 'testsrc=size=320x240:rate=10:duration=60',
       '-f', 'lavfi', '-i', 'sine=frequency=440:duration=60',
+      '-filter_complex', "[1:a]volume=enable='between(t,10,50)':volume=0[a]",
+      '-map', '0:v', '-map', '[a]',
       '-shortest', '-pix_fmt', 'yuv420p', '-y', file
     ]);
     child.on('error', reject);
@@ -49,8 +55,8 @@ async function seed(pool, settings) {
     JSON.stringify(settings),
     lesson.id
   ]);
-  // Речь в первые десять секунд и в последние пять: между ними — пауза,
-  // которую и должен вырезать монтаж.
+  // Реплики расшифровки: монтаж режет по звуку, а времена реплик пересчитывает
+  // под новую шкалу — проверяем и то и другое.
   for (const [from, to] of [
     [0, 4000],
     [4500, 9000],
@@ -75,6 +81,7 @@ test('запись становится короче, а субтитры к н�
     const result = await makeTrimPauses(config, pool, queue)({ lessonId });
 
     assert.equal(result.ranges, 2, 'должно остаться два куска речи');
+    assert.ok(result.silences >= 1, 'тишина посередине должна была найтись');
     assert.ok(result.becameSeconds < 25, `минута ужалась до ${result.becameSeconds} с`);
 
     // Производные файлы конвейер кладёт в каталог урока по его номеру — там

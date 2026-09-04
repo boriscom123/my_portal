@@ -165,6 +165,59 @@ export function ffmpegArgsForTrim({ listPath, output }) {
   ];
 }
 
+/**
+ * Разбирает вывод silencedetect в промежутки тишины.
+ * Вынесено отдельно от запуска: разбор чужого вывода — то место, где ошибка
+ * тихая, а проверить её без ffmpeg можно только так.
+ */
+export function parseSilences(lines) {
+  const silences = [];
+  for (const line of lines) {
+    const start = line.match(/silence_start:\s*([\d.]+)/);
+    if (start) {
+      silences.push({ startMs: Math.round(Number(start[1]) * 1000), endMs: null });
+      continue;
+    }
+    const end = line.match(/silence_end:\s*([\d.]+)/);
+    if (end && silences.length) {
+      silences.at(-1).endMs = Math.round(Number(end[1]) * 1000);
+    }
+  }
+  // Последний промежуток может остаться без конца, если запись кончается
+  // тишиной: закрываем его на конце записи, а не выбрасываем.
+  return silences;
+}
+
+/**
+ * Находит паузы в звуковой дорожке.
+ *
+ * Зачем измерять звук, а не брать промежутки между репликами расшифровки: у
+ * реплик после отсечения тишины границы крупные — реплика может длиться
+ * полминуты, и пауза сидит внутри неё. Первый монтаж по репликам вырезал из
+ * пятидесяти двух минут семь секунд, тогда как тишины в записи оказалась
+ * половина.
+ */
+export function detectSilence(file, { minPauseSeconds = 2, noiseDb = -40 } = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn('nice', [
+      '-n', '10', 'ffmpeg',
+      '-hide_banner',
+      '-i', file,
+      '-af', `silencedetect=noise=${noiseDb}dB:d=${minPauseSeconds}`,
+      '-f', 'null', '-'
+    ]);
+    const lines = [];
+    child.stderr.on('data', (chunk) => {
+      lines.push(...String(chunk).split('\n').filter(Boolean));
+    });
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code === 0) resolve(parseSilences(lines));
+      else reject(new Error(describeFailure(code, lines)));
+    });
+  });
+}
+
 /** Разбирает вывод ffprobe. null, если длительность неизвестна. */
 export function parseDuration(text) {
   const value = Number.parseFloat(String(text).trim());

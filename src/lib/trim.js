@@ -15,33 +15,42 @@
 const PAD_MS = 250;
 
 /**
- * Собирает куски, которые остаются в записи.
- * Соседние реплики сливаются, если промежуток между ними короче заданного:
- * дыхание и короткая пауза между фразами — это ещё речь, и вырезать их значит
- * сделать урок неслушаемым.
+ * Собирает куски, которые остаются в записи: всё, что не тишина.
+ *
+ * Каждый кусок расширяется на запас в обе стороны — без него срез приходится
+ * на первый и последний звук слова, и речь звучит обрубленной. От запаса куски
+ * могут наложиться друг на друга, поэтому наложившиеся сливаются.
  */
-export function keepRanges(segments, { minPauseSeconds = 2, durationSeconds = 0 } = {}) {
-  if (!segments.length) return [];
+export function keepRanges(silences, { durationSeconds = 0 } = {}) {
+  const limitMs = Math.round(durationSeconds * 1000);
+  if (!limitMs) return [];
 
-  const minGapMs = minPauseSeconds * 1000;
-  const limitMs = durationSeconds ? durationSeconds * 1000 : Infinity;
   const ranges = [];
+  let cursorMs = 0;
 
-  for (const segment of segments) {
-    const startedMs = Math.max(0, segment.startedMs - PAD_MS);
-    const endedMs = Math.min(limitMs, segment.endedMs + PAD_MS);
-    const last = ranges.at(-1);
+  for (const silence of silences) {
+    const startMs = Math.max(0, Number(silence.startMs) || 0);
+    const endMs = silence.endMs === null ? limitMs : Math.min(limitMs, Number(silence.endMs));
+    if (startMs > cursorMs) ranges.push({ startedMs: cursorMs, endedMs: Math.min(startMs, limitMs) });
+    cursorMs = Math.max(cursorMs, endMs);
+  }
+  if (cursorMs < limitMs) ranges.push({ startedMs: cursorMs, endedMs: limitMs });
 
-    if (last && startedMs - last.endedMs < minGapMs) {
+  const padded = [];
+  for (const range of ranges) {
+    const startedMs = Math.max(0, range.startedMs - PAD_MS);
+    const endedMs = Math.min(limitMs, range.endedMs + PAD_MS);
+    const last = padded.at(-1);
+    if (last && startedMs <= last.endedMs) {
       last.endedMs = Math.max(last.endedMs, endedMs);
       continue;
     }
-    ranges.push({ startedMs, endedMs });
+    padded.push({ startedMs, endedMs });
   }
 
-  // Кусок короче четверти секунды — это щелчок, а не речь: на монтаже он даёт
+  // Кусок короче четверти секунды — щелчок, а не речь: на монтаже он даёт
   // рывок и ничего не добавляет.
-  return ranges.filter((range) => range.endedMs - range.startedMs >= 250);
+  return padded.filter((range) => range.endedMs - range.startedMs >= 250);
 }
 
 /** Сколько времени останется в смонтированной записи, в миллисекундах. */
@@ -50,33 +59,38 @@ export function trimmedDurationMs(ranges) {
 }
 
 /**
+ * Переводит миг старой записи в миг смонтированной.
+ * Время из вырезанного куска отображается в точку склейки: реплика, начавшаяся
+ * в тишине, начнётся там, где эта тишина кончилась.
+ */
+export function mapTime(ms, ranges) {
+  let offsetMs = 0;
+  for (const range of ranges) {
+    if (ms < range.startedMs) return offsetMs;
+    if (ms <= range.endedMs) return offsetMs + (ms - range.startedMs);
+    offsetMs += range.endedMs - range.startedMs;
+  }
+  return offsetMs;
+}
+
+/**
  * Пересчитывает времена реплик на новую шкалу.
- * Без этого субтитры смонтированной записи показывали бы реплики по старым
- * временам — то есть всё сильнее опаздывали бы к концу урока.
- * Реплики, целиком попавшие в вырезанное, исчезают: показывать их негде.
+ * Без этого субтитры смонтированной записи опаздывали бы тем сильнее, чем
+ * дальше к концу урока — а заметно это стало бы уже на площадке.
+ *
+ * Начало и конец переводятся по отдельности, потому что реплика после
+ * отсечения тишины бывает длинной и перекрывает вырезанное: в смонтированной
+ * записи она просто становится короче.
  */
 export function remapSegments(segments, ranges) {
   const result = [];
 
   for (const segment of segments) {
-    let offsetMs = 0;
-    for (const range of ranges) {
-      if (segment.startedMs >= range.endedMs) {
-        offsetMs += range.endedMs - range.startedMs;
-        continue;
-      }
-      if (segment.endedMs <= range.startedMs) break;
-
-      // Реплика может выходить за края куска — подрезаем по нему.
-      const startedMs = Math.max(segment.startedMs, range.startedMs);
-      const endedMs = Math.min(segment.endedMs, range.endedMs);
-      result.push({
-        startedMs: offsetMs + (startedMs - range.startedMs),
-        endedMs: offsetMs + (endedMs - range.startedMs),
-        text: segment.text
-      });
-      break;
-    }
+    const startedMs = mapTime(segment.startedMs, ranges);
+    const endedMs = mapTime(segment.endedMs, ranges);
+    // Реплика целиком попала в вырезанное — показывать её негде.
+    if (endedMs <= startedMs) continue;
+    result.push({ startedMs, endedMs, text: segment.text });
   }
 
   return result;

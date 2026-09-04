@@ -202,34 +202,75 @@ retryButton?.addEventListener('click', async () => {
 
 // Вид подписей и монтаж — решения автора, а не разработчика. Пересборка идёт
 // отдельной кнопкой: она занимает у сервера полчаса.
+/**
+ * Отвечает нажатием на самой кнопке, а не только всплывающим сообщением.
+ * Всплывающее висит внизу экрана, а человек в этот момент смотрит на кнопку —
+ * на длинной странице он его просто не видит и жмёт второй раз.
+ */
+async function withButtonState(button, working, done, action) {
+  const wasText = button.textContent;
+  button.disabled = true;
+  button.textContent = working;
+  try {
+    await action();
+    button.textContent = done;
+    // Возвращаем подпись, но не сразу: иначе «Сохранено» мелькает и его не
+    // успевает заметить даже тот, кто смотрит прямо на кнопку.
+    setTimeout(() => {
+      button.textContent = wasText;
+      button.disabled = false;
+    }, 1600);
+  } catch (error) {
+    button.textContent = wasText;
+    button.disabled = false;
+    throw error;
+  }
+}
+
 const settingsForm = document.querySelector('[data-settings]');
 settingsForm?.addEventListener('submit', async (event) => {
   event.preventDefault();
   const data = new FormData(settingsForm);
   const rebuild = event.submitter?.value === 'yes';
-  const buttons = settingsForm.querySelectorAll('button');
-  buttons.forEach((button) => (button.disabled = true));
+  const pressed = event.submitter ?? settingsForm.querySelector('button');
+  const other = [...settingsForm.querySelectorAll('button')].filter((b) => b !== pressed);
+  other.forEach((button) => (button.disabled = true));
 
   try {
-    const answer = await request(`/api/admin/lessons/${settingsForm.dataset.settings}/settings`, {
-      method: 'POST',
-      body: JSON.stringify({
-        subtitleOutline: data.get('subtitleOutline'),
-        subtitleColor: data.get('subtitleColor'),
-        cutPauses: data.get('cutPauses') === 'on',
-        minPauseSeconds: data.get('minPauseSeconds'),
-        rebuild
-      })
-    });
-    if (answer) {
-      toast(
-        rebuild
-          ? 'Настройки сохранены, пересборка запущена. Монтаж часовой записи занимает около получаса.'
-          : 'Настройки сохранены. Применятся при следующей сборке.'
-      );
-      if (rebuild) setTimeout(() => location.reload(), 1500);
-    }
+    await withButtonState(
+      pressed,
+      rebuild ? 'Запускаю…' : 'Сохраняю…',
+      rebuild ? 'Запущено' : 'Сохранено',
+      async () => {
+        const answer = await request(
+          `/api/admin/lessons/${settingsForm.dataset.settings}/settings`,
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              subtitleOutline: data.get('subtitleOutline'),
+              subtitleColor: data.get('subtitleColor'),
+              cutPauses: data.get('cutPauses') === 'on',
+              minPauseSeconds: data.get('minPauseSeconds'),
+              rebuild
+            })
+          }
+        );
+        if (!answer) return;
+        toast(
+          rebuild
+            ? 'Пересборка запущена. Монтаж часовой записи занимает около получаса.'
+            : 'Настройки сохранены. Применятся при следующей сборке.'
+        );
+        // Страница перечитывается, чтобы кнопка пересборки стала выключенной:
+        // её состояние приходит с сервера, а не угадывается здесь.
+        if (rebuild) setTimeout(() => location.reload(), 1600);
+      }
+    );
+  } catch (error) {
+    // Без этого неудачное сохранение не показывало вообще ничего: request
+    // бросает, обработчик молчал, и человек видел кнопку как ни в чём не бывало.
+    toast(`Не сохранилось: ${error.message}`, true);
   } finally {
-    buttons.forEach((button) => (button.disabled = false));
+    if (!rebuild) other.forEach((button) => (button.disabled = false));
   }
 });

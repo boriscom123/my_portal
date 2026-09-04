@@ -246,3 +246,60 @@ test('повторять нечего — говорим об этом, а не 
     });
   });
 });
+
+test('пока идёт сборка, вторую запустить нельзя', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const { adminId } = await seed(pool);
+    await pool.query(`UPDATE lessons SET pipeline_state = 'processing' WHERE slug = 'urok'`);
+    const app = finalize(createApp({ config, pool, queue: { add: async () => {} } }));
+    await withServer(app, async (base) => {
+      // Выключенной кнопки мало: страница могла быть открыта до начала сборки.
+      const res = await fetch(`${base}/api/admin/lessons/urok/settings`, {
+        method: 'POST',
+        headers: asAdmin(adminId),
+        body: JSON.stringify({ cutPauses: true, rebuild: true })
+      });
+      assert.equal(res.status, 409);
+      assert.match((await res.json()).error, /уже идёт/);
+    });
+  });
+});
+
+test('настройки сохраняются и во время сборки — не запускается только пересборка', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const { adminId } = await seed(pool);
+    await pool.query(`UPDATE lessons SET pipeline_state = 'processing' WHERE slug = 'urok'`);
+    const app = finalize(createApp({ config, pool }));
+    await withServer(app, async (base) => {
+      const res = await fetch(`${base}/api/admin/lessons/urok/settings`, {
+        method: 'POST',
+        headers: asAdmin(adminId),
+        body: JSON.stringify({ subtitleColor: '#ffcc00', rebuild: false })
+      });
+      assert.equal(res.status, 200);
+      assert.equal((await res.json()).settings.subtitleColor, '#ffcc00');
+    });
+  });
+});
+
+test('во время сборки кнопка пересборки выключена и объяснена', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const { adminId } = await seed(pool);
+    await pool.query(
+      `UPDATE lessons SET pipeline_state = 'processing',
+                          pipeline_job = '{"name":"trimPauses","data":{}}'::jsonb
+        WHERE slug = 'urok'`
+    );
+    const app = finalize(createApp({ config, pool }));
+    await withServer(app, async (base) => {
+      const html = await (
+        await fetch(`${base}/admin/lesson/urok`, {
+          headers: { Accept: 'text/html', ...asAdmin(adminId) }
+        })
+      ).text();
+      assert.match(html, /disabled title="Пересборка уже идёт"/);
+      // Выключенная кнопка без объяснения читается как поломка.
+      assert.match(html, /Пересборка уже идёт: обрабатывается: вырезаются паузы/);
+    });
+  });
+});

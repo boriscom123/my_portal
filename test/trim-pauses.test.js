@@ -3,59 +3,87 @@
 // сильнее, чем дальше к концу урока.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { keepRanges, remapSegments, trimmedDurationMs, concatList } from '../src/lib/trim.js';
+import { keepRanges, remapSegments, mapTime, trimmedDurationMs, concatList } from '../src/lib/trim.js';
+import { parseSilences } from '../src/lib/ffmpeg.js';
 import { readSettings, toAssColor, DEFAULT_SETTINGS } from '../src/lib/settings.js';
 
-const segments = [
-  { startedMs: 1000, endedMs: 3000, text: 'первая' },
-  { startedMs: 3500, endedMs: 5000, text: 'сразу за ней' },
-  { startedMs: 60_000, endedMs: 62_000, text: 'после долгой паузы' }
+// Минута записи: тишина с 10-й по 30-ю секунду и с 40-й по 50-ю.
+const silences = [
+  { startMs: 10_000, endMs: 30_000 },
+  { startMs: 40_000, endMs: 50_000 }
 ];
 
-test('соседние реплики сливаются, долгая пауза вырезается', () => {
-  const ranges = keepRanges(segments, { minPauseSeconds: 2, durationSeconds: 120 });
-  assert.equal(ranges.length, 2);
-  // Между первой и второй репликой полсекунды — это дыхание, а не пауза:
-  // вырезать его значит сделать урок неслушаемым.
-  assert.deepEqual(ranges[0], { startedMs: 750, endedMs: 5250 });
-  assert.equal(trimmedDurationMs(ranges), 7000, 'из двух минут остаётся семь секунд');
+test('остаётся всё, что не тишина', () => {
+  const ranges = keepRanges(silences, { durationSeconds: 60 });
+  assert.equal(ranges.length, 3);
+  assert.equal(trimmedDurationMs(ranges), 31_000, 'из минуты остаётся полминуты');
 });
 
 test('запас по краям не даёт обрубить слово', () => {
-  const [range] = keepRanges([{ startedMs: 10_000, endedMs: 12_000 }], { durationSeconds: 60 });
-  assert.ok(range.startedMs < 10_000, 'срез пришёлся бы на первый звук слова');
-  assert.ok(range.endedMs > 12_000);
+  const [range] = keepRanges([{ startMs: 10_000, endMs: 20_000 }], { durationSeconds: 60 });
+  // Срез вплотную к речи приходится на первый и последний звук слова.
+  assert.equal(range.startedMs, 0);
+  assert.equal(range.endedMs, 10_250);
 });
 
 test('куски не вылезают за пределы записи', () => {
-  const [range] = keepRanges([{ startedMs: 59_900, endedMs: 60_500 }], { durationSeconds: 60 });
-  assert.ok(range.endedMs <= 60_000);
-  assert.ok(range.startedMs >= 0);
+  const ranges = keepRanges([{ startMs: 30_000, endMs: null }], { durationSeconds: 60 });
+  // Незакрытый промежуток — запись кончилась тишиной.
+  assert.equal(ranges.length, 1);
+  assert.ok(ranges[0].endedMs <= 60_000);
+  assert.ok(ranges[0].startedMs >= 0);
 });
 
-test('без речи резать нечего', () => {
-  assert.deepEqual(keepRanges([], { durationSeconds: 60 }), []);
+test('без длительности резать нечего', () => {
+  assert.deepEqual(keepRanges(silences, { durationSeconds: 0 }), []);
+});
+
+test('запись без единой паузы остаётся целиком', () => {
+  const ranges = keepRanges([], { durationSeconds: 60 });
+  assert.deepEqual(ranges, [{ startedMs: 0, endedMs: 60_000 }]);
 });
 
 test('времена реплик пересчитываются на новую шкалу', () => {
-  const ranges = keepRanges(segments, { minPauseSeconds: 2, durationSeconds: 120 });
-  const moved = remapSegments(segments, ranges);
-  assert.equal(moved.length, 3);
-  // Реплика была на шестидесятой секунде, а после выброшенных пятидесяти пяти
-  // секунд тишины должна оказаться на пятой. По старым временам субтитры
-  // опаздывали бы почти на минуту.
-  assert.equal(moved[2].startedMs, 4750);
-  assert.equal(moved[2].text, 'после долгой паузы');
-  // Порядок и длительности реплик сохраняются.
-  assert.ok(moved[0].startedMs < moved[1].startedMs);
-  assert.equal(moved[0].endedMs - moved[0].startedMs, 2000);
+  const ranges = keepRanges(silences, { durationSeconds: 60 });
+  // Реплика начиналась на 55-й секунде, а после выброшенных тридцати секунд
+  // тишины должна оказаться на 25-й. По старым временам субтитры опаздывали бы
+  // на полминуты.
+  const moved = remapSegments([{ startedMs: 55_000, endedMs: 58_000, text: 'финал' }], ranges);
+  assert.equal(moved[0].startedMs, mapTime(55_000, ranges));
+  assert.ok(moved[0].startedMs < 30_000, 'реплика должна была подъехать ближе к началу');
+  assert.equal(moved[0].endedMs - moved[0].startedMs, 3000, 'длительность реплики сохраняется');
 });
 
-test('реплика из вырезанного куска исчезает, а не съезжает', () => {
+test('длинная реплика поверх вырезанного становится короче', () => {
+  // После отсечения тишины реплика бывает длинной и перекрывает паузу целиком.
+  const ranges = keepRanges(silences, { durationSeconds: 60 });
+  const [moved] = remapSegments([{ startedMs: 5000, endedMs: 45_000, text: 'через паузы' }], ranges);
+  assert.equal(moved.startedMs, 5000);
+  assert.ok(moved.endedMs < 45_000, 'реплика обязана ужаться вместе с записью');
+});
+
+test('реплика целиком из тишины исчезает, а не съезжает', () => {
   // Показывать её негде: этого места в смонтированной записи больше нет.
-  const ranges = [{ startedMs: 0, endedMs: 5000 }];
-  const moved = remapSegments([{ startedMs: 30_000, endedMs: 31_000, text: 'вырезано' }], ranges);
-  assert.deepEqual(moved, []);
+  const ranges = keepRanges(silences, { durationSeconds: 60 });
+  assert.deepEqual(
+    remapSegments([{ startedMs: 12_000, endedMs: 20_000, text: 'молчание' }], ranges),
+    []
+  );
+});
+
+test('вывод silencedetect разбирается в промежутки', () => {
+  // Настоящие строки из журнала ffmpeg на уроке заказчика.
+  const parsed = parseSilences([
+    '[Parsed_silencedetect_0 @ 0x1] silence_start: 21.709729',
+    '[Parsed_silencedetect_0 @ 0x1] silence_end: 24.738687 | silence_duration: 3.028958',
+    'size=N/A time=00:04:06.87 bitrate=N/A',
+    '[Parsed_silencedetect_0 @ 0x1] silence_start: 39.366083'
+  ]);
+  assert.deepEqual(parsed, [
+    { startMs: 21_710, endMs: 24_739 },
+    // Промежуток без конца — запись кончилась тишиной; выбрасывать его нельзя.
+    { startMs: 39_366, endMs: null }
+  ]);
 });
 
 test('список кусков составляется в формате склейки', () => {

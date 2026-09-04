@@ -39,6 +39,9 @@ export function adminReviewPage({ config, user, lesson, assets, transcript, link
   const state = stateLabel(lesson);
   const failed = lesson.pipelineState === 'failed';
   const settings = readSettings(lesson.settings);
+  // Пока конвейер работает, вторую пересборку запускать нельзя: она заняла бы
+  // те же два ядра и обогнала бы первую — файлы переписывались бы вперемешку.
+  const busy = ['uploading', 'processing'].includes(lesson.pipelineState);
 
   return layout({
     config,
@@ -127,7 +130,8 @@ ${
     </label>
     <div class="form-row">
       <button class="button" type="submit">Сохранить настройки</button>
-      <button class="button-brand" type="submit" name="rebuild" value="yes">
+      <button class="button-brand" type="submit" name="rebuild" value="yes"
+        ${busy ? 'disabled title="Пересборка уже идёт"' : ''}>
         Сохранить и пересобрать
       </button>
     </div>
@@ -137,6 +141,14 @@ ${
     её заново на уже загруженной записи — расшифровывать повторно не нужно.
     Монтаж часовой записи занимает у сервера около получаса.
   </p>
+  ${
+    busy
+      ? `<p class="hint danger">
+           Пересборка уже идёт: ${escapeHtml(state)}. Вторая такая же заняла бы
+           те же ядра и обогнала бы первую — кнопка выключена, пока не закончится.
+         </p>`
+      : ''
+  }
 </section>
 
 <section class="card">

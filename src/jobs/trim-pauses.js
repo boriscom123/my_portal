@@ -9,7 +9,7 @@
 // занимает у машины полчаса, и делать это без спроса нельзя.
 // Вызывается воркером по имени JOBS.trimPauses.
 import { mkdir, stat, writeFile, rm, access } from 'node:fs/promises';
-import { runFfmpeg, ffmpegArgsForTrim } from '../lib/ffmpeg.js';
+import { runFfmpeg, ffmpegArgsForTrim, detectSilence } from '../lib/ffmpeg.js';
 import { keepRanges, remapSegments, trimmedDurationMs, concatList } from '../lib/trim.js';
 import { toSrt, toVtt } from '../lib/srt.js';
 import { readSettings } from '../lib/settings.js';
@@ -52,10 +52,20 @@ export function makeTrimPauses(config, pool, queue) {
       text: row.text
     }));
 
-    const ranges = keepRanges(segments, {
-      minPauseSeconds: settings.minPauseSeconds,
-      durationSeconds: rows[0].duration_seconds
+    // Паузы меряем по звуковой дорожке, а не по промежуткам между репликами:
+    // у реплик после отсечения тишины границы крупные, и пауза сидит внутри
+    // реплики. Считаем по извлечённому звуку — он лёгкий, разбор идёт в сотни
+    // раз быстрее реального времени.
+    const { rows: audioRows } = await pool.query(
+      `SELECT path FROM assets WHERE lesson_id = $1 AND kind = 'audio' ORDER BY id DESC LIMIT 1`,
+      [lessonId]
+    );
+    const soundPath = audioRows[0] ? mediaPath(config, audioRows[0].path) : input;
+    const silences = await detectSilence(soundPath, {
+      minPauseSeconds: settings.minPauseSeconds
     });
+
+    const ranges = keepRanges(silences, { durationSeconds: rows[0].duration_seconds });
     if (!ranges.length) {
       // Речи в записи нет — резать нечего, и пустой файл автору не нужен.
       await addJob(queue, 'makeClips', { lessonId });
@@ -102,6 +112,7 @@ export function makeTrimPauses(config, pool, queue) {
     await addJob(queue, 'makeClips', { lessonId });
     return {
       ranges: ranges.length,
+      silences: silences.length,
       wasSeconds: rows[0].duration_seconds,
       becameSeconds: Math.round(trimmedDurationMs(ranges) / 1000)
     };

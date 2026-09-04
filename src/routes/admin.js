@@ -68,10 +68,20 @@ export function adminRoutes(config, pool) {
   router.post('/lessons/:slug/settings', async (req, res) => {
     const settings = readSettings(req.body);
     const { rows } = await pool.query(
-      'UPDATE lessons SET settings = $1::jsonb WHERE slug = $2 RETURNING id',
+      'UPDATE lessons SET settings = $1::jsonb WHERE slug = $2 RETURNING id, pipeline_state',
       [JSON.stringify(settings), req.params.slug]
     );
     if (!rows[0]) throw new PublicError('Урок не найден', 404);
+
+    // Выключенной кнопки мало: страница могла быть открыта до начала сборки, а
+    // запрос можно послать и мимо неё. Отказ живёт на сервере, где состояние
+    // известно наверняка.
+    if (req.body.rebuild === true && ['uploading', 'processing'].includes(rows[0].pipeline_state)) {
+      throw new PublicError(
+        'Пересборка уже идёт. Дождитесь её окончания: вторая заняла бы те же ядра и обогнала бы первую.',
+        409
+      );
+    }
 
     // Пересборка — по отдельной просьбе: она занимает у машины полчаса, и
     // запускать её при каждом сохранении настроек нельзя.
