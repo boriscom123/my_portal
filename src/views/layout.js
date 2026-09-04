@@ -66,6 +66,7 @@ ${
     </span>
   </a>
   <nav class="nav">
+    <a href="/search">Поиск</a>
     <a href="/ideas">Идеи</a>
     ${user?.role === 'admin' ? '<a href="/admin">Кабинет</a>' : ''}
     ${

@@ -19,6 +19,7 @@ import { clientErrorRoutes } from './routes/client-errors.js';
 import { createWebPushChannel } from './services/notify/webpush.js';
 import { createTelegramChannel } from './services/notify/telegram.js';
 import { lessonRoutes } from './routes/lessons.js';
+import { searchRoutes } from './routes/search.js';
 import { feedbackRoutes } from './routes/feedback.js';
 import { ideaRoutes } from './routes/ideas.js';
 
@@ -75,6 +76,7 @@ export function createApp({ config, pool, fetchImpl, queue = null }) {
   app.use('/media', mediaRoutes(config, pool));
   app.use('/api/admin', adminRoutes(config, pool));
   app.use('/api', lessonRoutes(config, pool));
+  app.use('/api', searchRoutes(config, pool));
   app.use('/api', feedbackRoutes(config, pool));
   app.use('/api', ideaRoutes(config, pool));
   app.use('/api/push', pushRoutes(config, pool));

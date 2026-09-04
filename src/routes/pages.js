@@ -14,6 +14,8 @@ import { requireAdmin } from '../middleware/guards.js';
 import { feedPage } from '../views/feed.js';
 import { lessonPage } from '../views/lesson.js';
 import { ideasPage } from '../views/ideas.js';
+import { searchPage } from '../views/search.js';
+import { searchSegments } from '../services/search.js';
 import { listIdeas } from '../services/ideas.js';
 import { listLessons, getLessonBySlug, listNews } from '../services/lessons.js';
 import {
@@ -158,6 +160,14 @@ export function pageRoutes(config, pool) {
             }))
         }
       })
+    );
+  });
+
+  router.get('/search', async (req, res) => {
+    const user = await currentUser(pool, req);
+    const query = String(req.query.q ?? '');
+    res.type('html').send(
+      searchPage({ config, user, query, results: await searchSegments(pool, query) })
     );
   });
 

@@ -26,19 +26,44 @@ import { describeFailure } from './ffmpeg.js';
  * же прогон на беззвучном файле дал «Субтитры субтитров Н.Новикова» — попади
  * такое в субтитры урока, автор получил бы чужую подпись на видео.
  *
- * Сравнение идёт по приведённому виду, поэтому здесь только основа фразы.
+ * Звание титра стоит в начале строки, имя после него каждый раз новое, поэтому
+ * список — из начал, а не из целых фраз.
  */
-const HALLUCINATIONS = [
-  'субтитры субтитров',
-  'субтитры сделал',
-  'субтитры создавал',
+const CREDIT_PREFIXES = [
+  'субтитры',
   'редактор субтитров',
+  'корректор',
+  'перевод'
+];
+
+/**
+ * Длина строки титра в словах. Титр короткий: слово-звание и имя.
+ *
+ * Порог нужен, потому что уроки этого проекта — про субтитры и перевод в том
+ * числе: «Субтитры мы сделаем сами, дальше по конвейеру» — это речь автора, а
+ * «Корректор В.Сухиашвили» — титр. Отличаются они длиной, а не словом.
+ */
+const CREDIT_MAX_WORDS = 5;
+
+/** Заготовки, которые узнаются целиком, где бы в строке ни стояли. */
+const JUNK_PHRASES = [
   'продолжение следует',
   'подписывайтесь на канал',
   'спасибо за просмотр',
-  'dimatorzok',
-  'корректор а.кулакова'
+  'dimatorzok'
 ];
+
+/**
+ * Сколько одинаковых реплик подряд считаем залипанием.
+ *
+ * На настоящем уроке заказчика звук пропал на тринадцатой минуте, и модель до
+ * конца записи — ещё сорок минут — печатала «Корректор В.Сухиашвили»: 895
+ * одинаковых строк из 1077. Список заготовок такого не ловит, имя в титрах
+ * каждый раз новое. Ловит повтор: человек не произносит одну и ту же фразу
+ * дословно четыре раза подряд с одинаковым промежутком, а модель на тишине
+ * только так и делает.
+ */
+const REPEAT_LIMIT = 4;
 
 /** Приводит строку к виду, в котором её можно сравнивать: без регистра и знаков. */
 export function normalizeText(text) {
@@ -57,7 +82,15 @@ export function normalizeText(text) {
 export function isHallucination(text) {
   const normalized = normalizeText(text);
   if (!normalized) return true;
-  return HALLUCINATIONS.some((phrase) => normalized.includes(phrase));
+  if (JUNK_PHRASES.some((phrase) => normalized.includes(phrase))) return true;
+
+  // Титр обязан и начинаться со звания, и быть коротким: иначе под нож пошла
+  // бы речь автора об этих же самых субтитрах.
+  const words = normalized.split(' ');
+  return (
+    words.length <= CREDIT_MAX_WORDS &&
+    CREDIT_PREFIXES.some((prefix) => normalized.startsWith(prefix))
+  );
 }
 
 /** Аргументы whisper-cli. Вывод — JSON рядом с входным файлом. */
@@ -85,6 +118,32 @@ export function jsonPathFor(input) {
 }
 
 /**
+ * Выбрасывает залипшие повторы: длинные вереницы одной и той же реплики.
+ * Убирается вся вереница, а не всё кроме первой: это не речь, а след тишины,
+ * и одна такая строка в субтитрах урока так же не нужна, как девятьсот.
+ */
+export function dropRepeats(segments, limit = REPEAT_LIMIT) {
+  const result = [];
+  let run = [];
+
+  const flush = () => {
+    if (run.length && run.length < limit) result.push(...run);
+    run = [];
+  };
+
+  for (const segment of segments) {
+    if (run.length && normalizeText(run[0].text) === normalizeText(segment.text)) {
+      run.push(segment);
+      continue;
+    }
+    flush();
+    run = [segment];
+  }
+  flush();
+  return result;
+}
+
+/**
  * Разбирает JSON whisper.cpp в сегменты с временами в миллисекундах.
  * Заготовки из титров отсеиваются здесь же: дальше по конвейеру они попали бы
  * и в субтитры, и в поиск, и в описание урока.
@@ -98,7 +157,7 @@ export function parseWhisperJson(raw) {
   }
 
   const all = Array.isArray(body?.transcription) ? body.transcription : [];
-  const segments = [];
+  const kept = [];
   let dropped = 0;
 
   for (const item of all) {
@@ -107,14 +166,19 @@ export function parseWhisperJson(raw) {
       dropped += 1;
       continue;
     }
-    segments.push({
+    kept.push({
       startedMs: Number(item?.offsets?.from ?? 0),
       endedMs: Number(item?.offsets?.to ?? 0),
       text
     });
   }
 
-  return { text: segments.map((s) => s.text).join(' '), segments, dropped };
+  const segments = dropRepeats(kept);
+  return {
+    text: segments.map((segment) => segment.text).join(' '),
+    segments,
+    dropped: dropped + (kept.length - segments.length)
+  };
 }
 
 /**

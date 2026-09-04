@@ -10,6 +10,7 @@ import {
   whisperArgs,
   parseWhisperJson,
   isHallucination,
+  dropRepeats,
   normalizeText,
   jsonPathFor,
   ensureModel
@@ -58,12 +59,57 @@ test('заготовка из титров на тишине не попадае
   assert.equal(parsed.dropped, 1, 'отброшенное считаем: по нему видно, много ли тишины');
 });
 
-test('похожие заготовки узнаются, а настоящая речь — нет', () => {
+test('титр узнаётся по званию и длине, а не по одному слову', () => {
   assert.ok(isHallucination('Продолжение следует...'));
   assert.ok(isHallucination('  Субтитры сделал DimaTorzok'));
+  assert.ok(isHallucination('Корректор В.Сухиашвили'));
+  assert.ok(isHallucination('Редактор субтитров А.Синецкая'));
   assert.ok(isHallucination(''), 'пустой сегмент тоже мусор');
+  // Уроки этого проекта — в том числе про субтитры и перевод. Отсев по одному
+  // слову вырезал бы из расшифровки речь автора о его же работе.
   assert.ok(!isHallucination('Субтитры мы сделаем сами, дальше по конвейеру'));
+  assert.ok(!isHallucination('Перевод текста мы делать не будем, это отдельная задача'));
   assert.ok(!isHallucination('Здравствуйте, сегодня разбираем docker compose.'));
+});
+
+test('залипший повтор на тишине выбрасывается целиком', () => {
+  // Настоящий случай с урока заказчика: звук пропал на тринадцатой минуте, и
+  // до конца записи модель напечатала «Корректор В.Сухиашвили» 895 раз —
+  // три четверти всех реплик урока. Список заготовок такого не ловит: имя в
+  // титрах каждый раз новое. Ловит повтор.
+  const looped = [
+    { startedMs: 0, endedMs: 2000, text: 'Итак, продолжаем.' },
+    ...Array.from({ length: 895 }, (_, i) => ({
+      startedMs: 2000 + i * 2000,
+      endedMs: 4000 + i * 2000,
+      text: 'Залипшая строка'
+    }))
+  ];
+  const kept = dropRepeats(looped);
+  assert.deepEqual(
+    kept.map((s) => s.text),
+    ['Итак, продолжаем.']
+  );
+});
+
+test('короткий повтор — ещё речь, а не залипание', () => {
+  // «Да. Да. Да.» человек говорит; девятьсот раз подряд — нет.
+  const segments = Array.from({ length: 3 }, (_, i) => ({
+    startedMs: i * 1000,
+    endedMs: (i + 1) * 1000,
+    text: 'Да.'
+  }));
+  assert.equal(dropRepeats(segments).length, 3);
+});
+
+test('повторы считаются подряд идущими, а не по всему уроку', () => {
+  // Одна и та же фраза в начале и в конце урока — это речь, а не залипание.
+  const segments = [
+    { startedMs: 0, endedMs: 1000, text: 'Поехали' },
+    { startedMs: 1000, endedMs: 2000, text: 'дальше по плану' },
+    { startedMs: 2000, endedMs: 3000, text: 'Поехали' }
+  ];
+  assert.equal(dropRepeats(segments).length, 3);
 });
 
 test('приведение строки убирает регистр и знаки', () => {
