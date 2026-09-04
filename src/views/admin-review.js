@@ -65,6 +65,7 @@ export function adminReviewPage({
   <a class="button" href="/admin/lessons">← Уроки</a>
   <a class="button-brand" href="/admin/lesson/${encodeURIComponent(lesson.slug)}/preview">Смотреть с субтитрами</a>
   <a class="button" href="/lesson/${encodeURIComponent(lesson.slug)}">Как видит зритель</a>
+  <a class="button" href="/admin/upload">Загрузить запись</a>
 </nav>
 
 <h1>${escapeHtml(lesson.title)}</h1>

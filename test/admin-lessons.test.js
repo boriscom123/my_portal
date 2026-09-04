@@ -203,3 +203,21 @@ test('посторонний в раздел уроков не попадает'
     });
   });
 });
+
+test('на странице уроков нет ссылок, которые уже есть в меню', skipWithoutDb, async () => {
+  const config = await makeConfig();
+  await withTestDb(async (pool) => {
+    await saveLesson(pool, { slug: 'chernovik', title: 'Черновик' });
+    const headers = await adminHeaders(pool, config);
+    const app = finalize(createApp({ config, pool }));
+    await withServer(app, async (base) => {
+      const html = await (await fetch(`${base}/admin/lessons`, { headers })).text();
+      const main = html.slice(html.indexOf('<main>'), html.indexOf('</main>'));
+      // Настройки, идеи и витрина живут в меню шапки: повторять их на странице
+      // значит показывать одно и то же дважды.
+      for (const link of ['/settings', '/ideas', '"/"']) {
+        assert.ok(!main.includes(`href="${link.replace(/"/g, '')}"`), `в теле осталась ссылка ${link}`);
+      }
+    });
+  });
+});

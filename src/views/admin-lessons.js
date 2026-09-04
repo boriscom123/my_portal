@@ -51,13 +51,6 @@ export function adminLessonsPage({ config, user, lessons, diskConnected = false 
     title: 'Уроки — Solo AI Journey',
     description: 'Список уроков: завести новый, открыть или убрать черновик.',
     body: `
-<nav class="admin-nav">
-  <a class="button-brand" href="/admin/upload">Загрузить запись</a>
-  <a class="button" href="/settings">Настройки</a>
-  <a class="button" href="/ideas">Идеи зрителей</a>
-  <a class="button" href="/">Витрина</a>
-</nav>
-
 <h1>Уроки</h1>
 
 <p class="hint">
