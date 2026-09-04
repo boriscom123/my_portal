@@ -1175,3 +1175,37 @@ form[action='/search'] input {
   width: auto !important;
   min-height: 0 !important;
 }
+
+/* --- Правка титров ------------------------------------------------------- */
+
+.segments {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--gap);
+  max-height: 420px;
+  overflow: auto;
+  display: grid;
+  gap: 6px;
+}
+/* Время слева узкой колонкой: по нему автор находит нужную реплику, слушая
+   запись, и колонка не должна прыгать от длины строки. */
+.segment {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr;
+  align-items: center;
+  gap: 10px;
+}
+.segment input {
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.segment input:focus {
+  border-color: var(--flame);
+  outline: none;
+}

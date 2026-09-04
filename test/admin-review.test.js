@@ -43,6 +43,13 @@ async function seed(pool, { failed = false } = {}) {
     `INSERT INTO transcripts (lesson_id, text, provider) VALUES ($1, $2, 'whisper')`,
     [lesson.id, 'Здравствуйте, сегодня разбираем docker compose.']
   );
+  // Реплики с временами: их правит автор прямо на экране проверки, и без них
+  // проверялся бы запасной путь, а не рабочий.
+  await pool.query(
+    `INSERT INTO transcript_segments (lesson_id, started_ms, ended_ms, text)
+     VALUES ($1, 0, 4000, 'Здравствуйте, сегодня разбираем docker compose.')`,
+    [lesson.id]
+  );
   await pool.query(
     `UPDATE lessons SET pipeline_state = $2, pipeline_error = $3, pipeline_job = $4,
                         cover_url = '/media/asset/7'
@@ -95,9 +102,13 @@ test('автор видит обложку, расшифровку и файлы
       assert.match(html, /1:05:30/, 'длительность');
       assert.match(html, /media\/asset\/7/, 'обложка');
       assert.match(html, /docker compose/, 'расшифровка');
-      // Расшифровка показывается целиком, а не первыми строками: автор её
-      // читает, чтобы решить, годится ли урок.
-      assert.match(html, /Прокрутите, чтобы прочитать целиком/);
+      // Расшифровка не просто показывается, а правится: распознавание
+      // ошибается в именах и терминах, и правит их автор здесь же.
+      assert.match(html, /data-transcript="urok"/);
+      assert.match(html, /data-segment="/);
+      // И заполнение полей из неё — чтобы автор правил готовое, а не сочинял
+      // заголовок с чистого листа.
+      assert.match(html, /data-autofill="urok"/);
       assert.match(html, /source\.mp4/, 'файлы буфера');
       // Субтитры лежат в буфере: наружу они смотрят только подписанной
       // ссылкой, прямого адреса на странице быть не должно.

@@ -11,6 +11,8 @@ import { PublicError } from '../middleware/errors.js';
 import { saveLesson, setLessonTags, getLessonBySlug } from '../services/lessons.js';
 import { notifyAboutLesson } from '../services/notify/lesson.js';
 import { readSettings } from '../lib/settings.js';
+import { suggestFromTranscript } from '../lib/summary.js';
+import { rebuildSubtitles } from '../services/transcript.js';
 import { addJob } from '../queue.js';
 
 /** Теги строкой из формы — в список: «docker, vps» → ['docker', 'vps']. */
@@ -95,6 +97,49 @@ export function adminRoutes(config, pool) {
     }
 
     res.json({ settings, rebuilding: req.body.rebuild === true });
+  });
+
+  // Правка титров. Распознавание ошибается в именах и терминах, и правит их
+  // автор — здесь же, а не перезаписью субтитров руками в скачанном файле.
+  router.post('/lessons/:slug/transcript', async (req, res) => {
+    const lesson = await getLessonBySlug(pool, req.params.slug, { includeDrafts: true });
+    if (!lesson) throw new PublicError('Урок не найден', 404);
+
+    const edits = Array.isArray(req.body?.segments) ? req.body.segments : [];
+    if (!edits.length) throw new PublicError('Нечего сохранять', 400);
+
+    let changed = 0;
+    for (const edit of edits) {
+      const text = String(edit?.text ?? '').trim();
+      // Пустая реплика — это дыра в субтитрах на её месте; такую правку не
+      // принимаем, удалять реплику надо не так.
+      if (!text) continue;
+      const { rowCount } = await pool.query(
+        `UPDATE transcript_segments SET text = $1
+          WHERE id = $2 AND lesson_id = $3 AND text <> $1`,
+        [text, Number(edit.id), lesson.id]
+      );
+      changed += rowCount;
+    }
+
+    // Субтитры пересобираются сразу: иначе автор правит титры, скачивает файл
+    // и получает старый текст.
+    const files = changed ? await rebuildSubtitles(config, pool, lesson.id) : [];
+    res.json({ changed, files });
+  });
+
+  // Заготовка заголовка, описания и тегов из расшифровки. Не применяется сама:
+  // это извлечение, а не сочинение, и последнее слово за автором.
+  router.get('/lessons/:slug/suggest', async (req, res) => {
+    const lesson = await getLessonBySlug(pool, req.params.slug, { includeDrafts: true });
+    if (!lesson) throw new PublicError('Урок не найден', 404);
+
+    const { rows } = await pool.query('SELECT text FROM transcripts WHERE lesson_id = $1', [
+      lesson.id
+    ]);
+    if (!rows.length) throw new PublicError('Расшифровки ещё нет', 409);
+
+    res.json(suggestFromTranscript(rows[0].text));
   });
 
   // Повтор упавшего шага. Ставится ровно та задача, что упала, с теми же

@@ -274,3 +274,75 @@ settingsForm?.addEventListener('submit', async (event) => {
     if (!rebuild) other.forEach((button) => (button.disabled = false));
   }
 });
+
+/* --- Правка титров ------------------------------------------------------- */
+
+// Распознавание ошибается в именах и терминах. Отправляем только изменённые
+// реплики: на часовом уроке их две с лишним сотни, и слать все — это мегабайт
+// ради одной поправленной строки.
+const transcriptForm = document.querySelector('[data-transcript]');
+if (transcriptForm) {
+  const original = new Map(
+    [...transcriptForm.querySelectorAll('[data-segment]')].map((input) => [
+      input.dataset.segment,
+      input.value
+    ])
+  );
+
+  transcriptForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const changed = [...transcriptForm.querySelectorAll('[data-segment]')]
+      .filter((input) => input.value !== original.get(input.dataset.segment))
+      .map((input) => ({ id: Number(input.dataset.segment), text: input.value }));
+
+    if (!changed.length) {
+      toast('Ничего не поменялось.');
+      return;
+    }
+
+    const button = event.submitter ?? transcriptForm.querySelector('button');
+    try {
+      await withButtonState(button, 'Сохраняю…', 'Сохранено', async () => {
+        const answer = await request(
+          `/api/admin/lessons/${transcriptForm.dataset.transcript}/transcript`,
+          { method: 'POST', body: JSON.stringify({ segments: changed }) }
+        );
+        if (!answer) return;
+        for (const input of transcriptForm.querySelectorAll('[data-segment]')) {
+          original.set(input.dataset.segment, input.value);
+        }
+        toast(
+          `Поправлено реплик: ${answer.changed}. Субтитры пересобраны. ` +
+            'В вертикальные ролики правка попадёт после пересборки.'
+        );
+      });
+    } catch (error) {
+      toast(`Не сохранилось: ${error.message}`, true);
+    }
+  });
+}
+
+/* --- Заполнение полей из расшифровки ------------------------------------- */
+
+// Заготовка, а не готовый текст: модели у портала нет, поэтому поля
+// заполняются извлечённым из расшифровки, и правит их автор.
+const autofillButton = document.querySelector('[data-autofill]');
+autofillButton?.addEventListener('click', async () => {
+  const form = document.querySelector('[data-approve]');
+  if (!form) return;
+
+  try {
+    await withButtonState(autofillButton, 'Читаю…', 'Заполнено', async () => {
+      const answer = await request(
+        `/api/admin/lessons/${autofillButton.dataset.autofill}/suggest`
+      );
+      if (!answer) return;
+      form.querySelector('[name=title]').value = answer.title;
+      form.querySelector('[name=description]').value = answer.description;
+      form.querySelector('[name=tags]').value = answer.tags.join(', ');
+      toast('Поля заполнены из расшифровки. Поправьте и сохраните.');
+    });
+  } catch (error) {
+    toast(`Не заполнилось: ${error.message}`, true);
+  }
+});

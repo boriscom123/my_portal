@@ -141,6 +141,12 @@ export function pageRoutes(config, pool) {
       'SELECT text FROM transcripts WHERE lesson_id = $1',
       [lesson.id]
     );
+    // Реплики с временами: их правит автор прямо на экране проверки.
+    const { rows: segmentRows } = await pool.query(
+      `SELECT id, started_ms, text FROM transcript_segments
+        WHERE lesson_id = $1 ORDER BY started_ms`,
+      [lesson.id]
+    );
 
     // Длительность смонтированной записи спрашиваем у файла: в учёте лежит
     // только размер, а автору нужно знать, насколько урок укоротился.
@@ -163,6 +169,11 @@ export function pageRoutes(config, pool) {
           expiresLabel: new Date(row.expires_at).toLocaleDateString('ru-RU')
         })),
         transcript: transcript[0]?.text ?? null,
+        segments: segmentRows.map((row) => ({
+          id: Number(row.id),
+          startedMs: Number(row.started_ms),
+          text: row.text
+        })),
         links: {
           // Субтитры и нарезки лежат в буфере и по прямому адресу наружу не
           // смотрят: автору они выдаются подписанной ссылкой на час.

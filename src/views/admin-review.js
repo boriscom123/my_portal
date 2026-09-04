@@ -11,6 +11,7 @@ import { assetUrl } from '../lib/assets.js';
 import { layout } from './layout.js';
 import { stateLabel } from './admin-home.js';
 import { readSettings } from '../lib/settings.js';
+import { timeLabel } from './search.js';
 
 /** Байты человеку. Гигабайты для исходника, мегабайты для остального. */
 export function humanBytes(bytes) {
@@ -35,7 +36,15 @@ function assetRow(asset) {
 </li>`;
 }
 
-export function adminReviewPage({ config, user, lesson, assets, transcript, links }) {
+export function adminReviewPage({
+  config,
+  user,
+  lesson,
+  assets,
+  transcript,
+  segments = [],
+  links
+}) {
   const state = stateLabel(lesson);
   const failed = lesson.pipelineState === 'failed';
   const settings = readSettings(lesson.settings);
@@ -100,10 +109,19 @@ ${
       <input name="tags" value="${escapeHtml(lesson.tags.join(', '))}" maxlength="200">
     </label>
     <div class="form-row">
+      <button class="button" type="button" data-autofill="${escapeHtml(lesson.slug)}"
+        ${segments.length ? '' : 'disabled title="Сначала нужна расшифровка"'}>
+        Заполнить из расшифровки
+      </button>
       <button class="button" type="submit" name="publish" value="no">Сохранить черновик</button>
       <button class="button-brand" type="submit" name="publish" value="yes">Опубликовать</button>
     </div>
   </form>
+  <p class="hint">
+    Заполнение берёт заголовок и описание из начала расшифровки, а теги — из
+    самых частых слов урока. Модели у портала нет, поэтому это заготовка, а не
+    готовый текст: поправьте её перед публикацией.
+  </p>
   <p class="hint">
     Публикация показывает урок на витрине и рассылает уведомление подписчикам —
     один раз: повторное сохранение никого не разбудит второй раз.
@@ -154,12 +172,39 @@ ${
 <section class="card">
   <h2>Расшифровка</h2>
   ${
-    transcript
+    segments.length
       ? `<p class="hint">
-           ${escapeHtml(String(transcript.length))} знаков. Прокрутите, чтобы прочитать целиком.
+           ${escapeHtml(String(segments.length))} реплик, ${escapeHtml(String(transcript?.length ?? 0))} знаков.
+           Распознавание ошибается в именах и терминах — поправьте прямо здесь, и субтитры
+           пересоберутся. Вертикальные ролики подписи вшивают внутрь: чтобы правка попала и
+           в них, нажмите «Сохранить и пересобрать» в настройках выше.
          </p>
-         <pre class="transcript">${escapeHtml(transcript)}</pre>`
-      : '<p class="hint">Расшифровки нет — шаг ещё не выполнен.</p>'
+         <form id="transcript-form" data-transcript="${escapeHtml(lesson.slug)}">
+           <ol class="segments">
+             ${segments
+               .map(
+                 (segment) => `<li class="segment">
+               <span class="meta">${escapeHtml(timeLabel(segment.startedMs))}</span>
+               <input name="segment-${segment.id}" value="${escapeHtml(segment.text)}"
+                      data-segment="${segment.id}" maxlength="500">
+             </li>`
+               )
+               .join('')}
+           </ol>
+           <div class="form-row">
+             <button class="button-brand" type="submit">Сохранить правки титров</button>
+           </div>
+         </form>`
+      : transcript
+        ? // Реплик нет, а текст есть — так бывает у расшифровки, пришедшей не
+          // из нашего конвейера. Править нечего, но показать надо: иначе
+          // страница врёт, что расшифровки нет вовсе.
+          `<p class="hint">
+             ${escapeHtml(String(transcript.length))} знаков. Реплик с временами нет,
+             поэтому правка титров недоступна.
+           </p>
+           <pre class="transcript">${escapeHtml(transcript)}</pre>`
+        : '<p class="hint">Расшифровки нет — шаг ещё не выполнен.</p>'
   }
   ${
     links.subtitles.length
