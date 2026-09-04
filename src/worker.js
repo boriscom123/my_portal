@@ -7,7 +7,7 @@
 import { loadConfig } from './config.js';
 import { createPool } from './db.js';
 import { waitForSchema } from './migrate.js';
-import { createQueue, createWorker, scheduleCleanup, JOBS } from './queue.js';
+import { createQueue, createWorker, scheduleCleanup, isPipelineJob, JOBS } from './queue.js';
 import { makeFetchSource } from './jobs/fetch-source.js';
 import { makeExtractAudio } from './jobs/extract-audio.js';
 import { makeSubtitles } from './jobs/subtitles.js';
@@ -69,7 +69,9 @@ const worker = createWorker(config, handlers);
 worker.on('active', async (job) => {
   // Какой шаг идёт сейчас — чтобы кабинет писал «распознаётся речь», а не
   // «обрабатывается» полчаса подряд. Уборка буфера к уроку не относится.
-  if (!job?.data?.lessonId) return;
+  // Довески состояние урока не трогают: урок при них не «обрабатывается», он
+  // уже готов и ждёт проверки.
+  if (!job?.data?.lessonId || !isPipelineJob(job.name)) return;
   await pool
     .query(
       `UPDATE lessons SET pipeline_state = 'processing', pipeline_job = $1 WHERE id = $2`,
@@ -86,22 +88,39 @@ worker.on('failed', async (job, err) => {
   console.error(`Задача ${job?.name} упала: ${err.message}`);
   // Причину видит автор в кабинете, а не только журнал контейнера: с телефона
   // до журнала не добраться, а понять, почему урок застрял, нужно именно там.
-  if (job?.data?.lessonId) {
+  if (!job?.data?.lessonId) return;
+
+  if (!isPipelineJob(job.name)) {
+    // Отказ довеска пишем рядом с ним, а не в состояние урока: иначе на
+    // готовом уроке навсегда повисает «обработка упала» из-за необязательной
+    // кнопки, которую автор нажал один раз.
     await pool
       .query(
-        `UPDATE lessons SET pipeline_state = 'failed', pipeline_error = $1, pipeline_job = $2
-          WHERE id = $3`,
+        `UPDATE lessons SET generated = jsonb_set(generated, '{sideError}', $1::jsonb)
+          WHERE id = $2`,
         [
-          `${job.name}: ${err.message}`.slice(0, 500),
-          // Упавшая задача целиком: кнопка «Повторить» в кабинете ставит
-          // ровно её. Разбирать имя шага из текста ошибки нельзя — текст
-          // писан для человека и однажды поменяется.
-          JSON.stringify({ name: job.name, data: job.data }),
+          JSON.stringify({ step: job.name, message: err.message.slice(0, 400) }),
           job.data.lessonId
         ]
       )
-      .catch((dbError) => console.error('Не удалось записать ошибку в урок:', dbError.message));
+      .catch((dbError) => console.error('Не удалось записать отказ довеска:', dbError.message));
+    return;
   }
+
+  await pool
+    .query(
+      `UPDATE lessons SET pipeline_state = 'failed', pipeline_error = $1, pipeline_job = $2
+        WHERE id = $3`,
+      [
+        `${job.name}: ${err.message}`.slice(0, 500),
+        // Упавшая задача целиком: кнопка «Повторить» в кабинете ставит ровно
+        // её. Разбирать имя шага из текста ошибки нельзя — текст писан для
+        // человека и однажды поменяется.
+        JSON.stringify({ name: job.name, data: job.data }),
+        job.data.lessonId
+      ]
+    )
+    .catch((dbError) => console.error('Не удалось записать ошибку в урок:', dbError.message));
 });
 
 await scheduleCleanup(queue);

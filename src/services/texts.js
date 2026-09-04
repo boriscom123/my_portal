@@ -86,6 +86,24 @@ export function parseTextsResponse(body) {
 }
 
 /**
+ * Достаёт человеческую часть из отказа поставщика.
+ *
+ * Google отвечает JSON-ом на полтора экрана, а на экран автору нужно одно
+ * предложение. Сырой ответ попадал в кабинет целиком — вместе с фигурными
+ * скобками и ссылкой на документацию по биллингу.
+ */
+export function readErrorMessage(body) {
+  try {
+    const parsed = JSON.parse(body);
+    const message = parsed?.error?.message;
+    if (message) return String(message).split('. ')[0].trim();
+  } catch {
+    // Не JSON — отдаём как пришло, обрезав.
+  }
+  return String(body).replace(/\s+/g, ' ').trim();
+}
+
+/**
  * Вычищает ключ из чужого ответа.
  * Поставщик кладёт ключ в текст отказа («quota exceeded for key …»), а этот
  * текст уходит и в журнал контейнера, и на экран автору. Правило проекта:
@@ -164,7 +182,8 @@ export function createTexts(config, fetchImpl = fetch) {
 
         const body = await response.text().catch(() => '');
         lastError = new Error(
-          `${name} ответила ${response.status}: ${hideKey(body, apiKey).slice(0, 160)}`
+          `${name} ответила ${response.status}: ` +
+            `${readErrorMessage(hideKey(body, apiKey)).slice(0, 200)}`
         );
         // Отказ не про эту модель, а про сам запрос — следующая ответит тем же.
         if (!shouldTryNext(response.status)) throw lastError;

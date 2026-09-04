@@ -44,6 +44,7 @@ export function adminReviewPage({
   transcript,
   segments = [],
   covers = [],
+  sideError = null,
   links
 }) {
   const state = stateLabel(lesson);
@@ -130,6 +131,18 @@ ${
     <input id="cover-file" type="file" accept="image/png,image/jpeg,image/webp" hidden
       data-cover-upload="${escapeHtml(lesson.slug)}">
   </div>
+  ${
+    sideError && sideError.step === 'makeCoverImage'
+      ? `<p class="hint danger">
+           Нарисовать не вышло: ${escapeHtml(sideError.message)}
+           ${
+             /429|quota/i.test(sideError.message)
+               ? '<br>Это квота Google: рисование включается оплатой на проекте, к которому привязан ключ.'
+               : ''
+           }
+         </p>`
+      : ''
+  }
   <p class="hint">
     Кадр из записи берётся с десятой части урока и часто показывает экран
     редактора. Готовую картинку можно загрузить со своего компьютера — png,

@@ -121,6 +121,29 @@ const NO_RETRY_JOBS = new Set([JOBS.transcribe, JOBS.makeClips, JOBS.trimPauses]
  * Вызывается из addJob; отдельной функцией — чтобы правило проверялось тестом,
  * а не жило внутри вызова.
  */
+/**
+ * Шаги, которые ведут урок по конвейеру. Их отказ — это застрявший урок.
+ *
+ * Всё остальное — довески: нарисовать обложку, предложить заголовок. Отказ
+ * довеска урок не ломает, и помечать им весь урок нельзя. Заказчик увидел это
+ * первым: рисование упёрлось в квоту Google, и на готовом уроке навсегда
+ * повисло «обработка упала» с чужим текстом про биллинг.
+ */
+const PIPELINE_JOBS = new Set([
+  JOBS.fetchSource,
+  JOBS.extractAudio,
+  JOBS.transcribe,
+  JOBS.subtitles,
+  JOBS.trimPauses,
+  JOBS.makeClips,
+  JOBS.makeCover
+]);
+
+/** Ведёт ли шаг урок по конвейеру или это необязательный довесок. */
+export function isPipelineJob(name) {
+  return PIPELINE_JOBS.has(name);
+}
+
 export function jobOptions(name) {
   return NO_RETRY_JOBS.has(name) ? { attempts: 1 } : {};
 }

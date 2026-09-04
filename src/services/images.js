@@ -9,7 +9,7 @@
 // перебирается до первой ответившей, а при отказе вызывающий остаётся с кадром
 // из записи. Обложка у урока в любом случае есть.
 // Вызывается из src/jobs/make-cover-image.js.
-import { hideKey, shouldTryNext, parseModels } from './texts.js';
+import { hideKey, shouldTryNext, parseModels, readErrorMessage } from './texts.js';
 
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
@@ -93,7 +93,8 @@ export function createImages(config, fetchImpl = fetch) {
 
         const body = await response.text().catch(() => '');
         lastError = new Error(
-          `${name} ответила ${response.status}: ${hideKey(body, apiKey).slice(0, 160)}`
+          `${name} ответила ${response.status}: ` +
+            `${readErrorMessage(hideKey(body, apiKey)).slice(0, 200)}`
         );
         if (!shouldTryNext(response.status)) throw lastError;
       }

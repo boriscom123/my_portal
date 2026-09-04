@@ -118,3 +118,38 @@ test('в ленте состояние видит автор, но не зрит
     });
   });
 });
+
+test('отказ довеска не помечает урок упавшим', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const lesson = await saveLesson(pool, { slug: 'urok', title: 'Урок' });
+    await pool.query(`UPDATE lessons SET pipeline_state = 'review' WHERE id = $1`, [lesson.id]);
+    // Так пишет отказ довеска воркер: рядом с ним, а не в состояние урока.
+    await pool.query(
+      `UPDATE lessons SET generated = jsonb_set(generated, '{sideError}', $1::jsonb) WHERE id = $2`,
+      [JSON.stringify({ step: 'makeCoverImage', message: 'квота исчерпана' }), lesson.id]
+    );
+    const headers = await admin(pool);
+    const app = finalize(createApp({ config, pool }));
+    await withServer(app, async (base) => {
+      const html = await (await fetch(`${base}/admin/lesson/urok`, { headers })).text();
+      // Урок готов и ждёт проверки: «обработка упала» из-за необязательной
+      // кнопки — это вранье, на которое заказчик и пожаловался.
+      assert.match(html, /ждёт проверки/);
+      assert.ok(!html.includes('Обработка упала'), 'урок помечен упавшим из-за довеска');
+      // Но и молчать нельзя: отказ виден там, где нажимали кнопку.
+      assert.match(html, /Нарисовать не вышло: квота исчерпана/);
+    });
+  });
+});
+
+test('шаги конвейера отличаются от довесков', async () => {
+  const { isPipelineJob, JOBS } = await import('../src/queue.js');
+  // Отказ шага конвейера — это застрявший урок, и его видно как «упало».
+  for (const step of [JOBS.fetchSource, JOBS.transcribe, JOBS.makeClips, JOBS.makeCover]) {
+    assert.ok(isPipelineJob(step), `${step} должен вести урок по конвейеру`);
+  }
+  // Отказ довеска урок не ломает: обложка есть, заголовок автор напишет сам.
+  for (const step of [JOBS.makeCoverImage, JOBS.suggestTexts, JOBS.cleanupMedia]) {
+    assert.ok(!isPipelineJob(step), `${step} — довесок, а не шаг конвейера`);
+  }
+});

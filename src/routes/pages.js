@@ -189,6 +189,9 @@ export function pageRoutes(config, pool) {
         // Обложек у урока бывает две: кадр из записи и нарисованная. Автор
         // выбирает, какая идёт в карточку.
         covers: assets.filter((row) => row.kind === 'cover').map(coverLabel),
+        // Отказ необязательного шага: показывается рядом с его кнопкой, а не
+        // как «обработка упала» на весь урок.
+        sideError: lesson.sideError,
         segments: segmentRows.map((row) => ({
           id: Number(row.id),
           startedMs: Number(row.started_ms),

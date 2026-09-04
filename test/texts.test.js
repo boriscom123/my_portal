@@ -9,7 +9,8 @@ import {
   buildPrompt,
   hideKey,
   shouldTryNext,
-  parseModels
+  parseModels,
+  readErrorMessage
 } from '../src/services/texts.js';
 
 const config = { gemini: { apiKey: 'секретный-ключ', model: 'gemini-flash-latest' } };
@@ -187,4 +188,19 @@ test('какие коды считаются поводом попробоват
 
 test('пустой список моделей означает отсутствие слоя', () => {
   assert.equal(createTexts({ gemini: { apiKey: 'k', model: '' } }), null);
+});
+
+test('из отказа поставщика берётся человеческая часть', () => {
+  // Google отвечает JSON-ом на полтора экрана, а на экран автору нужно одно
+  // предложение: сырой ответ попадал в кабинет целиком, со скобками и ссылкой
+  // на документацию по биллингу.
+  const body = JSON.stringify({
+    error: {
+      code: 429,
+      message: 'You exceeded your current quota. For more information head to https://ai.google.dev/'
+    }
+  });
+  assert.equal(readErrorMessage(body), 'You exceeded your current quota');
+  // Не JSON отдаём как есть, только приводим пробелы.
+  assert.equal(readErrorMessage('  простой\n  текст '), 'простой текст');
 });
