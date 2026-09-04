@@ -6,6 +6,7 @@
 // Вызывается из src/app.js по маршруту /.
 import { layout } from './layout.js';
 import { version } from '../version.js';
+import { hero } from './hero.js';
 
 export function stubPage(config, user = null) {
   return layout({
@@ -15,8 +16,7 @@ export function stubPage(config, user = null) {
     description:
       'Видеоуроки о разработке с ИИ: Claude Code, свой VPS и Telegram-бот. Уроки, новости и борд идей для будущих выпусков.',
     body: `
-<p class="tagline">от идеи до продукта · шаг за шагом</p>
-<h1>Реальные приложения<br>с ИИ, <span class="brand-mark">в одиночку</span></h1>
+${hero()}
 <p style="max-width:34rem">Claude Code, свой VPS и Telegram-бот. Каждый урок — работающий кусок системы,
 а не пример из документации. Код и переписка с заказчиком лежат в открытом репозитории.</p>
 

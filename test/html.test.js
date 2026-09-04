@@ -191,3 +191,45 @@ test('кому движение мешает, тому его и не будет
     /@media \(prefers-reduced-motion: reduce\)[\s\S]{0,200}\.rocket-flight[\s\S]{0,80}display: none/
   );
 });
+
+test('заглавная надпись — имя портала в три строки', async () => {
+  const { hero } = await import('../src/views/hero.js');
+  const markup = hero();
+
+  // Раньше здесь стояло «Реальные приложения с ИИ, в одиночку»: фраза о
+  // содержании, но не имя портала.
+  assert.match(markup, /<h1 class="hero-name">/);
+  assert.match(markup, /hero-brand brand-mark">SOLO AI</);
+  assert.match(markup, /hero-journey">JOURNEY</);
+  assert.match(markup, /hero-tagline">от идеи до продукта/);
+  // Знак и JOURNEY — одно имя, разбитое надвое: заголовок один.
+  assert.equal(markup.match(/<h1/g).length, 1);
+});
+
+test('надпись одна на все страницы, где она есть', async () => {
+  const { feedPage } = await import('../src/views/feed.js');
+  const { stubPage } = await import('../src/views/stub.js');
+  const feed = feedPage({ config, lessons: [], news: [], user: null });
+  const stub = stubPage(config, null);
+
+  // Лежала двумя копиями в feed.js и stub.js, и они уже разошлись в мелочах.
+  for (const html of [feed, stub]) {
+    assert.match(html, /hero-brand brand-mark">SOLO AI</);
+    assert.match(html, /hero-journey">JOURNEY</);
+    assert.ok(!html.includes('в одиночку'), 'осталась старая надпись');
+  }
+});
+
+test('строки надписи меряются шириной блока, а не окна', async () => {
+  const styles = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
+  const block = styles.slice(styles.indexOf('.hero {'));
+  // У блока есть предел ширины: от долей окна строки разъезжались бы на
+  // широком мониторе, где блок уже не растёт.
+  assert.match(block.slice(0, 300), /container-type: inline-size/);
+  // Окно поиска щедрое: между селектором и размером живут пояснения, а
+  // тест должен ловить пропажу единиц, а не длину комментария.
+  for (const selector of ['hero-brand', 'hero-journey', 'hero-tagline']) {
+    const rule = block.slice(block.indexOf(`.${selector} {`));
+    assert.match(rule.slice(0, 600), /font-size: [\d.]+cqi/, selector);
+  }
+});

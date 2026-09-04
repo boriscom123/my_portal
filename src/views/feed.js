@@ -4,6 +4,7 @@
 import { escapeHtml } from '../lib/html.js';
 import { layout } from './layout.js';
 import { stateLabel } from './admin-home.js';
+import { hero } from './hero.js';
 
 /** Дата в виде, привычном читателю: «1 августа 2026». */
 export function formatDate(value) {
@@ -60,8 +61,7 @@ export function feedPage({ config, lessons, news, user, tag = null }) {
 ${
   tag
     ? `<h1>${escapeHtml(heading)}</h1><p><a href="/">← все уроки</a></p>`
-    : `<p class="tagline">от идеи до продукта · шаг за шагом</p>
-<h1>Реальные приложения<br>с ИИ, <span class="brand-mark">в одиночку</span></h1>
+    : `${hero()}
 <p class="lead">Claude Code, свой VPS и Telegram-бот. Каждый урок — работающий кусок системы,
 а не пример из документации. Код и переписка с заказчиком лежат в открытом репозитории.</p>`
 }
