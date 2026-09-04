@@ -3,6 +3,7 @@
 // Вызывается из src/routes/pages.js по маршрутам / и /tag/:slug.
 import { escapeHtml } from '../lib/html.js';
 import { layout } from './layout.js';
+import { stateLabel } from './admin-home.js';
 
 /** Дата в виде, привычном читателю: «1 августа 2026». */
 export function formatDate(value) {
@@ -16,12 +17,19 @@ function cover(lesson) {
     : '<div class="cover button-brand"></div>';
 }
 
-function lessonCard(lesson) {
+function lessonCard(lesson, isAdmin) {
   const date = lesson.publishedAt ? formatDate(lesson.publishedAt) : 'черновик';
+  // Состояние обработки видит только автор: зрителю оно ничего не говорит, а
+  // на главной автор оказывается чаще, чем в кабинете.
+  const state = isAdmin ? stateLabel(lesson) : '';
   return `<article class="lesson-card">
   <a href="/lesson/${encodeURIComponent(lesson.slug)}">${cover(lesson)}</a>
   <div class="card-body">
-    <p class="meta">${escapeHtml(date)}</p>
+    <p class="meta">${escapeHtml(date)}${
+      state
+        ? ` · <span class="badge${lesson.pipelineState === 'failed' ? ' danger' : ''}">${escapeHtml(state)}</span>`
+        : ''
+    }</p>
     <h3><a href="/lesson/${encodeURIComponent(lesson.slug)}">${escapeHtml(lesson.title)}</a></h3>
     <p class="card-text">${escapeHtml(lesson.description)}</p>
     ${
@@ -62,7 +70,9 @@ ${
   <h2>Уроки</h2>
   ${
     lessons.length
-      ? `<div class="lessons-grid">${lessons.map(lessonCard).join('')}</div>`
+      ? `<div class="lessons-grid">${lessons
+          .map((lesson) => lessonCard(lesson, user?.role === 'admin'))
+          .join('')}</div>`
       : '<p class="hint">Пока ни одного урока. Первый уже собирается.</p>'
   }
 </section>

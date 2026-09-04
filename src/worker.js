@@ -51,6 +51,18 @@ const handlers = {
 
 const worker = createWorker(config, handlers);
 
+worker.on('active', async (job) => {
+  // Какой шаг идёт сейчас — чтобы кабинет писал «распознаётся речь», а не
+  // «обрабатывается» полчаса подряд. Уборка буфера к уроку не относится.
+  if (!job?.data?.lessonId) return;
+  await pool
+    .query(
+      `UPDATE lessons SET pipeline_state = 'processing', pipeline_job = $1 WHERE id = $2`,
+      [JSON.stringify({ name: job.name, data: job.data }), job.data.lessonId]
+    )
+    .catch((error) => console.error('Не удалось записать текущий шаг:', error.message));
+});
+
 worker.on('completed', (job) => {
   console.log(`Задача ${job.name} выполнена`);
 });

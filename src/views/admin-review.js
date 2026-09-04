@@ -9,7 +9,7 @@
 import { escapeHtml } from '../lib/html.js';
 import { assetUrl } from '../lib/assets.js';
 import { layout } from './layout.js';
-import { PIPELINE_LABELS } from './admin-home.js';
+import { stateLabel } from './admin-home.js';
 
 /** Байты человеку. Гигабайты для исходника, мегабайты для остального. */
 export function humanBytes(bytes) {
@@ -35,7 +35,7 @@ function assetRow(asset) {
 }
 
 export function adminReviewPage({ config, user, lesson, assets, transcript, links }) {
-  const state = PIPELINE_LABELS[lesson.pipelineState] ?? lesson.pipelineState;
+  const state = stateLabel(lesson);
   const failed = lesson.pipelineState === 'failed';
 
   return layout({

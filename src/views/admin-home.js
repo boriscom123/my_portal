@@ -19,8 +19,29 @@ export const PIPELINE_LABELS = {
   failed: 'обработка упала'
 };
 
+// Что именно сейчас считается. Расшифровка часового урока идёт полчаса, и
+// «обрабатывается» всё это время не отвечает на единственный вопрос автора —
+// далеко ли до конца. Заказчик уже жаловался ровно на это: «отобразилось
+// сообщение — и всё, больше ничего не происходит».
+export const STEP_LABELS = {
+  fetchSource: 'скачивается с Диска',
+  extractAudio: 'извлекается звук',
+  transcribe: 'распознаётся речь',
+  subtitles: 'собираются субтитры',
+  makeCover: 'выбирается обложка',
+  makeClips: 'режутся вертикальные ролики'
+};
+
+/** Состояние урока словами: с названием шага, если он известен. */
+export function stateLabel(lesson) {
+  const base = PIPELINE_LABELS[lesson.pipelineState] ?? lesson.pipelineState;
+  if (lesson.pipelineState !== 'processing') return base;
+  const step = STEP_LABELS[lesson.pipelineJob?.name];
+  return step ? `${base}: ${step}` : base;
+}
+
 function lessonRow(lesson) {
-  const state = PIPELINE_LABELS[lesson.pipelineState] ?? lesson.pipelineState;
+  const state = stateLabel(lesson);
   const published = lesson.status === 'published';
 
   return `<li class="admin-lesson">
@@ -43,7 +64,15 @@ function lessonRow(lesson) {
 }
 
 export function adminHomePage({ config, user, lessons, diskConnected }) {
+  // Пока что-то считается, страница обновляется сама: иначе автор смотрит на
+  // «обрабатывается» и жмёт перезагрузку вручную каждые полминуты. Форм на
+  // этой странице нет, поэтому обновление ничего не сотрёт.
+  const busy = lessons.some((lesson) =>
+    ['uploading', 'processing'].includes(lesson.pipelineState)
+  );
+
   return layout({
+    refreshSeconds: busy ? 20 : null,
     config,
     user,
     path: '/admin',

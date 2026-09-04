@@ -19,7 +19,8 @@ export function layout({
   body,
   path = '/',
   image = null,
-  user = null
+  user = null,
+  refreshSeconds = null
 }) {
   // Полный адрес страницы. Нужен дважды: поисковику — как канонический, чтобы
   // один урок не считался тремя страницами из-за меток в ссылках; мессенджеру —
@@ -32,6 +33,7 @@ export function layout({
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title)}</title>
 <meta name="description" content="${escapeHtml(description)}">
+${refreshSeconds ? `<meta http-equiv="refresh" content="${Number(refreshSeconds)}">\n` : ''}
 <meta property="og:site_name" content="Solo AI Journey">
 <meta property="og:title" content="${escapeHtml(title)}">
 <meta property="og:description" content="${escapeHtml(description)}">
