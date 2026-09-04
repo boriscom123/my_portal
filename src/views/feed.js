@@ -3,7 +3,7 @@
 // Вызывается из src/routes/pages.js по маршрутам / и /tag/:slug.
 import { escapeHtml } from '../lib/html.js';
 import { layout } from './layout.js';
-import { stateLabel } from './admin-home.js';
+import { stateLabel } from './lesson-state.js';
 import { hero } from './hero.js';
 
 /** Дата в виде, привычном читателю: «1 августа 2026». */

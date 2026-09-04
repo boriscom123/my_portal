@@ -9,7 +9,7 @@
 import { escapeHtml } from '../lib/html.js';
 import { assetUrl } from '../lib/assets.js';
 import { layout } from './layout.js';
-import { stateLabel } from './admin-home.js';
+import { stateLabel } from './lesson-state.js';
 import { readSettings } from '../lib/settings.js';
 import { timeLabel } from './search.js';
 
@@ -62,7 +62,7 @@ export function adminReviewPage({
     description: 'Экран проверки урока перед публикацией.',
     body: `
 <nav class="admin-nav">
-  <a class="button" href="/admin">← Кабинет</a>
+  <a class="button" href="/admin/lessons">← Уроки</a>
   <a class="button-brand" href="/admin/lesson/${encodeURIComponent(lesson.slug)}/preview">Смотреть с субтитрами</a>
   <a class="button" href="/lesson/${encodeURIComponent(lesson.slug)}">Как видит зритель</a>
 </nav>

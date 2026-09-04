@@ -145,3 +145,33 @@ test('гостю не показывают форму отзыва, а неод�
     });
   });
 });
+
+test('внутренние ссылки кабинета ведут на существующие адреса', async () => {
+  // Ссылка на страницу, которой нет, ломается тихо: человек нажимает и
+  // получает «не найдено». Так и вышло с подключениями площадок — их страница
+  // ещё в плане, а ссылка на неё уже стояла в двух местах.
+  const { readdir, readFile } = await import('node:fs/promises');
+  const viewsDir = new URL('../src/views/', import.meta.url);
+  const routes = await readFile(new URL('../src/routes/pages.js', import.meta.url), 'utf8');
+
+  // Адреса маршрутов: и точные, и с частями вида :slug.
+  const patterns = [...routes.matchAll(/router\.get\('([^']+)'/g)].map(([, path]) =>
+    new RegExp(`^${path.replace(/:[^/]+/g, '[^/]+')}$`)
+  );
+
+  const links = new Set();
+  for (const name of await readdir(viewsDir)) {
+    const source = await readFile(new URL(name, viewsDir), 'utf8');
+    for (const [, href] of source.matchAll(/href="(\/admin[^"?#]*)"/g)) {
+      // Ссылки со вставками вида ${...} проверяем по образцу маршрута.
+      links.add(href.replace(/\$\{[^}]+\}/g, 'x'));
+    }
+  }
+
+  for (const link of links) {
+    assert.ok(
+      patterns.some((pattern) => pattern.test(link)),
+      `ссылка ${link} ведёт на адрес, которого нет`
+    );
+  }
+});

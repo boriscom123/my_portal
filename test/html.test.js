@@ -153,11 +153,13 @@ test('настройки открыты и гостю, но уведомлени
 
   const author = settingsPage({ config, user: { displayName: 'Автор', role: 'admin' } });
   assert.match(author, /data-notifications/);
-  // Подключения площадок — дело автора и живут в кабинете.
-  assert.match(author, /href="\/admin\/settings"/);
+  // Раздел для автора: уроки и загрузка. Подключений площадок пока нет — их
+  // страница в плане этапа публикации, и ссылка на неё вела бы в пустоту.
+  assert.match(author, /href="\/admin\/lessons"/);
+  assert.match(author, /href="\/admin\/upload"/);
 
   const viewer = settingsPage({ config, user: { displayName: 'Зритель', role: 'user' } });
-  assert.ok(!viewer.includes('/admin/settings'), 'зрителю показали подключения площадок');
+  assert.ok(!viewer.includes('/admin/'), 'зрителю показали разделы автора');
 });
 
 test('летающий знак лежит отдельным слоем и не ловит нажатия', async () => {

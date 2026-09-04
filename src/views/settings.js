@@ -54,8 +54,12 @@ ${
     ? `<section class="card">
   <h2>Для автора</h2>
   <p class="form-row">
-    <a class="button" href="/admin/settings">Подключения площадок</a>
     <a class="button" href="/admin/lessons">Уроки</a>
+    <a class="button" href="/admin/upload">Загрузка и Яндекс Диск</a>
+  </p>
+  <p class="hint">
+    Подключения площадок появятся здесь на этапе публикации: сейчас такой
+    страницы нет, и ссылка на неё вела бы в пустоту.
   </p>
 </section>`
     : ''

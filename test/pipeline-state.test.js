@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { createApp, finalize } from '../src/app.js';
 import { signSession } from '../src/lib/jwt.js';
 import { saveLesson } from '../src/services/lessons.js';
-import { stateLabel } from '../src/views/admin-home.js';
+import { stateLabel } from '../src/views/lesson-state.js';
 import { withServer } from './helpers/http.js';
 import { withTestDb, skipWithoutDb } from './helpers/db.js';
 

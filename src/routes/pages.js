@@ -7,7 +7,6 @@ import { stubPage } from '../views/stub.js';
 import { offlinePage } from '../views/offline.js';
 import { telegramReturnPage } from '../views/telegram-return.js';
 import { adminUploadPage } from '../views/admin-upload.js';
-import { adminHomePage } from '../views/admin-home.js';
 import { adminLessonsPage } from '../views/admin-lessons.js';
 import { settingsPage } from '../views/settings.js';
 import { adminReviewPage } from '../views/admin-review.js';
@@ -124,20 +123,22 @@ export function pageRoutes(config, pool) {
     return rows.length > 0;
   };
 
-  router.get('/admin', requireAdmin, async (req, res) => {
-    const user = await currentUser(pool, req);
-    const lessons = await listLessons(pool, { includeDrafts: true });
-    res.type('html').send(
-      adminHomePage({ config, user, lessons, diskConnected: await diskConnected() })
-    );
-  });
+  // Кабинет как отдельная страница больше ничего не даёт: список уроков живёт
+  // в «Уроках», подключения — в «Настройках». Оставляем перенаправление, а не
+  // убираем адрес совсем: он мог остаться в закладках и в истории браузера.
+  router.get('/admin', requireAdmin, (req, res) => res.redirect(302, '/admin/lessons'));
 
   // Уроки: завести, открыть, убрать. Отдельной страницей от кабинета: кабинет
   // — это обзор, а здесь распоряжаются самим существованием урока.
   router.get('/admin/lessons', requireAdmin, async (req, res) => {
     const user = await currentUser(pool, req);
     res.type('html').send(
-      adminLessonsPage({ config, user, lessons: await listLessons(pool, { includeDrafts: true }) })
+      adminLessonsPage({
+        config,
+        user,
+        lessons: await listLessons(pool, { includeDrafts: true }),
+        diskConnected: await diskConnected()
+      })
     );
   });
 

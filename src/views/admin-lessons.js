@@ -7,7 +7,7 @@
 // Вызывается из src/routes/pages.js по адресу /admin/lessons.
 import { escapeHtml } from '../lib/html.js';
 import { layout } from './layout.js';
-import { stateLabel } from './admin-home.js';
+import { stateLabel } from './lesson-state.js';
 import { formatDate } from './feed.js';
 
 function lessonRow(lesson) {
@@ -35,8 +35,16 @@ function lessonRow(lesson) {
 </li>`;
 }
 
-export function adminLessonsPage({ config, user, lessons }) {
+export function adminLessonsPage({ config, user, lessons, diskConnected = false }) {
+  // Пока что-то считается, страница перечитывается сама: иначе автор смотрит
+  // на «обрабатывается» и жмёт перезагрузку вручную каждые полминуты. Форма
+  // заведения урока при этом пустая — стирать нечего.
+  const busy = lessons.some((lesson) =>
+    ['uploading', 'processing'].includes(lesson.pipelineState)
+  );
+
   return layout({
+    refreshSeconds: busy ? 20 : null,
     config,
     user,
     path: '/admin/lessons',
@@ -44,11 +52,21 @@ export function adminLessonsPage({ config, user, lessons }) {
     description: 'Список уроков: завести новый, открыть или убрать черновик.',
     body: `
 <nav class="admin-nav">
-  <a class="button" href="/admin">← Кабинет</a>
-  <a class="button" href="/admin/upload">Загрузить запись</a>
+  <a class="button-brand" href="/admin/upload">Загрузить запись</a>
+  <a class="button" href="/settings">Настройки</a>
+  <a class="button" href="/ideas">Идеи зрителей</a>
+  <a class="button" href="/">Витрина</a>
 </nav>
 
 <h1>Уроки</h1>
+
+<p class="hint">
+  Яндекс Диск: ${
+    diskConnected
+      ? 'подключён — записи можно брать оттуда'
+      : '<a href="/admin/upload">не подключён</a>'
+  }
+</p>
 
 <section class="card">
   <h2>Завести урок</h2>
