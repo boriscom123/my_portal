@@ -287,3 +287,18 @@ test('пересменка не копится при переходах меж�
   assert.match(app, /clearInterval\(rotatorTimer\)/);
   assert.match(app, /function initPage\(\) \{\s*startRotator\(\);/);
 });
+
+test('подвал прижат к низу на короткой странице', async () => {
+  const styles = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
+  const body = styles.slice(styles.indexOf('body {'), styles.indexOf('a {'));
+  // Страница — колонка, середина растягивается: иначе на короткой странице
+  // подвал «взлетал» и висел посреди экрана.
+  assert.match(body, /display: flex/);
+  assert.match(body, /flex-direction: column/);
+  // dvh, а не только vh: на телефоне полоса браузера то появляется, то уходит,
+  // и от vh под подвалом оставалась щель ровно в её высоту.
+  assert.match(body, /min-height: 100dvh/);
+
+  const main = styles.slice(styles.indexOf('main {'));
+  assert.match(main.slice(0, 400), /flex: 1 0 auto/);
+});

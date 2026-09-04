@@ -99,7 +99,16 @@ html {
 
 body {
   margin: 0;
+  /* Подвал прижат к низу, пока содержимого мало: страница — колонка, и середина
+     её растягивается. Иначе на короткой странице подвал «взлетал» и висел
+     посреди экрана.
+     dvh, а не vh: на телефоне полоса браузера то появляется, то уходит, и от
+     vh под подвалом оставалась щель ровно в её высоту. Для браузеров, не
+     знающих dvh, ниже остаётся vh. */
   min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
   font: 16px/1.6 Onest, system-ui, -apple-system, 'Segoe UI', sans-serif;
   color: var(--fg);
   /* background-attachment: fixed убран намеренно: на мобильном Safari он
@@ -374,8 +383,13 @@ h3 {
 }
 
 main {
+  /* Растёт и забирает свободное место: подвал от этого и оказывается внизу.
+     Ширину при этом держит прежнюю — auto по бокам центрует её в колонке. */
+  flex: 1 0 auto;
+  width: 100%;
   max-width: 68rem;
   margin: 0 auto;
+  box-sizing: border-box;
   padding: clamp(24px, 5vw, 56px) clamp(var(--gap), 4vw, 48px);
 }
 
