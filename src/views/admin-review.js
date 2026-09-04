@@ -108,8 +108,10 @@ ${
   <h2>Расшифровка</h2>
   ${
     transcript
-      ? `<p class="hint">${escapeHtml(String(transcript.length))} знаков. Первые строки:</p>
-         <pre class="transcript">${escapeHtml(transcript.slice(0, 1200))}</pre>`
+      ? `<p class="hint">
+           ${escapeHtml(String(transcript.length))} знаков. Прокрутите, чтобы прочитать целиком.
+         </p>
+         <pre class="transcript">${escapeHtml(transcript)}</pre>`
       : '<p class="hint">Расшифровки нет — шаг ещё не выполнен.</p>'
   }
   ${

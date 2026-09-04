@@ -1083,7 +1083,7 @@ footer {
 /* Расшифровка длинная: даём ей прокрутку, иначе она вытеснит со страницы всё
    остальное, включая кнопку публикации. */
 .transcript {
-  max-height: 260px;
+  max-height: 420px;
   overflow: auto;
   white-space: pre-wrap;
   background: var(--bg);
