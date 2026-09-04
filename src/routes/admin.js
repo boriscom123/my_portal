@@ -10,6 +10,8 @@ import { requireAdmin } from '../middleware/guards.js';
 import { PublicError } from '../middleware/errors.js';
 import { saveLesson, setLessonTags, getLessonBySlug } from '../services/lessons.js';
 import { notifyAboutLesson } from '../services/notify/lesson.js';
+import { rm } from 'node:fs/promises';
+import { mediaPath, forgetAsset } from '../services/media.js';
 import { readSettings } from '../lib/settings.js';
 
 import { rebuildSubtitles } from '../services/transcript.js';
@@ -205,6 +207,41 @@ export function adminRoutes(config, pool) {
       lesson.id
     ]);
     res.json({ coverUrl: `/media/asset/${rows[0].id}` });
+  });
+
+  // Удаление обложки: загрузили не то — убрали, а не живите с этим.
+  router.delete('/lessons/:slug/cover/:assetId', async (req, res) => {
+    const lesson = await getLessonBySlug(pool, req.params.slug, { includeDrafts: true });
+    if (!lesson) throw new PublicError('Урок не найден', 404);
+
+    // Сверяем и урок, и вид файла: иначе этим маршрутом можно было бы удалить
+    // исходник своего урока или обложку чужого.
+    const { rows } = await pool.query(
+      `SELECT id, path FROM assets WHERE id = $1 AND lesson_id = $2 AND kind = 'cover'`,
+      [Number(req.params.assetId), lesson.id]
+    );
+    if (!rows[0]) throw new PublicError('Такой обложки у урока нет', 404);
+
+    // force: true — файла может уже не быть, а запись в учёте всё равно должна
+    // уйти: иначе на экране останется обложка, которой нет.
+    await rm(mediaPath(config, rows[0].path), { force: true });
+    await forgetAsset(pool, Number(rows[0].id));
+
+    // Если удалили выбранную, ставим любую из оставшихся: карточка урока с
+    // ссылкой на удалённый файл показывала бы битую картинку.
+    const { rows: rest } = await pool.query(
+      `SELECT id FROM assets WHERE lesson_id = $1 AND kind = 'cover' ORDER BY id DESC LIMIT 1`,
+      [lesson.id]
+    );
+    const wasChosen = lesson.coverUrl === `/media/asset/${rows[0].id}`;
+    if (wasChosen) {
+      await pool.query('UPDATE lessons SET cover_url = $1 WHERE id = $2', [
+        rest[0] ? `/media/asset/${rest[0].id}` : null,
+        lesson.id
+      ]);
+    }
+
+    res.json({ removed: Number(rows[0].id), coverUrl: wasChosen && rest[0] ? `/media/asset/${rest[0].id}` : lesson.coverUrl });
   });
 
   // Повтор упавшего шага. Ставится ровно та задача, что упала, с теми же

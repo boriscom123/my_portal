@@ -160,3 +160,115 @@ test('обложкой не назначить чужой файл', skipWithout
     });
   });
 });
+
+test('удалённая обложка исчезает и с диска, и из учёта', skipWithoutDb, async () => {
+  const config = await makeConfig();
+  await withTestDb(async (pool) => {
+    const { lesson, headers } = await seed(pool, config);
+    const { writeFile } = await import('node:fs/promises');
+    const relative = `lesson-${lesson.id}/cover-uploaded.png`;
+    await writeFile(path.join(config.media.dir, relative), Buffer.from('картинка'));
+    const asset = await registerAsset(pool, config, {
+      lessonId: lesson.id,
+      kind: 'cover',
+      relativePath: relative,
+      bytes: 8
+    });
+
+    const app = finalize(createApp({ config, pool }));
+    await withServer(app, async (base) => {
+      const res = await fetch(`${base}/api/admin/lessons/urok/cover/${asset.id}`, {
+        method: 'DELETE',
+        headers
+      });
+      assert.equal(res.status, 200);
+    });
+
+    const { stat } = await import('node:fs/promises');
+    await assert.rejects(stat(path.join(config.media.dir, relative)), 'файл остался на диске');
+    const { rows } = await pool.query('SELECT count(*)::int n FROM assets WHERE id = $1', [
+      asset.id
+    ]);
+    assert.equal(rows[0].n, 0);
+  });
+});
+
+test('удаление выбранной обложки ставит другую', skipWithoutDb, async () => {
+  const config = await makeConfig();
+  await withTestDb(async (pool) => {
+    const { lesson, headers } = await seed(pool, config);
+    const frame = await registerAsset(pool, config, {
+      lessonId: lesson.id,
+      kind: 'cover',
+      relativePath: `lesson-${lesson.id}/cover.jpg`,
+      bytes: 10
+    });
+    // Нарисованная становится выбранной, и её же удаляем.
+    const drawn = await makeMakeCoverImage(config, pool, drawing)({ lessonId: lesson.id });
+
+    const app = finalize(createApp({ config, pool }));
+    await withServer(app, async (base) => {
+      await fetch(`${base}/api/admin/lessons/urok/cover/${drawn.assetId}`, {
+        method: 'DELETE',
+        headers
+      });
+    });
+    // Иначе карточка урока показывала бы битую картинку, а превью ссылки
+    // приходило бы пустым.
+    const { rows } = await pool.query('SELECT cover_url FROM lessons WHERE id = $1', [lesson.id]);
+    assert.equal(rows[0].cover_url, `/media/asset/${frame.id}`);
+  });
+});
+
+test('удаление последней обложки оставляет урок без неё, а не со ссылкой в пустоту', skipWithoutDb, async () => {
+  const config = await makeConfig();
+  await withTestDb(async (pool) => {
+    const { lesson, headers } = await seed(pool, config);
+    const only = await makeMakeCoverImage(config, pool, drawing)({ lessonId: lesson.id });
+
+    const app = finalize(createApp({ config, pool }));
+    await withServer(app, async (base) => {
+      await fetch(`${base}/api/admin/lessons/urok/cover/${only.assetId}`, {
+        method: 'DELETE',
+        headers
+      });
+    });
+    const { rows } = await pool.query('SELECT cover_url FROM lessons WHERE id = $1', [lesson.id]);
+    // Витрина рисует на месте пропавшей обложки фирменный градиент — это
+    // честнее, чем ссылка на удалённый файл.
+    assert.equal(rows[0].cover_url, null);
+  });
+});
+
+test('удалить исходник или чужую обложку этим маршрутом нельзя', skipWithoutDb, async () => {
+  const config = await makeConfig();
+  await withTestDb(async (pool) => {
+    const { lesson, headers } = await seed(pool, config);
+    const source = await registerAsset(pool, config, {
+      lessonId: lesson.id,
+      kind: 'source',
+      relativePath: `lesson-${lesson.id}/source.mp4`,
+      bytes: 10
+    });
+    const other = await saveLesson(pool, { slug: 'drugoj', title: 'Другой' });
+    const alien = await registerAsset(pool, config, {
+      lessonId: other.id,
+      kind: 'cover',
+      relativePath: `lesson-${other.id}/cover.jpg`,
+      bytes: 10
+    });
+
+    const app = finalize(createApp({ config, pool }));
+    await withServer(app, async (base) => {
+      for (const id of [source.id, alien.id]) {
+        const res = await fetch(`${base}/api/admin/lessons/urok/cover/${id}`, {
+          method: 'DELETE',
+          headers
+        });
+        assert.equal(res.status, 404, `удалился файл ${id}`);
+      }
+    });
+    const { rows } = await pool.query('SELECT count(*)::int n FROM assets');
+    assert.equal(rows[0].n, 2, 'ни один файл удалиться не должен был');
+  });
+});

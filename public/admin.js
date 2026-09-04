@@ -444,3 +444,25 @@ coverInput?.addEventListener('change', async () => {
     coverInput.value = '';
   }
 });
+
+// Удаление обложки: загрузили не то — убрали. Спрашиваем подтверждение, потому
+// что кадр из записи заново берётся только пересборкой, а она минуты.
+document.querySelectorAll('[data-cover-remove]').forEach((button) => {
+  button.addEventListener('click', async () => {
+    if (!confirm('Удалить эту обложку? Файл уйдёт из буфера насовсем.')) return;
+    const slug = document.querySelector('[data-approve]')?.dataset.approve;
+    if (!slug) return;
+    button.disabled = true;
+    try {
+      const answer = await request(
+        `/api/admin/lessons/${slug}/cover/${button.dataset.coverRemove}`,
+        { method: 'DELETE' }
+      );
+      if (answer) location.reload();
+      else button.disabled = false;
+    } catch (error) {
+      toast(`Не удалилось: ${error.message}`, true);
+      button.disabled = false;
+    }
+  });
+});

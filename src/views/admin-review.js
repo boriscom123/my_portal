@@ -105,13 +105,17 @@ ${
              (cover) => `<li>
              <img src="/media/asset/${cover.id}" alt="">
              <span class="meta">${escapeHtml(cover.label)}</span>
-             ${
-               lesson.coverUrl === `/media/asset/${cover.id}`
-                 ? '<span class="badge">выбрана</span>'
-                 : `<button class="button" type="button" data-cover="${cover.id}">
-                      Сделать обложкой
-                    </button>`
-             }
+             <span class="form-row">
+               ${
+                 lesson.coverUrl === `/media/asset/${cover.id}`
+                   ? '<span class="badge">выбрана</span>'
+                   : `<button class="button" type="button" data-cover="${cover.id}">
+                        Сделать обложкой
+                      </button>`
+               }
+               <button class="button" type="button" data-cover-remove="${cover.id}"
+                 title="Убрать эту обложку">Удалить</button>
+             </span>
            </li>`
            )
            .join('')}</ul>`
