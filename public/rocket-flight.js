@@ -26,6 +26,14 @@ const MAX_MS = 7000;
 // читается; втрое много — ракета перекрывает пол-экрана.
 const PEAK_SCALE = 1.9;
 
+// Скорость разворота на месте, градусов в секунду, и нижняя граница времени.
+//
+// Разворот занимал миг: в кадрах полёта угол сразу стоял конечный, и ракета
+// «прыгала» носом. Заказчик увидел это первым. Теперь она сперва поворачивается
+// на месте, и только потом трогается.
+const TURN_SPEED = 260;
+const MIN_TURN_MS = 220;
+
 /** Середина прямоугольника: к ней и летим, а не к углу. */
 export function centerOf(rect) {
   return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
@@ -90,27 +98,60 @@ export function flightTarget(element) {
 }
 
 /**
- * Собирает опорные кадры полёта.
+ * Приводит целевой угол к ближайшему повороту от нынешнего.
  *
- * Три кадра, а не два: плавным переходом «наплыв» к середине не сделать —
- * переход умеет только начало и конец, и любое промежуточное состояние в нём
- * получается линейным. Середина здесь — настоящая опорная точка.
- *
- * Угол один на весь перелёт: ракета летит по прямой, и доворачивать её в пути
- * незачем — она уже смотрит носом на цель.
+ * Без этого разворот с 170 градусов на минус 170 шёл бы через полный круг: по
+ * числам это 340 градусов, а по-настоящему — двадцать. Ракета крутилась бы
+ * волчком там, где должна чуть довернуть.
  */
-export function flightKeyframes(from, to, { size, peakScale = PEAK_SCALE } = {}) {
-  const angle = angleFor(from, to);
+export function shortestAngle(fromAngle, toAngle) {
+  let turn = (toAngle - fromAngle) % 360;
+  if (turn > 180) turn -= 360;
+  if (turn < -180) turn += 360;
+  return fromAngle + turn;
+}
+
+/** Сколько занимает разворот на месте: чем больше угол, тем дольше. */
+export function turnMs(fromAngle, toAngle) {
+  const turn = Math.abs(shortestAngle(fromAngle, toAngle) - fromAngle);
+  return Math.round(Math.max(MIN_TURN_MS, (turn / TURN_SPEED) * 1000));
+}
+
+/**
+ * Полный план перелёта: сперва разворот на месте, потом движение.
+ *
+ * Раздельно, а не одним движением: разворот в пути читается как занос, а
+ * мгновенный доворот в первом кадре — как рывок. Заказчик просил именно
+ * «занять правильную позицию с анимацией разворота».
+ *
+ * Наплыв к середине сделан опорным кадром: плавным переходом его не выразить —
+ * переход умеет только начало и конец, а всё между ними у него линейно.
+ */
+export function flightPlan({ from, to, size, fromAngle = 0, peakScale = PEAK_SCALE }) {
+  const angle = shortestAngle(fromAngle, angleFor(from, to));
+  const turn = turnMs(fromAngle, angle);
+  const move = flightMs(from, to);
+  const duration = turn + move;
+
   const half = { x: size.width / 2, y: size.height / 2 };
-  const at = (point, scale) =>
-    `translate(${point.x - half.x}px, ${point.y - half.y}px) rotate(${angle}deg) scale(${scale})`;
+  const at = (point, degrees, scale) =>
+    `translate(${point.x - half.x}px, ${point.y - half.y}px) rotate(${degrees}deg) scale(${scale})`;
 
   const middle = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
-  return [
-    { transform: at(from, 1), offset: 0 },
-    { transform: at(middle, peakScale), offset: 0.5 },
-    { transform: at(to, 1), offset: 1 }
-  ];
+  const turnEnd = turn / duration;
+
+  return {
+    angle,
+    duration,
+    keyframes: [
+      // Стоим и поворачиваемся.
+      { transform: at(from, fromAngle, 1), offset: 0, easing: 'ease-in-out' },
+      { transform: at(from, angle, 1), offset: turnEnd, easing: 'ease-in-out' },
+      // Летим, приближаясь к смотрящему на середине пути.
+      { transform: at(middle, angle, peakScale), offset: turnEnd + (1 - turnEnd) / 2 },
+      { transform: at(to, angle, 1), offset: 1 }
+    ]
+  };
 }
 
 /** Положение без полёта: им ракета ставится на стоянку перед вылетом. */

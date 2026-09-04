@@ -384,14 +384,7 @@ if (navMenu) {
  *
  * Расчёты живут в rocket-flight.js: их можно проверить без браузера, и они
  * проверены. Здесь только то, для чего нужны настоящие узлы страницы. */
-import {
-  centerOf,
-  flightMs,
-  flightKeyframes,
-  restingTransform,
-  isOnScreen,
-  flightTarget
-} from './rocket-flight.js';
+import { centerOf, flightPlan, restingTransform, isOnScreen, flightTarget } from './rocket-flight.js';
 
 const rocketLayer = document.querySelector('[data-rocket]');
 const rocketHome = document.querySelector('.logo .rocket');
@@ -402,6 +395,9 @@ if (rocketLayer && rocketHome && !reducedMotion.matches) {
   let target = null;
   let goingHome = false;
   let flight = null;
+  // Куда ракета смотрит сейчас. Нужен для разворота: без него каждый новый
+  // курс начинался бы с носа вверх, и ракета дёргалась бы перед вылетом.
+  let heading = 0;
 
   const homePoint = () => centerOf(rocketHome.getBoundingClientRect());
   const viewport = () => ({ width: window.innerWidth, height: window.innerHeight });
@@ -434,15 +430,15 @@ if (rocketLayer && rocketHome && !reducedMotion.matches) {
     // Отмену делаем ПОСЛЕ замера: отменённая анимация возвращает узел в
     // исходное положение, и замер после неё дал бы старую точку.
     if (flight) flight.cancel();
-    // Закрепляем нынешнее положение в стиле, иначе следующий кадр начнётся со
-    // стоянки — ракета прыгнет.
-    rocketLayer.style.transform = restingTransform(from, size());
+    // Закрепляем нынешнее положение и нынешний угол, иначе следующий кадр
+    // начнётся со стоянки носом вверх — ракета прыгнет и дёрнется.
+    rocketLayer.style.transform = restingTransform(from, size(), heading);
 
-    flight = rocketLayer.animate(flightKeyframes(from, point, { size: size() }), {
-      duration: flightMs(from, point),
-      // Разгон и торможение: равномерное движение выглядит как перетаскивание
-      // мышью, а не как полёт.
-      easing: 'ease-in-out',
+    const plan = flightPlan({ from, to: point, size: size(), fromAngle: heading });
+    heading = plan.angle;
+
+    flight = rocketLayer.animate(plan.keyframes, {
+      duration: plan.duration,
       fill: 'forwards'
     });
     flight.onfinish = onDone;
@@ -460,7 +456,10 @@ if (rocketLayer && rocketHome && !reducedMotion.matches) {
     // ракета встала бы на пол-корпуса мимо стоянки.
     rocketLayer.hidden = false;
     rocketHome.classList.add('away');
-    rocketLayer.style.transform = restingTransform(homePoint(), size());
+    // На стоянке ракета стоит ровно: с ней в шапке сверяется глаз, и
+    // накренённый знак читается как сбой.
+    heading = 0;
+    rocketLayer.style.transform = restingTransform(homePoint(), size(), heading);
   };
 
   document.addEventListener('click', (event) => {

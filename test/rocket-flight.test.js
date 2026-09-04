@@ -10,8 +10,10 @@ import {
   flightMs,
   isOnScreen,
   flightTarget,
-  flightKeyframes,
-  restingTransform
+  restingTransform,
+  flightPlan,
+  shortestAngle,
+  turnMs
 } from '../public/rocket-flight.js';
 
 const base = { x: 100, y: 100 };
@@ -90,40 +92,68 @@ test('летим к тому, по чему нажали осмысленно', 
   assert.equal(flightTarget(node([CONTROL, '.logo'])), null);
 });
 
-test('в середине пути ракета крупнее, по краям обычная', async () => {
-  const { flightKeyframes } = await import('../public/rocket-flight.js');
-  const frames = flightKeyframes({ x: 0, y: 0 }, { x: 400, y: 0 }, {
-    size: { width: 14, height: 34 }
-  });
+const size = { width: 14, height: 34 };
+const at = (frame) => ({
+  x: Number(frame.transform.match(/translate\((-?[\d.]+)px/)[1]),
+  angle: Number(frame.transform.match(/rotate\((-?[\d.]+)deg\)/)[1]),
+  scale: Number(frame.transform.match(/scale\(([\d.]+)\)/)[1])
+});
 
-  // Три кадра, а не два: плавным переходом наплыв к середине не сделать —
-  // переход умеет только начало и конец.
-  assert.equal(frames.length, 3);
-  assert.deepEqual(frames.map((f) => f.offset), [0, 0.5, 1]);
-  assert.match(frames[0].transform, /scale\(1\)/);
-  assert.match(frames[2].transform, /scale\(1\)/);
+test('сперва разворот на месте, потом движение', () => {
+  const plan = flightPlan({ from: { x: 0, y: 0 }, to: { x: 400, y: 0 }, size, fromAngle: 0 });
+  const frames = plan.keyframes.map(at);
+
+  // Разворот занимал миг: угол сразу стоял конечный, и ракета прыгала носом.
+  assert.equal(frames[0].angle, 0, 'начинаем с нынешнего курса');
+  assert.equal(frames[1].angle, 90, 'довернулись');
+  // И всё это не сходя с места.
+  assert.equal(frames[0].x, frames[1].x, 'ракета поехала, не закончив разворот');
+  // Дальше — движение, и угол уже не меняется: доворот в пути читается заносом.
+  assert.equal(frames[2].angle, 90);
+  assert.equal(frames[3].angle, 90);
+  assert.ok(frames[3].x > frames[1].x);
+});
+
+test('в середине пути ракета крупнее, по краям обычная', () => {
+  const plan = flightPlan({ from: { x: 0, y: 0 }, to: { x: 400, y: 0 }, size, fromAngle: 0 });
+  const frames = plan.keyframes.map(at);
+  assert.equal(frames[0].scale, 1);
+  assert.equal(frames[3].scale, 1);
   // К середине ракета словно выходит на орбиту и проходит ближе к смотрящему.
-  const peak = Number(frames[1].transform.match(/scale\(([\d.]+)\)/)[1]);
-  assert.ok(peak > 1.4, `в середине вышло ${peak}`);
+  assert.ok(frames[2].scale > 1.4, `в середине вышло ${frames[2].scale}`);
 });
 
-test('середина кадров — это середина пути', () => {
-  const frames = flightKeyframes({ x: 0, y: 0 }, { x: 400, y: 200 }, {
-    size: { width: 10, height: 10 }
-  });
-  // Иначе наплыв случался бы не там, где летит ракета, и выглядел бы рывком.
-  assert.match(frames[1].transform, /translate\(195px, 95px\)/);
+test('наплыв приходится на середину именно ПОЛЁТА, а не всего действия', () => {
+  const plan = flightPlan({ from: { x: 0, y: 0 }, to: { x: 400, y: 0 }, size, fromAngle: 0 });
+  const [, turnEnd, middle, end] = plan.keyframes;
+  // Разворот занимает начало действия, и середину надо считать от его конца:
+  // иначе наплыв случался бы, пока ракета ещё стоит на месте.
+  const expected = turnEnd.offset + (1 - turnEnd.offset) / 2;
+  assert.ok(Math.abs(middle.offset - expected) < 0.001, `вышло ${middle.offset}`);
+  assert.equal(end.offset, 1);
 });
 
-test('угол один на весь перелёт', () => {
-  const frames = flightKeyframes({ x: 0, y: 0 }, { x: 0, y: 300 }, {
-    size: { width: 10, height: 10 }
-  });
-  // Ракета летит по прямой и уже смотрит носом на цель: доворачивать в пути
-  // незачем.
-  const angles = frames.map((f) => f.transform.match(/rotate\((-?[\d.]+)deg\)/)[1]);
-  assert.equal(new Set(angles).size, 1, `углы разошлись: ${angles}`);
-  assert.equal(Math.abs(Number(angles[0])), 180, 'вниз');
+test('время разворота растёт с углом', () => {
+  // Полный разворот дольше лёгкого доворота — иначе оба выглядят рывком.
+  assert.ok(turnMs(0, 180) > turnMs(0, 10));
+  assert.ok(turnMs(0, 5) >= 220, 'у мелкого доворота есть нижняя граница');
+});
+
+test('разворачиваемся кратчайшим путём', () => {
+  // Иначе поворот с 170 на минус 170 шёл бы через полный круг: по числам это
+  // 340 градусов, а по-настоящему — двадцать.
+  assert.equal(shortestAngle(170, -170), 190);
+  assert.equal(shortestAngle(-170, 170), -190);
+  assert.equal(shortestAngle(0, 90), 90);
+  assert.equal(shortestAngle(0, -90), -90);
+});
+
+test('разворот учитывает, куда ракета смотрит сейчас', () => {
+  // Без этого каждый новый курс начинался бы с носа вверх, и ракета дёргалась
+  // бы перед вылетом.
+  const plan = flightPlan({ from: { x: 0, y: 0 }, to: { x: 0, y: 400 }, size, fromAngle: 90 });
+  assert.equal(at(plan.keyframes[0]).angle, 90, 'начали не с нынешнего курса');
+  assert.equal(at(plan.keyframes[1]).angle, 180);
 });
 
 test('полёт стал впятеро медленнее', () => {
@@ -133,6 +163,11 @@ test('полёт стал впятеро медленнее', () => {
   const long = flightMs({ x: 0, y: 0 }, { x: 1900, y: 900 });
   assert.ok(short >= 1200, `короткий перелёт ${short} мс — всё ещё рывок`);
   assert.ok(long >= 5000, `дальний перелёт ${long} мс`);
+});
+
+test('полное действие дольше одного только перелёта', () => {
+  const plan = flightPlan({ from: { x: 0, y: 0 }, to: { x: 400, y: 0 }, size, fromAngle: 0 });
+  assert.ok(plan.duration > flightMs({ x: 0, y: 0 }, { x: 400, y: 0 }), 'разворот не учтён');
 });
 
 test('стоянка задаётся без наплыва и без поворота', () => {
