@@ -3,6 +3,7 @@
 // выполнится, и заметить это можно только по неработающему уроку.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { JOBS, queueName, queuePrefix, jobKey, jobOptions, addJob } from '../src/queue.js';
 
 test('имена задач заданы явно и не повторяются', () => {
@@ -51,4 +52,15 @@ test('обёртка ставит задачу с настройками её ш
   await addJob(queue, JOBS.fetchSource, { lessonId: 1 });
   assert.deepEqual(calls[0], ['transcribe', { lessonId: 1 }, { attempts: 1 }]);
   assert.deepEqual(calls[1], ['fetchSource', { lessonId: 1 }, {}]);
+});
+
+test('у каждого имени шага есть обработчик в воркере', async () => {
+  // Имя без обработчика — ловушка: задача с ним встанет в очередь и не
+  // выполнится никогда, а урок застрянет на середине без объяснения.
+  // Обработчики регистрируются в src/worker.js, но поднимать его ради проверки
+  // нельзя — он открывает соединения; читаем как текст.
+  const worker = await readFile(new URL('../src/worker.js', import.meta.url), 'utf8');
+  for (const name of Object.values(JOBS)) {
+    assert.ok(worker.includes(`JOBS.${name}`), `шаг ${name} никто не исполняет`);
+  }
 });
