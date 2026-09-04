@@ -314,3 +314,36 @@ test('во время сборки кнопка пересборки выклю�
     });
   });
 });
+
+test('сохранённые настройки видны в форме, а не умолчания', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const { adminId } = await seed(pool);
+    const app = finalize(createApp({ config, pool }));
+    await withServer(app, async (base) => {
+      await fetch(`${base}/api/admin/lessons/urok/settings`, {
+        method: 'POST',
+        headers: asAdmin(adminId),
+        body: JSON.stringify({
+          subtitleOutline: '1.4',
+          subtitleColor: '#ff0000',
+          cutPauses: true,
+          minPauseSeconds: '3'
+        })
+      });
+
+      const html = await (
+        await fetch(`${base}/admin/lesson/urok`, {
+          headers: { Accept: 'text/html', ...asAdmin(adminId) }
+        })
+      ).text();
+
+      // Форма показывала умолчания вместо сохранённого, и это выглядело как
+      // «настройки не сохраняются». Хуже: следующее сохранение отправляло
+      // умолчания обратно и затирало настоящие настройки.
+      assert.match(html, /name="subtitleOutline"[\s\S]{0,80}value="1\.4"/);
+      assert.match(html, /name="subtitleColor" type="color" value="#ff0000"/);
+      assert.match(html, /name="cutPauses" type="checkbox" checked/);
+      assert.match(html, /name="minPauseSeconds"[\s\S]{0,80}value="3"/);
+    });
+  });
+});
