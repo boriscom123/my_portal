@@ -347,3 +347,51 @@ test('сохранённые настройки видны в форме, а н�
     });
   });
 });
+
+test('пока записи нет, главное действие — загрузить её', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const lesson = await saveLesson(pool, { slug: 'pustoj', title: 'Пустой' });
+    const { rows } = await pool.query(
+      `INSERT INTO users (display_name, role) VALUES ('Автор', 'admin') RETURNING id`
+    );
+    const app = finalize(createApp({ config, pool }));
+    await withServer(app, async (base) => {
+      const html = await (
+        await fetch(`${base}/admin/lesson/pustoj`, {
+          headers: {
+            Accept: 'text/html',
+            Authorization: `Bearer ${signSession({ userId: Number(rows[0].id), role: 'admin' }, config.jwtSecret)}`
+          }
+        })
+      ).text();
+      assert.match(html, /class="button-brand" href="\/admin\/upload">Загрузить запись/);
+      // Проверять нечего: записи нет.
+      assert.ok(!html.includes('Проверить запись'));
+      assert.ok(!html.includes('Заменить запись'));
+    });
+    assert.ok(lesson.id);
+  });
+});
+
+test('когда запись есть, загрузка перестаёт быть главным действием', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const { adminId } = await seed(pool);
+    const app = finalize(createApp({ config, pool }));
+    await withServer(app, async (base) => {
+      const html = await (
+        await fetch(`${base}/admin/lesson/urok`, {
+          headers: { Accept: 'text/html', ...asAdmin(adminId) }
+        })
+      ).text();
+      // Звать загрузить запись, когда она загружена, — звать сделать сделанное.
+      assert.ok(!/button-brand" href="\/admin\/upload"/.test(html));
+      assert.match(html, /Заменить запись/);
+      assert.match(html, /Проверить запись/);
+      // Названия должны объяснять разницу, а не требовать её угадывать.
+      assert.match(html, /Страница урока/);
+      assert.match(html, /«Проверить запись» — плеер с записью и субтитрами/);
+      assert.ok(!html.includes('Как видит зритель'));
+      assert.ok(!html.includes('Смотреть с субтитрами'));
+    });
+  });
+});

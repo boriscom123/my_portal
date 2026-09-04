@@ -50,6 +50,9 @@ export function adminReviewPage({
   const state = stateLabel(lesson);
   const failed = lesson.pipelineState === 'failed';
   const settings = readSettings(lesson.settings);
+  // Пока записи нет, главное действие — загрузить её. Когда есть, предлагать
+  // загрузку как главное действие значит звать сделать то, что уже сделано.
+  const hasSource = assets.some((asset) => asset.kind === 'source' || asset.kind === 'trimmed');
   // Пока конвейер работает, вторую пересборку запускать нельзя: она заняла бы
   // те же два ядра и обогнала бы первую — файлы переписывались бы вперемешку.
   const busy = ['uploading', 'processing'].includes(lesson.pipelineState);
@@ -63,10 +66,25 @@ export function adminReviewPage({
     body: `
 <nav class="admin-nav">
   <a class="button" href="/admin/lessons">← Уроки</a>
-  <a class="button-brand" href="/admin/lesson/${encodeURIComponent(lesson.slug)}/preview">Смотреть с субтитрами</a>
-  <a class="button" href="/lesson/${encodeURIComponent(lesson.slug)}">Как видит зритель</a>
-  <a class="button" href="/admin/upload">Загрузить запись</a>
+  ${
+    hasSource
+      ? `<a class="button-brand" href="/admin/lesson/${encodeURIComponent(lesson.slug)}/preview">
+           Проверить запись
+         </a>`
+      : '<a class="button-brand" href="/admin/upload">Загрузить запись</a>'
+  }
+  <a class="button" href="/lesson/${encodeURIComponent(lesson.slug)}">Страница урока</a>
+  ${hasSource ? '<a class="button" href="/admin/upload">Заменить запись</a>' : ''}
 </nav>
+${
+  hasSource
+    ? `<p class="hint">
+         «Проверить запись» — плеер с записью и субтитрами: смотрите, как
+         подписи ложатся на видео. «Страница урока» — то же, что увидит зритель
+         на витрине.
+       </p>`
+    : ''
+}
 
 <h1>${escapeHtml(lesson.title)}</h1>
 <p class="meta">
