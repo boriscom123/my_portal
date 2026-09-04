@@ -67,20 +67,30 @@ ${
       <span class="wordmark-tail">JOURNEY</span>
     </span>
   </a>
-  <nav class="nav">
-    <a href="/search">Поиск</a>
-    <a href="/ideas">Идеи</a>
-    ${user?.role === 'admin' ? '<a href="/admin">Кабинет</a>' : ''}
-    ${
-      user
-        ? `<span class="user-name" title="Вы вошли">${escapeHtml(user.displayName)}</span>
+  <!-- Меню на details, а не на своей кнопке с обработчиком: оно должно
+       открываться, даже если скрипт не загрузился или упал. На широком экране
+       раскрывающая часть прячется стилями, и разделы стоят в строку как
+       раньше — разметка одна на оба случая. -->
+  <details class="nav-menu" data-nav-menu>
+    <summary class="nav-toggle" title="Разделы" aria-label="Разделы">
+      <span class="nav-toggle-bars" aria-hidden="true"></span>
+      ${user ? `<span class="nav-toggle-name">${escapeHtml(user.displayName)}</span>` : ''}
+    </summary>
+    <nav class="nav">
+      <a href="/search">Поиск</a>
+      <a href="/ideas">Идеи</a>
+      ${user?.role === 'admin' ? '<a href="/admin">Кабинет</a>' : ''}
+      ${
+        user
+          ? `<span class="user-name" title="Вы вошли">${escapeHtml(user.displayName)}</span>
        <button class="theme-toggle" type="button" data-notifications hidden
          title="Уведомления о новых уроках">🔔</button>
        <button class="button" type="button" data-logout>Выйти</button>`
-        : '<a class="button-brand" href="/login">Войти</a>'
-    }
-    <button class="theme-toggle" type="button" data-theme-toggle title="Светлая или тёмная тема">◐</button>
-  </nav>
+          : '<a class="button-brand" href="/login">Войти</a>'
+      }
+      <button class="theme-toggle" type="button" data-theme-toggle title="Светлая или тёмная тема">◐</button>
+    </nav>
+  </details>
 </header>
 <main>${body}</main>
 <footer>

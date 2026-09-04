@@ -391,3 +391,19 @@ ideaForm?.addEventListener('submit', async (event) => {
   // в списке на своём месте — по числу голосов, а не там, где он ожидал.
   if (answer) location.reload();
 });
+
+/* --- Меню в шапке --------------------------------------------------------
+ * Само меню работает без скрипта: это details, и оно откроется, даже если этот
+ * файл не загрузился. Здесь только вежливость — закрыть его, когда человек
+ * ткнул мимо. */
+const navMenu = document.querySelector('[data-nav-menu]');
+if (navMenu) {
+  document.addEventListener('click', (event) => {
+    if (navMenu.open && !navMenu.contains(event.target)) navMenu.open = false;
+  });
+  // Escape закрывает меню там, где есть клавиатура: на телефоне его нет, а на
+  // ноутбуке это первое, что нажимают.
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && navMenu.open) navMenu.open = false;
+  });
+}

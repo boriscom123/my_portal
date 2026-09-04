@@ -2,6 +2,7 @@
 // HTML — без экранирования это готовая XSS, а комментарии здесь публичные.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { escapeHtml } from '../src/lib/html.js';
 import { layout } from '../src/views/layout.js';
 
@@ -93,4 +94,24 @@ test('имя пользователя экранируется', () => {
   });
   assert.ok(!html.includes('<img src=x'));
   assert.match(html, /&lt;img/);
+});
+
+test('разделы в шапке лежат в меню, работающем без скрипта', () => {
+  const html = layout({ config, title: 'Т', description: 'о', body: '' });
+  // details открывается сам: меню обязано работать, даже если app.js не
+  // загрузился — иначе на телефоне пропадёт вся навигация разом.
+  assert.match(html, /<details class="nav-menu" data-nav-menu>/);
+  assert.match(html, /<summary class="nav-toggle"/);
+  // Разделы внутри меню, а не рядом с ним.
+  const menu = html.slice(html.indexOf('<details class="nav-menu"'), html.indexOf('</details>'));
+  assert.match(menu, /href="\/search"/);
+  assert.match(menu, /href="\/ideas"/);
+  assert.match(menu, /data-theme-toggle/);
+});
+
+test('на широком экране меню разворачивается в строку', async () => {
+  const styles = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
+  // Без этого правила на ноутбуке вместо привычной строки разделов осталась бы
+  // одна кнопка с тремя полосками.
+  assert.match(styles, /@media \(min-width: 720px\)[\s\S]{0,400}\.nav-toggle \{\s*display: none/);
 });

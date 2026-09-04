@@ -227,6 +227,9 @@ h3 {
    иначе четыре элемента в один ряд наезжают друг на друга. Ни одного
    медиазапроса: перенос делает flex-wrap, а размеры — clamp. */
 .site-header {
+  /* Точка отсчёта для выпадающего меню: без неё список отсчитывается от края
+     страницы, и на широком экране с полями он уезжает не туда. */
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1235,4 +1238,118 @@ form[action='/search'] input {
    само поле спрятано, а нажимают на подпись к нему. */
 label[for='cover-file'] {
   cursor: pointer;
+}
+
+/* --- Меню в шапке -------------------------------------------------------- */
+
+/* Разметка одна на телефон и на широкий экран: на телефоне это выпадающий
+   список, на широком — строка разделов, как была. Сделано на details, а не на
+   своей кнопке: меню обязано открываться, даже если скрипт не загрузился. */
+.nav-menu {
+  margin-left: auto;
+}
+
+.nav-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+  padding: 8px 12px;
+  min-height: var(--tap-target);
+  box-sizing: border-box;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  -webkit-tap-highlight-color: transparent;
+}
+/* Safari рисует свой треугольник и без ::marker, и без list-style. */
+.nav-toggle::-webkit-details-marker {
+  display: none;
+}
+.nav-toggle-name {
+  font-size: 14px;
+  color: var(--muted);
+  max-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Три полоски рисуем фоном, а не тремя элементами: одна коробка вместо трёх и
+   никакой разметки ради украшения. */
+.nav-toggle-bars {
+  width: 20px;
+  height: 14px;
+  background:
+    linear-gradient(var(--fg), var(--fg)) top / 100% 2px no-repeat,
+    linear-gradient(var(--fg), var(--fg)) center / 100% 2px no-repeat,
+    linear-gradient(var(--fg), var(--fg)) bottom / 100% 2px no-repeat;
+}
+.nav-menu[open] .nav-toggle {
+  border-color: var(--flame);
+}
+
+.nav-menu[open] .nav {
+  position: absolute;
+  right: 0;
+  /* Отступ от шапки, а не привязка к её высоте: высота меняется от длины
+     имени пользователя и от масштаба шрифта в браузере. */
+  margin-top: 10px;
+  z-index: 20;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 10px;
+  min-width: 12rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 18px 40px -22px #000;
+}
+.nav-menu[open] .nav a,
+.nav-menu[open] .nav .user-name {
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  min-height: var(--tap-target);
+  display: flex;
+  align-items: center;
+}
+.nav-menu[open] .nav a:hover,
+.nav-menu[open] .nav a:focus {
+  background: var(--bg);
+}
+/* Имя уже написано на кнопке меню — в списке оно повторялось бы. */
+.nav-menu[open] .nav .user-name {
+  display: none;
+}
+.nav-menu:not([open]) .nav {
+  display: none;
+}
+
+/* На широком экране раскрывающая часть не нужна: разделы стоят в строку, как
+   стояли до появления меню. */
+@media (min-width: 720px) {
+  .nav-toggle {
+    display: none;
+  }
+  .nav-menu:not([open]) .nav,
+  .nav-menu[open] .nav {
+    display: flex;
+    position: static;
+    flex-direction: row;
+    align-items: center;
+    gap: clamp(8px, 2vw, 22px);
+    padding: 0;
+    min-width: 0;
+    background: none;
+    border: 0;
+    box-shadow: none;
+    margin-top: 0;
+  }
+  .nav-menu[open] .nav a,
+  .nav-menu[open] .nav .user-name {
+    padding: 0;
+    min-height: 0;
+    display: inline-flex;
+  }
 }
