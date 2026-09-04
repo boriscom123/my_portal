@@ -144,7 +144,7 @@ test('чужую реплику через свой урок не поправи
   });
 });
 
-test('заполнение отдаёт заголовок, описание и теги', skipWithoutDb, async () => {
+test('пока заготовки нет, ответ говорит «ждите»', skipWithoutDb, async () => {
   const config = await makeConfig();
   await withTestDb(async (pool) => {
     const { headers } = await seed(pool, config);
@@ -152,9 +152,55 @@ test('заполнение отдаёт заголовок, описание и 
     await withServer(app, async (base) => {
       const res = await fetch(`${base}/api/admin/lessons/urok/suggest`, { headers });
       assert.equal(res.status, 200);
-      const body = await res.json();
-      assert.ok('title' in body && 'description' in body && Array.isArray(body.tags));
+      assert.equal((await res.json()).pending, true);
     });
+  });
+});
+
+test('готовая заготовка отдаётся как есть', skipWithoutDb, async () => {
+  const config = await makeConfig();
+  await withTestDb(async (pool) => {
+    const { lesson, headers } = await seed(pool, config);
+    await pool.query(
+      `UPDATE lessons SET generated = jsonb_set(generated, '{suggested}', $1::jsonb) WHERE id = $2`,
+      [JSON.stringify({ title: 'Т', description: 'О', tags: ['docker'], source: 'model' }), lesson.id]
+    );
+    const app = finalize(createApp({ config, pool }));
+    await withServer(app, async (base) => {
+      const body = await (await fetch(`${base}/api/admin/lessons/urok/suggest`, { headers })).json();
+      assert.equal(body.title, 'Т');
+      assert.equal(body.source, 'model');
+    });
+  });
+});
+
+test('запуск ставит задачу и стирает прошлую заготовку', skipWithoutDb, async () => {
+  const config = await makeConfig();
+  await withTestDb(async (pool) => {
+    const { lesson, headers } = await seed(pool, config);
+    await pool.query(
+      `UPDATE lessons SET generated = jsonb_set(generated, '{suggested}', $1::jsonb) WHERE id = $2`,
+      [JSON.stringify({ title: 'старая' }), lesson.id]
+    );
+    const added = [];
+    const app = finalize(
+      createApp({ config, pool, queue: { add: async (name, data) => added.push({ name, data }) } })
+    );
+    await withServer(app, async (base) => {
+      const res = await fetch(`${base}/api/admin/lessons/urok/suggest`, {
+        method: 'POST',
+        headers
+      });
+      assert.equal(res.status, 200);
+    });
+    assert.equal(added[0].name, 'suggestTexts');
+    // Иначе клиент, спрашивая готовность, получит старую и решит, что новая
+    // готова.
+    const { rows } = await pool.query(
+      `SELECT generated->'suggested' AS suggested FROM lessons WHERE id = $1`,
+      [lesson.id]
+    );
+    assert.equal(rows[0].suggested, null);
   });
 });
 
@@ -163,12 +209,37 @@ test('без расшифровки заполнять нечего, и это �
   await withTestDb(async (pool) => {
     const { headers } = await seed(pool, config);
     await pool.query('DELETE FROM transcripts');
-    const app = finalize(createApp({ config, pool }));
+    const app = finalize(createApp({ config, pool, queue: { add: async () => {} } }));
     await withServer(app, async (base) => {
-      const res = await fetch(`${base}/api/admin/lessons/urok/suggest`, { headers });
+      const res = await fetch(`${base}/api/admin/lessons/urok/suggest`, {
+        method: 'POST',
+        headers
+      });
       assert.equal(res.status, 409);
       assert.match((await res.json()).error, /расшифровк/i);
     });
+  });
+});
+
+test('отказ модели оставляет автору заготовку, а не пустоту', skipWithoutDb, async () => {
+  const config = await makeConfig();
+  await withTestDb(async (pool) => {
+    const { lesson } = await seed(pool, config);
+    const { makeSuggestTexts } = await import('../src/jobs/suggest-texts.js');
+    const failing = {
+      suggest: async () => {
+        throw new Error('высокий спрос');
+      }
+    };
+    const result = await makeSuggestTexts(config, pool, failing)({ lessonId: lesson.id });
+
+    assert.equal(result.source, 'transcript');
+    const { rows } = await pool.query(
+      `SELECT generated->'suggested' AS suggested FROM lessons WHERE id = $1`,
+      [lesson.id]
+    );
+    assert.ok(rows[0].suggested.title, 'поля должны быть заполнены хоть чем-то');
+    assert.match(rows[0].suggested.warning, /высокий спрос/);
   });
 });
 

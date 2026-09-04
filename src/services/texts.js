@@ -23,9 +23,13 @@ const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 // длиннее, чтобы запрос не разрастался без предупреждения.
 const TRANSCRIPT_LIMIT = 60_000;
 
-// Сколько ждём ответ. Модель отвечает за секунды; минута — это уже сбой, и
-// висеть на нём, пока автор смотрит на кнопку, незачем.
-const TIMEOUT_MS = 60_000;
+// Сколько ждём ответ одной модели.
+//
+// Три минуты, а не «разумные тридцать секунд»: на бесплатной доле измеренный
+// ответ занял семьдесят две секунды, и таймаут в минуту рубил живую модель на
+// полпути. Ждать столько может воркер, но не запрос через nginx — потому шаг и
+// вынесен в очередь.
+const TIMEOUT_MS = 180_000;
 
 /**
  * Что просим у модели.
@@ -97,48 +101,76 @@ export function hideKey(text, apiKey) {
  * null — не ошибка: портал работает без модели, и кнопка заполнения тогда
  * берёт заготовку из расшифровки своими силами.
  */
+/**
+ * Стоит ли пробовать следующую модель из списка.
+ *
+ * 503 — «сейчас высокий спрос»: на бесплатной доле в него упираются разом все
+ * ходовые модели, проверено. 404 — модель перестали выдавать новым ключам, на
+ * этом уже споткнулись. 429 — кончилась квота на минуту. Всё это про КОНКРЕТНУЮ
+ * модель, а не про запрос, и следующая в списке обычно отвечает.
+ */
+export function shouldTryNext(status) {
+  return [404, 429, 503].includes(status);
+}
+
+/** Разбирает список моделей из настройки: через запятую, в порядке предпочтения. */
+export function parseModels(value) {
+  return String(value ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 export function createTexts(config, fetchImpl = fetch) {
   const { apiKey, model } = config.gemini ?? {};
-  if (!apiKey) return null;
+  const models = parseModels(model);
+  if (!apiKey || !models.length) return null;
 
   return {
     async suggest(transcript) {
-      const response = await fetchImpl(`${API_BASE}/${model}:generateContent`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          // Ключ заголовком, а не в адресе: адреса попадают в журналы
-          // посредников целиком, а заголовки — нет.
-          'x-goog-api-key': apiKey
-        },
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: buildPrompt(transcript) }] }],
-          generationConfig: {
-            // Просим сразу JSON: разбирать текст с пояснениями вокруг —
-            // источник тихих поломок при смене модели.
-            responseMimeType: 'application/json',
-            responseSchema: {
-              type: 'object',
-              properties: {
-                title: { type: 'string' },
-                description: { type: 'string' },
-                tags: { type: 'array', items: { type: 'string' } }
-              },
-              required: ['title', 'description', 'tags']
-            }
-          }
-        })
-      });
+      const prompt = buildPrompt(transcript);
+      let lastError = null;
 
-      if (!response.ok) {
+      for (const name of models) {
+        const response = await fetchImpl(`${API_BASE}/${name}:generateContent`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            // Ключ заголовком, а не в адресе: адреса попадают в журналы
+            // посредников целиком, а заголовки — нет.
+            'x-goog-api-key': apiKey
+          },
+          signal: AbortSignal.timeout(TIMEOUT_MS),
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              // Просим сразу JSON: разбирать текст с пояснениями вокруг —
+              // источник тихих поломок при смене модели.
+              responseMimeType: 'application/json',
+              responseSchema: {
+                type: 'object',
+                properties: {
+                  title: { type: 'string' },
+                  description: { type: 'string' },
+                  tags: { type: 'array', items: { type: 'string' } }
+                },
+                required: ['title', 'description', 'tags']
+              }
+            }
+          })
+        });
+
+        if (response.ok) return { ...parseTextsResponse(await response.json()), model: name };
+
         const body = await response.text().catch(() => '');
-        throw new Error(
-          `модель ответила ${response.status}: ${hideKey(body, apiKey).slice(0, 200)}`
+        lastError = new Error(
+          `${name} ответила ${response.status}: ${hideKey(body, apiKey).slice(0, 160)}`
         );
+        // Отказ не про эту модель, а про сам запрос — следующая ответит тем же.
+        if (!shouldTryNext(response.status)) throw lastError;
       }
 
-      return parseTextsResponse(await response.json());
+      throw lastError ?? new Error('ни одна модель не ответила');
     }
   };
 }

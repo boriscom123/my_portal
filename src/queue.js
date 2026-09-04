@@ -17,6 +17,7 @@ export const JOBS = {
   extractAudio: 'extractAudio',
   transcribe: 'transcribe',
   subtitles: 'subtitles',
+  suggestTexts: 'suggestTexts',
   trimPauses: 'trimPauses',
   // generateTexts здесь был и убран: тексты от модели отменены вместе с
   // облаком. Имя без обработчика — ловушка: задача с ним встала бы в очередь и

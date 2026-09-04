@@ -3,9 +3,17 @@
 // ключ не попадает ни в адрес, ни в сообщение об ошибке.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createTexts, parseTextsResponse, buildPrompt, hideKey } from '../src/services/texts.js';
+import {
+  createTexts,
+  parseTextsResponse,
+  buildPrompt,
+  hideKey,
+  shouldTryNext,
+  parseModels
+} from '../src/services/texts.js';
 
-const config = { gemini: { apiKey: 'секретный-ключ', model: 'gemini-2.5-flash' } };
+const config = { gemini: { apiKey: 'секретный-ключ', model: 'gemini-flash-latest' } };
+const listConfig = { gemini: { apiKey: 'k', model: 'первая, вторая , третья' } };
 
 /** Ответ модели в том виде, в каком его отдаёт Gemini. */
 function reply(payload) {
@@ -67,7 +75,7 @@ test('ключ уходит заголовком, а не в адресе', asyn
   // Адреса попадают в журналы посредников целиком, а заголовки — нет.
   assert.ok(!seen.url.includes('секретный-ключ'), `ключ в адресе: ${seen.url}`);
   assert.equal(seen.options.headers['x-goog-api-key'], 'секретный-ключ');
-  assert.match(seen.url, /gemini-2\.5-flash:generateContent$/);
+  assert.match(seen.url, /gemini-flash-latest:generateContent$/);
 });
 
 test('в отказе модели ключа нет', async () => {
@@ -103,4 +111,80 @@ test('просим у модели ровно то, что нужно площа
 test('длинная расшифровка обрезается, а не растёт без предела', () => {
   const prompt = buildPrompt('а'.repeat(200_000));
   assert.ok(prompt.length < 100_000, `запрос вырос до ${prompt.length} знаков`);
+});
+
+test('по умолчанию задан список моделей, а не одна', async () => {
+  // Одна не годится по двум причинам сразу, и обе встретились в первый день:
+  // закреплённое имя перестают выдавать новым ключам, а на бесплатной доле
+  // ходовые модели разом отвечают «высокий спрос».
+  const { loadConfig } = await import('../src/config.js');
+  const loaded = loadConfig({
+    PUBLIC_BASE_URL: 'https://x',
+    DB_HOST: 'db', DB_NAME: 'n', DB_USER: 'u', DB_PASS: 'p',
+    JWT_SECRET: 'x'.repeat(32)
+  });
+  assert.ok(parseModels(loaded.gemini.model).length >= 2, loaded.gemini.model);
+});
+
+test('список моделей разбирается с пробелами и пустотами', () => {
+  assert.deepEqual(parseModels('первая, вторая , третья'), ['первая', 'вторая', 'третья']);
+  assert.deepEqual(parseModels(''), []);
+  assert.deepEqual(parseModels(null), []);
+});
+
+test('перегруженная модель уступает следующей', async () => {
+  // На бесплатной доле из пяти ходовых моделей отвечала одна: остальные давали
+  // 503 «высокий спрос». Останавливаться на первой значило бы отдавать автору
+  // заготовку похуже при живой модели рядом.
+  const tried = [];
+  const texts = createTexts(listConfig, async (url) => {
+    const name = String(url).split('/').pop().split(':')[0];
+    tried.push(name);
+    if (name !== 'третья') {
+      return { ok: false, status: 503, text: async () => 'high demand' };
+    }
+    return {
+      ok: true,
+      json: async () => ({
+        candidates: [
+          {
+            content: {
+              parts: [{ text: JSON.stringify({ title: 'Т', description: 'О', tags: ['a'] }) }]
+            }
+          }
+        ]
+      })
+    };
+  });
+
+  const result = await texts.suggest('расшифровка');
+  assert.deepEqual(tried, ['первая', 'вторая', 'третья']);
+  assert.equal(result.title, 'Т');
+  // Какая модель ответила — видно в ответе: без этого разбирать разницу в
+  // качестве заготовок пришлось бы гаданием.
+  assert.equal(result.model, 'третья');
+});
+
+test('отказ не про модель следующую не пробует', async () => {
+  // 400 — это про сам запрос: следующая модель ответит тем же, и перебор
+  // означал бы три бессмысленных обращения вместо одного.
+  const tried = [];
+  const texts = createTexts(listConfig, async (url) => {
+    tried.push(String(url).split('/').pop());
+    return { ok: false, status: 400, text: async () => 'bad request' };
+  });
+  await assert.rejects(texts.suggest('расшифровка'), /400/);
+  assert.equal(tried.length, 1);
+});
+
+test('какие коды считаются поводом попробовать другую модель', () => {
+  assert.ok(shouldTryNext(503), 'высокий спрос');
+  assert.ok(shouldTryNext(404), 'модель перестали выдавать');
+  assert.ok(shouldTryNext(429), 'квота на минуту');
+  assert.ok(!shouldTryNext(400));
+  assert.ok(!shouldTryNext(403), 'ключ негодный — другая модель не поможет');
+});
+
+test('пустой список моделей означает отсутствие слоя', () => {
+  assert.equal(createTexts({ gemini: { apiKey: 'k', model: '' } }), null);
 });

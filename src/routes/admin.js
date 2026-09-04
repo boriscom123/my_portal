@@ -11,8 +11,7 @@ import { PublicError } from '../middleware/errors.js';
 import { saveLesson, setLessonTags, getLessonBySlug } from '../services/lessons.js';
 import { notifyAboutLesson } from '../services/notify/lesson.js';
 import { readSettings } from '../lib/settings.js';
-import { suggestFromTranscript } from '../lib/summary.js';
-import { createTexts } from '../services/texts.js';
+
 import { rebuildSubtitles } from '../services/transcript.js';
 import { addJob } from '../queue.js';
 
@@ -140,26 +139,38 @@ export function adminRoutes(config, pool) {
     ]);
     if (!rows.length) throw new PublicError('Расшифровки ещё нет', 409);
 
-    const texts = createTexts(config);
-    if (!texts) {
-      // Ключа нет — заполняем своими силами. Отдельная кнопка «без модели» не
-      // нужна: автору важен заполненный черновик, а не то, кто его сделал.
-      res.json({ ...suggestFromTranscript(rows[0].text), source: 'transcript' });
+    // Готовая заготовка, если её уже посчитали.
+    const { rows: lessons } = await pool.query(
+      `SELECT generated->'suggested' AS suggested FROM lessons WHERE id = $1`,
+      [lesson.id]
+    );
+    if (lessons[0]?.suggested) {
+      res.json(lessons[0].suggested);
       return;
     }
+    // Иначе ждём: считает воркер, потому что модель на бесплатной доле
+    // отвечает дольше, чем живёт запрос через nginx.
+    res.json({ pending: true });
+  });
 
-    try {
-      res.json({ ...(await texts.suggest(rows[0].text)), source: 'model' });
-    } catch (error) {
-      // Отказ модели не должен оставлять автора с пустыми полями: откатываемся
-      // на извлечение и говорим, почему вышло грубее.
-      console.error(`Тексты от модели не получены: ${error.message}`);
-      res.json({
-        ...suggestFromTranscript(rows[0].text),
-        source: 'transcript',
-        warning: `Модель не ответила (${error.message}); заполнено из расшифровки.`
-      });
-    }
+  // Запуск заготовки. Отдельным запросом от чтения: ответ модели приходит
+  // через минуту, а запрос столько не живёт — измерено, nginx рвёт на
+  // шестидесяти секундах.
+  router.post('/lessons/:slug/suggest', async (req, res) => {
+    const lesson = await getLessonBySlug(pool, req.params.slug, { includeDrafts: true });
+    if (!lesson) throw new PublicError('Урок не найден', 404);
+    if (!req.app.locals.queue) throw new PublicError('Очередь недоступна', 503);
+
+    const { rows } = await pool.query('SELECT 1 FROM transcripts WHERE lesson_id = $1', [lesson.id]);
+    if (!rows.length) throw new PublicError('Расшифровки ещё нет', 409);
+
+    // Прошлую заготовку убираем: иначе клиент, спрашивая готовность, получит
+    // её и решит, что новая готова.
+    await pool.query(`UPDATE lessons SET generated = generated - 'suggested' WHERE id = $1`, [
+      lesson.id
+    ]);
+    await addJob(req.app.locals.queue, 'suggestTexts', { lessonId: lesson.id });
+    res.json({ started: true });
   });
 
   // Повтор упавшего шага. Ставится ровно та задача, что упала, с теми же

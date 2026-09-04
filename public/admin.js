@@ -327,16 +327,37 @@ if (transcriptForm) {
 // Заготовка, а не готовый текст: модели у портала нет, поэтому поля
 // заполняются извлечённым из расшифровки, и правит их автор.
 const autofillButton = document.querySelector('[data-autofill]');
+
+/** Ждёт готовую заготовку, переспрашивая. null — не дождались. */
+async function waitForSuggestion(slug, seconds = 300) {
+  const deadline = Date.now() + seconds * 1000;
+  while (Date.now() < deadline) {
+    // Переспрашиваем раз в три секунды: модель отвечает за минуту с лишним, и
+    // чаще спрашивать незачем.
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+    const answer = await request(`/api/admin/lessons/${slug}/suggest`);
+    if (answer && !answer.pending) return answer;
+  }
+  return null;
+}
+
 autofillButton?.addEventListener('click', async () => {
   const form = document.querySelector('[data-approve]');
   if (!form) return;
+  const slug = autofillButton.dataset.autofill;
 
   try {
-    await withButtonState(autofillButton, 'Читаю…', 'Заполнено', async () => {
-      const answer = await request(
-        `/api/admin/lessons/${autofillButton.dataset.autofill}/suggest`
-      );
-      if (!answer) return;
+    await withButtonState(autofillButton, 'Читаю урок…', 'Заполнено', async () => {
+      await request(`/api/admin/lessons/${slug}/suggest`, { method: 'POST' });
+      // Про время говорим честно: на бесплатной доле измеренный ответ занял
+      // от семидесяти секунд до двух с половиной минут.
+      toast('Читаю урок. Модель отвечает одну-три минуты — поля заполнятся сами.');
+
+      const answer = await waitForSuggestion(slug);
+      if (!answer) {
+        toast('Модель не ответила за пять минут. Нажмите ещё раз позже.', true);
+        return;
+      }
       form.querySelector('[name=title]').value = answer.title;
       form.querySelector('[name=description]').value = answer.description;
       form.querySelector('[name=tags]').value = answer.tags.join(', ');
