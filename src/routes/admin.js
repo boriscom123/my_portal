@@ -12,6 +12,7 @@ import { saveLesson, setLessonTags, getLessonBySlug } from '../services/lessons.
 import { notifyAboutLesson } from '../services/notify/lesson.js';
 import { readSettings } from '../lib/settings.js';
 import { suggestFromTranscript } from '../lib/summary.js';
+import { createTexts } from '../services/texts.js';
 import { rebuildSubtitles } from '../services/transcript.js';
 import { addJob } from '../queue.js';
 
@@ -128,8 +129,8 @@ export function adminRoutes(config, pool) {
     res.json({ changed, files });
   });
 
-  // Заготовка заголовка, описания и тегов из расшифровки. Не применяется сама:
-  // это извлечение, а не сочинение, и последнее слово за автором.
+  // Заготовка заголовка, описания и тегов. Не применяется сама: последнее
+  // слово за автором, поля он правит перед сохранением.
   router.get('/lessons/:slug/suggest', async (req, res) => {
     const lesson = await getLessonBySlug(pool, req.params.slug, { includeDrafts: true });
     if (!lesson) throw new PublicError('Урок не найден', 404);
@@ -139,7 +140,26 @@ export function adminRoutes(config, pool) {
     ]);
     if (!rows.length) throw new PublicError('Расшифровки ещё нет', 409);
 
-    res.json(suggestFromTranscript(rows[0].text));
+    const texts = createTexts(config);
+    if (!texts) {
+      // Ключа нет — заполняем своими силами. Отдельная кнопка «без модели» не
+      // нужна: автору важен заполненный черновик, а не то, кто его сделал.
+      res.json({ ...suggestFromTranscript(rows[0].text), source: 'transcript' });
+      return;
+    }
+
+    try {
+      res.json({ ...(await texts.suggest(rows[0].text)), source: 'model' });
+    } catch (error) {
+      // Отказ модели не должен оставлять автора с пустыми полями: откатываемся
+      // на извлечение и говорим, почему вышло грубее.
+      console.error(`Тексты от модели не получены: ${error.message}`);
+      res.json({
+        ...suggestFromTranscript(rows[0].text),
+        source: 'transcript',
+        warning: `Модель не ответила (${error.message}); заполнено из расшифровки.`
+      });
+    }
   });
 
   // Повтор упавшего шага. Ставится ровно та задача, что упала, с теми же

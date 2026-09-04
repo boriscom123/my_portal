@@ -340,7 +340,14 @@ autofillButton?.addEventListener('click', async () => {
       form.querySelector('[name=title]').value = answer.title;
       form.querySelector('[name=description]').value = answer.description;
       form.querySelector('[name=tags]').value = answer.tags.join(', ');
-      toast('Поля заполнены из расшифровки. Поправьте и сохраните.');
+      if (answer.warning) toast(answer.warning, true);
+      else {
+        toast(
+          answer.source === 'model'
+            ? 'Поля заполнены моделью. Поправьте и сохраните.'
+            : 'Поля заполнены из расшифровки. Поправьте и сохраните.'
+        );
+      }
     });
   } catch (error) {
     toast(`Не заполнилось: ${error.message}`, true);
