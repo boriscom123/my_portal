@@ -14,7 +14,6 @@ import { runFfmpeg, ffmpegArgsForClip } from '../lib/ffmpeg.js';
 import { toSrt, splitLongSegments } from '../lib/srt.js';
 import { readSettings, toAssColor } from '../lib/settings.js';
 import { mediaPath, registerAsset, assetById } from '../services/media.js';
-import { addJob } from '../queue.js';
 
 // Длина фрагмента. Минута — потолок площадок; сорок пять секунд оставляют
 // запас и не обрывают мысль на полуслове.
@@ -87,7 +86,7 @@ export function pickClipRanges(segments, durationSeconds, { count = MAX_CLIPS } 
   return ranges;
 }
 
-export function makeMakeClips(config, pool, queue) {
+export function makeMakeClips(config, pool) {
   return async ({ lessonId }) => {
     const { rows } = await pool.query(
       'SELECT source_asset_id, duration_seconds, settings FROM lessons WHERE id = $1',
@@ -162,9 +161,13 @@ export function makeMakeClips(config, pool, queue) {
       made.push({ assetId: asset.id, title: range.title, startedMs: range.startedMs });
     }
 
-    // Нарезки — предпоследний шаг: обложка ставит урок на проверку, и она
-    // должна быть последней, иначе автор увидит «ждёт проверки» на середине.
-    await addJob(queue, 'makeCover', { lessonId });
+    // Нарезка запускается автором, когда титры уже поправлены, и она сама себе
+    // последний шаг: конвейер к этому времени давно закончился, а урок стоит на
+    // проверке. Возвращаем его туда же, иначе он остался бы «в обработке».
+    await pool.query(
+      `UPDATE lessons SET pipeline_state = 'review', pipeline_error = NULL WHERE id = $1`,
+      [lessonId]
+    );
     return { clips: made.length };
   };
 }

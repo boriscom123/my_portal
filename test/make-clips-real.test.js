@@ -61,9 +61,7 @@ test('нарезка появляется в буфере, вертикальн�
       );
     }
 
-    const added = [];
-    const queue = { add: async (name) => added.push(name) };
-    const result = await makeMakeClips(config, pool, queue)({ lessonId: lesson.id });
+    const result = await makeMakeClips(config, pool)({ lessonId: lesson.id });
 
     assert.ok(result.clips > 0, 'ни одной нарезки не вышло');
     const { rows } = await pool.query(
@@ -90,6 +88,11 @@ test('нарезка появляется в буфере, вертикальн�
 
     // Временный файл субтитров живёт только на время счёта.
     await assert.rejects(stat(path.join(config.media.dir, 'urok/clip-1.srt')));
-    assert.equal(added[0], 'makeCover', 'обложка ставит урок на проверку и идёт последней');
+    // Нарезка запускается автором, когда конвейер давно закончился: она сама
+    // себе последний шаг и возвращает урок на проверку.
+    const { rows: state } = await pool.query('SELECT pipeline_state FROM lessons WHERE id = $1', [
+      lesson.id
+    ]);
+    assert.equal(state[0].pipeline_state, 'review');
   });
 });

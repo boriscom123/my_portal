@@ -520,6 +520,26 @@ export function initPage() {
     });
   });
 
+  /* --- Вертикальные ролики ----------------------------------------------- */
+
+  // Сборка идёт минуты, поэтому кнопка только ставит задачу. Готовность видно
+  // по перечитанной странице: ролики — файлы, и подменять их на месте значит
+  // показывать половину записанного.
+  const clipsButton = document.querySelector('[data-clips]');
+  clipsButton?.addEventListener('click', async () => {
+    try {
+      await withButtonState(clipsButton, 'Ставлю в очередь…', 'Запущено', async () => {
+        const answer = await request(`/api/admin/lessons/${clipsButton.dataset.clips}/clips`, {
+          method: 'POST'
+        });
+        if (!answer) return;
+        toast('Режу ролики. Это пара минут — обновите страницу, когда будет готово.');
+      });
+    } catch (error) {
+      toast(`Не запустилось: ${error.message}`, true);
+    }
+  });
+
 }
 
 initPage();

@@ -329,23 +329,30 @@ ${
     : ''
 }
 
-${
-  links.clips.length
-    ? `<section class="card">
+<section class="card">
   <h2>Вертикальные ролики</h2>
   <p class="hint">
-    Нарезаны из мест, где вы говорите плотнее всего, с вшитыми субтитрами.
-    Ссылка живёт час — посмотрите и решите, годится ли.
+    Нарезаются из мест, где вы говорите плотнее всего, а подписи вшиваются
+    внутрь видео. Поэтому собирать их стоит ПОСЛЕ того, как поправите титры:
+    иначе придётся резать заново. Сборка занимает пару минут.
   </p>
-  <ul>${links.clips
-    .map(
-      (item) =>
-        `<li><a href="${escapeHtml(item.url)}">${escapeHtml(item.name)}</a></li>`
-    )
-    .join('')}</ul>
-</section>`
-    : ''
-}
+  ${
+    links.clips.length
+      ? `<ul>${links.clips
+          .map(
+            (item) => `<li><a href="${escapeHtml(item.url)}">${escapeHtml(item.name)}</a></li>`
+          )
+          .join('')}</ul>
+         <p class="hint">Ссылка живёт час — посмотрите и решите, годится ли.</p>`
+      : ''
+  }
+  <p class="form-row">
+    <button class="${links.clips.length ? 'button' : 'button-brand'}" type="button"
+      data-clips="${escapeHtml(lesson.slug)}" ${segments.length ? '' : 'disabled title="Сначала нужна расшифровка"'}>
+      ${links.clips.length ? 'Пересобрать ролики' : 'Собрать ролики'}
+    </button>
+  </p>
+</section>
 
 <section class="card">
   <h2>Файлы в буфере</h2>

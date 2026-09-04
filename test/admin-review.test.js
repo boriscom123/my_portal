@@ -403,3 +403,64 @@ test('когда запись есть, загрузка перестаёт бы
     });
   });
 });
+
+test('ролики собираются по нажатию, а не сами', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const { adminId } = await seed(pool);
+    const added = [];
+    const app = finalize(
+      createApp({ config, pool, queue: { add: async (name, data) => added.push({ name, data }) } })
+    );
+    await withServer(app, async (base) => {
+      const html = await (
+        await fetch(`${base}/admin/lesson/urok`, {
+          headers: { Accept: 'text/html', ...asAdmin(adminId) }
+        })
+      ).text();
+      // Кнопка есть всегда, и рядом сказано, почему собирать их надо после
+      // правки титров: подписи вшиваются внутрь видео.
+      assert.match(html, /data-clips="urok"/);
+      assert.match(html, /ПОСЛЕ того, как поправите титры/);
+
+      const res = await fetch(`${base}/api/admin/lessons/urok/clips`, {
+        method: 'POST',
+        headers: asAdmin(adminId)
+      });
+      assert.equal(res.status, 200);
+    });
+    assert.equal(added[0].name, 'makeClips');
+  });
+});
+
+test('без расшифровки резать нечего, и это сказано', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const { adminId } = await seed(pool);
+    await pool.query('DELETE FROM transcript_segments');
+    const app = finalize(createApp({ config, pool, queue: { add: async () => {} } }));
+    await withServer(app, async (base) => {
+      const res = await fetch(`${base}/api/admin/lessons/urok/clips`, {
+        method: 'POST',
+        headers: asAdmin(adminId)
+      });
+      assert.equal(res.status, 409);
+      assert.match((await res.json()).error, /расшифровки/i);
+    });
+  });
+});
+
+test('во время обработки вторую нарезку не запустить', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const { adminId } = await seed(pool);
+    await pool.query(`UPDATE lessons SET pipeline_state = 'processing' WHERE slug = 'urok'`);
+    const app = finalize(createApp({ config, pool, queue: { add: async () => {} } }));
+    await withServer(app, async (base) => {
+      const res = await fetch(`${base}/api/admin/lessons/urok/clips`, {
+        method: 'POST',
+        headers: asAdmin(adminId)
+      });
+      // Две нарезки разом заняли бы те же два ядра и переписывали бы одни и те
+      // же файлы вперемешку.
+      assert.equal(res.status, 409);
+    });
+  });
+});

@@ -26,7 +26,7 @@ export function makeTrimPauses(config, pool, queue) {
 
     const settings = readSettings(rows[0].settings);
     if (!settings.cutPauses) {
-      await addJob(queue, 'makeClips', { lessonId });
+      await addJob(queue, 'makeCover', { lessonId });
       return { skipped: 'вырезание пауз выключено в настройках урока' };
     }
 
@@ -68,7 +68,7 @@ export function makeTrimPauses(config, pool, queue) {
     const ranges = keepRanges(silences, { durationSeconds: rows[0].duration_seconds });
     if (!ranges.length) {
       // Речи в записи нет — резать нечего, и пустой файл автору не нужен.
-      await addJob(queue, 'makeClips', { lessonId });
+      await addJob(queue, 'makeCover', { lessonId });
       return { skipped: 'речи в записи не нашлось' };
     }
 
@@ -109,7 +109,9 @@ export function makeTrimPauses(config, pool, queue) {
       });
     }
 
-    await addJob(queue, 'makeClips', { lessonId });
+    // Дальше обложка, а не нарезки: нарезки вшивают подписи внутрь видео, и
+    // до правки титров резать их значит резать дважды.
+    await addJob(queue, 'makeCover', { lessonId });
     return {
       ranges: ranges.length,
       silences: silences.length,

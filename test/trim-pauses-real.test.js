@@ -103,7 +103,9 @@ test('запись становится короче, а субтитры к н�
     assert.ok(paths.includes(`${dir}/trimmed.vtt`));
     // Список кусков — рабочий файл, в буфере ему делать нечего.
     assert.ok(!paths.some((item) => item.endsWith('trim-list.txt')));
-    assert.equal(added[0], 'makeClips');
+    // Нарезки в конвейер больше не входят: их собирает автор, когда поправит
+    // титры. Монтаж ведёт сразу к обложке.
+    assert.equal(added[0], 'makeCover');
   });
 });
 
@@ -118,7 +120,7 @@ test('выключенный монтаж просто пропускается'
     });
     // Пересжатие часовой записи занимает полчаса машины: без спроса нельзя.
     assert.match(result.skipped, /выключено/);
-    assert.equal(added[0], 'makeClips', 'конвейер должен идти дальше');
+    assert.equal(added[0], 'makeCover', 'конвейер должен идти дальше');
     const { rows } = await pool.query(
       `SELECT count(*)::int n FROM assets WHERE lesson_id = $1 AND kind = 'trimmed'`,
       [lessonId]

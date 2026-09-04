@@ -192,6 +192,33 @@ export function adminRoutes(config, pool) {
     res.json({ started: true });
   });
 
+  // Собрать вертикальные ролики. Отдельным действием, а не шагом конвейера:
+  // ролики вшивают подписи внутрь видео, и до правки титров резать их значит
+  // резать дважды — а это минуты машины на каждый заход.
+  router.post('/lessons/:slug/clips', async (req, res) => {
+    const lesson = await getLessonBySlug(pool, req.params.slug, { includeDrafts: true });
+    if (!lesson) throw new PublicError('Урок не найден', 404);
+    if (!req.app.locals.queue) throw new PublicError('Очередь недоступна', 503);
+    if (['uploading', 'processing'].includes(lesson.pipelineState)) {
+      throw new PublicError('Урок сейчас обрабатывается. Дождитесь окончания', 409);
+    }
+
+    const { rows } = await pool.query(
+      'SELECT count(*)::int AS n FROM transcript_segments WHERE lesson_id = $1',
+      [lesson.id]
+    );
+    if (!rows[0].n) {
+      throw new PublicError('Нарезать нечего: расшифровки у урока нет', 409);
+    }
+
+    await pool.query(
+      `UPDATE lessons SET pipeline_state = 'processing', pipeline_error = NULL WHERE id = $1`,
+      [lesson.id]
+    );
+    await addJob(req.app.locals.queue, 'makeClips', { lessonId: lesson.id });
+    res.json({ started: true });
+  });
+
   // Выбор обложки из тех, что уже есть: кадр из записи или нарисованная.
   // Отдельным действием, потому что перерисовывать ради возврата к кадру —
   // это минута работы машины вместо одного нажатия.

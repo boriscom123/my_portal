@@ -59,7 +59,7 @@ const handlers = {
   [JOBS.suggestTexts]: makeSuggestTexts(config, pool, createTexts(config)),
   [JOBS.makeCoverImage]: makeMakeCoverImage(config, pool, createImages(config)),
   [JOBS.trimPauses]: makeTrimPauses(config, pool, queue),
-  [JOBS.makeClips]: makeMakeClips(config, pool, queue),
+  [JOBS.makeClips]: makeMakeClips(config, pool),
   [JOBS.makeCover]: makeMakeCover(config, pool),
   [JOBS.cleanupMedia]: makeCleanupMedia(config, pool)
 };
