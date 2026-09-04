@@ -102,14 +102,29 @@ test('разделы в шапке лежат в меню, работающем 
   // загрузился — иначе на телефоне пропадёт вся навигация разом.
   assert.match(html, /<details class="nav-menu" data-nav-menu>/);
   assert.match(html, /<summary class="nav-toggle"/);
-  // Разделы внутри меню, а не рядом с ним.
+  // Разделы лежат СОСЕДОМ меню, а не внутри него: содержимое закрытого details
+  // браузер прячет сам, и вернуть его стилями на широком экране не выходит —
+  // на этом настольная навигация и пропала.
   const menu = html.slice(html.indexOf('<details class="nav-menu"'), html.indexOf('</details>'));
-  assert.match(menu, /href="\/search"/);
-  assert.match(menu, /href="\/ideas"/);
+  assert.ok(!menu.includes('<nav'), 'разделы снова внутри details — на широком экране они пропадут');
+  assert.match(html, /<\/details>\s*<nav class="nav">/);
+
+  const nav = html.slice(html.indexOf('<nav class="nav">'), html.indexOf('</nav>'));
+  assert.match(nav, /href="\/search"/);
+  assert.match(nav, /href="\/ideas"/);
   // Тема и уведомления уехали в раздел настроек: в шапке они были двумя
   // значками без подписей, и на телефоне их принимали за украшение.
-  assert.match(menu, /href="\/settings"/);
-  assert.ok(!menu.includes('data-theme-toggle'), 'переключатель темы остался в шапке');
+  assert.match(nav, /href="\/settings"/);
+  assert.ok(!nav.includes('data-theme-toggle'), 'переключатель темы остался в шапке');
+});
+
+test('на широком экране разделы стоят в строку, а кнопка меню спрятана', async () => {
+  const styles = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
+  const wide = styles.slice(styles.indexOf('@media (min-width: 720px)'));
+  // Видимостью распоряжаемся мы, соседним селектором: если правило исчезнет,
+  // на ноутбуке снова останется одна кнопка с полосками вместо навигации.
+  assert.match(wide, /\.nav-menu\[open\] \+ \.nav|\.nav-menu:not\(\[open\]\) \+ \.nav/);
+  assert.match(wide, /\.nav-menu \{\s*display: none/);
 });
 
 test('выход оформлен как остальные пункты меню', () => {
@@ -125,12 +140,7 @@ test('выход оформлен как остальные пункты мен�
   assert.match(html, /<button class="nav-item" type="button" data-logout>/);
 });
 
-test('на широком экране меню разворачивается в строку', async () => {
-  const styles = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
-  // Без этого правила на ноутбуке вместо привычной строки разделов осталась бы
-  // одна кнопка с тремя полосками.
-  assert.match(styles, /@media \(min-width: 720px\)[\s\S]{0,400}\.nav-toggle \{\s*display: none/);
-});
+
 
 test('настройки открыты и гостю, но уведомления — вошедшим', async () => {
   const { settingsPage } = await import('../src/views/settings.js');

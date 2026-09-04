@@ -410,8 +410,14 @@ ideaForm?.addEventListener('submit', async (event) => {
  * ткнул мимо. */
 const navMenu = document.querySelector('[data-nav-menu]');
 if (navMenu) {
+  // Список разделов лежит соседом, а не внутри меню, поэтому «мимо» — это мимо
+  // обоих. Без учёта списка меню закрывалось бы от нажатия по своему же пункту
+  // раньше, чем срабатывал его обработчик.
+  const panel = navMenu.nextElementSibling;
   document.addEventListener('click', (event) => {
-    if (navMenu.open && !navMenu.contains(event.target)) navMenu.open = false;
+    if (!navMenu.open) return;
+    const inside = navMenu.contains(event.target) || panel?.contains(event.target);
+    if (!inside) navMenu.open = false;
   });
   // Escape закрывает меню там, где есть клавиатура: на телефоне его нет, а на
   // ноутбуке это первое, что нажимают.

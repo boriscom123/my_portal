@@ -68,29 +68,31 @@ ${
     </span>
   </a>
   <!-- Меню на details, а не на своей кнопке с обработчиком: оно должно
-       открываться, даже если скрипт не загрузился или упал. На широком экране
-       раскрывающая часть прячется стилями, и разделы стоят в строку как
-       раньше — разметка одна на оба случая. -->
+       открываться, даже если скрипт не загрузился или упал.
+       Разделы лежат СОСЕДОМ, а не внутри details, и это не мелочь: содержимое
+       закрытого details браузер прячет сам, и вернуть его стилями на широком
+       экране не выходит — навигация пропала на настольной версии, пока не
+       переделал. Соседом видимостью распоряжаемся мы, а не браузер. -->
   <details class="nav-menu" data-nav-menu>
     <summary class="nav-toggle" title="Разделы" aria-label="Разделы">
       <span class="nav-toggle-bars" aria-hidden="true"></span>
       ${user ? `<span class="nav-toggle-name">${escapeHtml(user.displayName)}</span>` : ''}
     </summary>
-    <nav class="nav">
-      <a href="/search">Поиск</a>
-      <a href="/ideas">Идеи</a>
-      ${user?.role === 'admin' ? '<a href="/admin/lessons">Уроки</a>' : ''}
-      <a href="/settings">Настройки</a>
-      ${
-        user
-          ? // «Выйти» — такой же пункт списка, как остальные: кнопкой другого
-            // вида он читался бы как главное действие в меню, хотя это
-            // последнее, что человек делает.
-            '<button class="nav-item" type="button" data-logout>Выйти</button>'
-          : '<a class="button-brand" href="/login">Войти</a>'
-      }
-    </nav>
   </details>
+  <nav class="nav">
+    <a href="/search">Поиск</a>
+    <a href="/ideas">Идеи</a>
+    ${user?.role === 'admin' ? '<a href="/admin/lessons">Уроки</a>' : ''}
+    <a href="/settings">Настройки</a>
+    ${
+      user
+        ? // «Выйти» — такой же пункт списка, как остальные: кнопкой другого
+          // вида он читался бы как главное действие в меню, хотя это
+          // последнее, что человек делает.
+          '<button class="nav-item" type="button" data-logout>Выйти</button>'
+        : '<a class="button-brand" href="/login">Войти</a>'
+    }
+  </nav>
 </header>
 <main>${body}</main>
 <footer>

@@ -1289,7 +1289,7 @@ label[for='cover-file'] {
   border-color: var(--flame);
 }
 
-.nav-menu[open] .nav {
+.nav-menu[open] + .nav {
   position: absolute;
   right: 0;
   /* Отступ от шапки, а не привязка к её высоте: высота меняется от длины
@@ -1306,34 +1306,36 @@ label[for='cover-file'] {
   border-radius: 14px;
   box-shadow: 0 18px 40px -22px #000;
 }
-.nav-menu[open] .nav a,
-.nav-menu[open] .nav .user-name {
+.nav-menu[open] + .nav a,
+.nav-menu[open] + .nav .nav-item {
   padding: 10px 12px;
   border-radius: var(--radius);
   min-height: var(--tap-target);
   display: flex;
   align-items: center;
 }
-.nav-menu[open] .nav a:hover,
-.nav-menu[open] .nav a:focus {
+.nav-menu[open] + .nav a:hover,
+.nav-menu[open] + .nav a:focus,
+.nav-menu[open] + .nav .nav-item:hover,
+.nav-menu[open] + .nav .nav-item:focus {
   background: var(--bg);
 }
-/* Имя уже написано на кнопке меню — в списке оно повторялось бы. */
-.nav-menu[open] .nav .user-name {
-  display: none;
-}
-.nav-menu:not([open]) .nav {
+/* Пока меню закрыто, разделов на узком экране нет. Прячем их мы, а не
+   браузер: содержимое закрытого details он прячет сам, и вернуть его стилями
+   на широком экране не выходит — на этом настольная навигация и пропала. */
+.nav-menu:not([open]) + .nav {
   display: none;
 }
 
 /* На широком экране раскрывающая часть не нужна: разделы стоят в строку, как
    стояли до появления меню. */
 @media (min-width: 720px) {
-  .nav-toggle {
+  /* Раскрывающая кнопка не нужна: разделы стоят в строку, как стояли. */
+  .nav-menu {
     display: none;
   }
-  .nav-menu:not([open]) .nav,
-  .nav-menu[open] .nav {
+  .nav-menu:not([open]) + .nav,
+  .nav-menu[open] + .nav {
     display: flex;
     position: static;
     flex-direction: row;
@@ -1346,8 +1348,8 @@ label[for='cover-file'] {
     box-shadow: none;
     margin-top: 0;
   }
-  .nav-menu[open] .nav a,
-  .nav-menu[open] .nav .user-name {
+  .nav-menu[open] + .nav a,
+  .nav-menu[open] + .nav .nav-item {
     padding: 0;
     min-height: 0;
     display: inline-flex;
@@ -1372,21 +1374,9 @@ label[for='cover-file'] {
 .nav .nav-item:focus {
   color: var(--flame);
 }
-.nav-menu[open] .nav .nav-item {
-  padding: 10px 12px;
-  border-radius: var(--radius);
-  min-height: var(--tap-target);
-  display: flex;
-  align-items: center;
-}
-.nav-menu[open] .nav .nav-item:hover,
-.nav-menu[open] .nav .nav-item:focus {
-  background: var(--bg);
-}
 @media (min-width: 720px) {
-  .nav-menu[open] .nav .nav-item {
+  .nav .nav-item {
     padding: 0;
     min-height: 0;
-    display: inline-flex;
   }
 }
