@@ -9,6 +9,7 @@ import { Router } from 'express';
 import { requireAdmin } from '../middleware/guards.js';
 import { PublicError } from '../middleware/errors.js';
 import { saveLesson, setLessonTags, getLessonBySlug } from '../services/lessons.js';
+import { createLesson, deleteLesson } from '../services/lesson-admin.js';
 import { notifyAboutLesson } from '../services/notify/lesson.js';
 import { rm } from 'node:fs/promises';
 import { mediaPath, forgetAsset } from '../services/media.js';
@@ -242,6 +243,32 @@ export function adminRoutes(config, pool) {
     }
 
     res.json({ removed: Number(rows[0].id), coverUrl: wasChosen && rest[0] ? `/media/asset/${rest[0].id}` : lesson.coverUrl });
+  });
+
+  // Завести урок. Адрес собирается из заголовка: помнить и придумывать его
+  // автору незачем, а поправить можно потом.
+  router.post('/lessons', async (req, res) => {
+    try {
+      const lesson = await createLesson(pool, req.body ?? {});
+      res.json({ lesson });
+    } catch (error) {
+      throw new PublicError(error.message, 400);
+    }
+  });
+
+  // Удалить урок целиком. Действие необратимое: вместе с уроком уходят его
+  // файлы, расшифровка, отзывы и записи о публикациях.
+  router.delete('/lessons/:slug', async (req, res) => {
+    const lesson = await getLessonBySlug(pool, req.params.slug, { includeDrafts: true });
+    if (!lesson) throw new PublicError('Урок не найден', 404);
+    // Опубликованный урок сносить не даём: на него уже могут вести ссылки с
+    // площадок, и удалять его надо осознанно — сначала снять с публикации.
+    if (lesson.status === 'published') {
+      throw new PublicError('Урок опубликован. Сначала снимите его с витрины, потом удаляйте', 409);
+    }
+
+    const result = await deleteLesson(config, pool, lesson.id);
+    res.json(result);
   });
 
   // Повтор упавшего шага. Ставится ровно та задача, что упала, с теми же

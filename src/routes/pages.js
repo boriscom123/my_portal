@@ -8,6 +8,7 @@ import { offlinePage } from '../views/offline.js';
 import { telegramReturnPage } from '../views/telegram-return.js';
 import { adminUploadPage } from '../views/admin-upload.js';
 import { adminHomePage } from '../views/admin-home.js';
+import { adminLessonsPage } from '../views/admin-lessons.js';
 import { adminReviewPage } from '../views/admin-review.js';
 import { adminPreviewPage } from '../views/admin-preview.js';
 import { mediaLink } from '../lib/media-token.js';
@@ -127,6 +128,15 @@ export function pageRoutes(config, pool) {
     const lessons = await listLessons(pool, { includeDrafts: true });
     res.type('html').send(
       adminHomePage({ config, user, lessons, diskConnected: await diskConnected() })
+    );
+  });
+
+  // Уроки: завести, открыть, убрать. Отдельной страницей от кабинета: кабинет
+  // — это обзор, а здесь распоряжаются самим существованием урока.
+  router.get('/admin/lessons', requireAdmin, async (req, res) => {
+    const user = await currentUser(pool, req);
+    res.type('html').send(
+      adminLessonsPage({ config, user, lessons: await listLessons(pool, { includeDrafts: true }) })
     );
   });
 

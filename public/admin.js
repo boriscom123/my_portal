@@ -466,3 +466,45 @@ document.querySelectorAll('[data-cover-remove]').forEach((button) => {
     }
   });
 });
+
+/* --- Уроки: завести и убрать --------------------------------------------- */
+
+const newLessonForm = document.querySelector('[data-new-lesson]');
+newLessonForm?.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const title = new FormData(newLessonForm).get('title');
+  const button = event.submitter ?? newLessonForm.querySelector('button');
+
+  try {
+    await withButtonState(button, 'Завожу…', 'Готово', async () => {
+      const answer = await request('/api/admin/lessons', {
+        method: 'POST',
+        body: JSON.stringify({ title })
+      });
+      // Сразу открываем заведённый урок: следующее действие всё равно там.
+      if (answer) location.href = `/admin/lesson/${answer.lesson.slug}`;
+    });
+  } catch (error) {
+    toast(`Не завелось: ${error.message}`, true);
+  }
+});
+
+// Удаление урока необратимо: вместе с ним уходят файлы, расшифровка и отзывы.
+// Поэтому подтверждение называет урок по имени, а не спрашивает «вы уверены?».
+document.querySelectorAll('[data-lesson-delete]').forEach((button) => {
+  button.addEventListener('click', async () => {
+    const slug = button.dataset.lessonDelete;
+    const title = button.closest('.admin-lesson')?.querySelector('h3')?.textContent.trim() ?? slug;
+    if (!confirm(`Удалить урок «${title}» со всеми файлами, расшифровкой и отзывами?`)) return;
+
+    button.disabled = true;
+    try {
+      const answer = await request(`/api/admin/lessons/${slug}`, { method: 'DELETE' });
+      if (answer) location.reload();
+      else button.disabled = false;
+    } catch (error) {
+      toast(`Не удалилось: ${error.message}`, true);
+      button.disabled = false;
+    }
+  });
+});

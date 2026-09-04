@@ -85,7 +85,9 @@ export function adminHomePage({ config, user, lessons, diskConnected }) {
 <h1>Кабинет</h1>
 
 <nav class="admin-nav">
-  <a class="button-brand" href="/admin/upload">Загрузить урок</a>
+  <a class="button-brand" href="/admin/lessons">Уроки</a>
+  <a class="button" href="/admin/upload">Загрузить запись</a>
+  <a class="button" href="/admin/settings">Настройки</a>
   <a class="button" href="/ideas">Идеи зрителей</a>
   <a class="button" href="/">Витрина</a>
 </nav>
