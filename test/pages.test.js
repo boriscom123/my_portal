@@ -175,3 +175,26 @@ test('внутренние ссылки кабинета ведут на сущ�
     );
   }
 });
+
+test('обложка видна на самой странице урока, а не только в превью ссылки', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const lesson = await saveLesson(pool, {
+      slug: 'urok',
+      title: 'Урок',
+      status: 'published',
+      publishedAt: new Date(),
+      coverUrl: '/media/asset/7'
+    });
+    const app = finalize(createApp({ config, pool }));
+    await withServer(app, async (base) => {
+      const html = await (
+        await fetch(`${base}/lesson/urok`, { headers: { Accept: 'text/html' } })
+      ).text();
+      // Обложка уходила только в превью ссылки, и страница оставалась без
+      // единой картинки — заказчик назвал её недоделанной, и был прав.
+      assert.match(html, /<img class="lesson-cover" src="\/media\/asset\/7"/);
+      assert.match(html, /og:image" content="https:\/\/[^"]*\/media\/asset\/7"/);
+    });
+    assert.ok(lesson.id);
+  });
+});

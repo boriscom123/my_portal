@@ -364,7 +364,7 @@ test('пока записи нет, главное действие — загр
           }
         })
       ).text();
-      assert.match(html, /class="button-brand" href="\/admin\/upload">Загрузить запись/);
+      assert.match(html, /Загрузить запись/);
       // Проверять нечего: записи нет.
       assert.ok(!html.includes('Проверить запись'));
       assert.ok(!html.includes('Заменить запись'));
@@ -384,14 +384,22 @@ test('когда запись есть, загрузка перестаёт бы
         })
       ).text();
       // Звать загрузить запись, когда она загружена, — звать сделать сделанное.
-      assert.ok(!/button-brand" href="\/admin\/upload"/.test(html));
+      assert.ok(!html.includes('Загрузить запись'));
       assert.match(html, /Заменить запись/);
       assert.match(html, /Проверить запись/);
-      // Названия должны объяснять разницу, а не требовать её угадывать.
-      assert.match(html, /Страница урока/);
-      assert.match(html, /«Проверить запись» — плеер с записью и субтитрами/);
       assert.ok(!html.includes('Как видит зритель'));
       assert.ok(!html.includes('Смотреть с субтитрами'));
+
+      // В навигации остаётся только возврат к списку: остальные действия
+      // живут в своих разделах, где понятно, к чему они относятся.
+      // Закрытие ищем ОТ начала блока: первый </nav> в документе принадлежит
+      // меню в шапке, и срез вышел бы пустым.
+      const from = html.indexOf('<nav class="admin-nav">');
+      const nav = html.slice(from, html.indexOf('</nav>', from));
+      assert.match(nav, /href="\/admin\/lessons">← Уроки/);
+      assert.ok(!nav.includes('preview'), 'проверка записи снова в навигации');
+      assert.ok(!nav.includes('/admin/upload'), 'загрузка снова в навигации');
+      assert.ok(!/href="\/lesson\//.test(nav), 'страница урока снова в навигации');
     });
   });
 });

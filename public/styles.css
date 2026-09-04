@@ -1552,3 +1552,16 @@ label[for='cover-file'] {
     transition: none;
   }
 }
+
+/* Обложка на странице урока. До сих пор она уходила только в превью ссылки, и
+   страница оставалась без единой картинки. */
+.lesson-cover {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  display: block;
+  margin-bottom: var(--gap);
+}

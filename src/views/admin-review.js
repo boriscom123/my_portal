@@ -66,25 +66,7 @@ export function adminReviewPage({
     body: `
 <nav class="admin-nav">
   <a class="button" href="/admin/lessons">← Уроки</a>
-  ${
-    hasSource
-      ? `<a class="button-brand" href="/admin/lesson/${encodeURIComponent(lesson.slug)}/preview">
-           Проверить запись
-         </a>`
-      : '<a class="button-brand" href="/admin/upload">Загрузить запись</a>'
-  }
-  <a class="button" href="/lesson/${encodeURIComponent(lesson.slug)}">Страница урока</a>
-  ${hasSource ? '<a class="button" href="/admin/upload">Заменить запись</a>' : ''}
 </nav>
-${
-  hasSource
-    ? `<p class="hint">
-         «Проверить запись» — плеер с записью и субтитрами: смотрите, как
-         подписи ложатся на видео. «Страница урока» — то же, что увидит зритель
-         на витрине.
-       </p>`
-    : ''
-}
 
 <h1>${escapeHtml(lesson.title)}</h1>
 <p class="meta">
@@ -107,6 +89,32 @@ ${
 </section>`
     : ''
 }
+
+<section class="card">
+  <h2>Запись</h2>
+  ${
+    hasSource
+      ? `<p class="hint">
+           Длительность ${escapeHtml(humanDuration(lesson.durationSeconds))}. Плеер
+           показывает запись вместе с дорожкой субтитров — так видно, как подписи
+           ложатся на видео.
+         </p>
+         <p class="form-row">
+           <a class="button-brand"
+              href="/admin/lesson/${encodeURIComponent(lesson.slug)}/preview">
+             Проверить запись
+           </a>
+           <a class="button" href="/admin/upload">Заменить запись</a>
+         </p>`
+      : `<p class="hint">
+           Записи ещё нет. Загрузите её с компьютера или возьмите с Яндекс Диска —
+           дальше конвейер сделает расшифровку, субтитры, монтаж и нарезки сам.
+         </p>
+         <p class="form-row">
+           <a class="button-brand" href="/admin/upload">Загрузить запись</a>
+         </p>`
+  }
+</section>
 
 <section class="card">
   <h2>Обложка</h2>
@@ -201,6 +209,11 @@ ${
   <p class="hint">
     Публикация показывает урок на витрине и рассылает уведомление подписчикам —
     один раз: повторное сохранение никого не разбудит второй раз.
+  </p>
+  <p class="form-row">
+    <a class="button" href="/lesson/${encodeURIComponent(lesson.slug)}">
+      Открыть страницу урока
+    </a>
   </p>
 </section>
 

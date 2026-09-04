@@ -83,6 +83,12 @@ export function lessonPage({
     image: lesson.coverUrl,
     body: `
 <article class="lesson" data-lesson="${lesson.id}">
+  ${
+    lesson.coverUrl
+      ? `<img class="lesson-cover" src="${escapeHtml(lesson.coverUrl)}" alt=""
+             width="1280" height="720">`
+      : ''
+  }
   <p class="meta">${escapeHtml(lesson.publishedAt ? formatDate(lesson.publishedAt) : 'черновик')}</p>
   <h1>${escapeHtml(lesson.title)}</h1>
   <p class="lead">${escapeHtml(lesson.description)}</p>
