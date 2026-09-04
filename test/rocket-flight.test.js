@@ -9,7 +9,9 @@ import {
   distance,
   flightMs,
   isOnScreen,
-  flightTarget
+  flightTarget,
+  flightKeyframes,
+  restingTransform
 } from '../public/rocket-flight.js';
 
 const base = { x: 100, y: 100 };
@@ -38,8 +40,9 @@ test('время полёта растёт с расстоянием, но в п
   const far = flightMs(base, { x: 1900, y: 1000 });
   assert.ok(near < far, 'через весь экран не должно быть так же быстро, как на соседнюю кнопку');
   // Ниже нижней границы полёт выглядит рывком, выше верхней — заставляет ждать.
-  assert.ok(near >= 260, `вышло ${near} мс`);
-  assert.ok(far <= 1400, `вышло ${far} мс`);
+  // Границы подняты впятеро по просьбе заказчика: прежние читались как рывок.
+  assert.ok(near >= 1300, `вышло ${near} мс`);
+  assert.ok(far <= 7000, `вышло ${far} мс`);
   assert.equal(distance(base, { x: 100, y: 400 }), 300);
 });
 
@@ -85,4 +88,57 @@ test('летим к тому, по чему нажали осмысленно', 
   assert.equal(flightTarget(null), null);
   // Сам знак — это база: лететь из базы в базу незачем.
   assert.equal(flightTarget(node([CONTROL, '.logo'])), null);
+});
+
+test('в середине пути ракета крупнее, по краям обычная', async () => {
+  const { flightKeyframes } = await import('../public/rocket-flight.js');
+  const frames = flightKeyframes({ x: 0, y: 0 }, { x: 400, y: 0 }, {
+    size: { width: 14, height: 34 }
+  });
+
+  // Три кадра, а не два: плавным переходом наплыв к середине не сделать —
+  // переход умеет только начало и конец.
+  assert.equal(frames.length, 3);
+  assert.deepEqual(frames.map((f) => f.offset), [0, 0.5, 1]);
+  assert.match(frames[0].transform, /scale\(1\)/);
+  assert.match(frames[2].transform, /scale\(1\)/);
+  // К середине ракета словно выходит на орбиту и проходит ближе к смотрящему.
+  const peak = Number(frames[1].transform.match(/scale\(([\d.]+)\)/)[1]);
+  assert.ok(peak > 1.4, `в середине вышло ${peak}`);
+});
+
+test('середина кадров — это середина пути', () => {
+  const frames = flightKeyframes({ x: 0, y: 0 }, { x: 400, y: 200 }, {
+    size: { width: 10, height: 10 }
+  });
+  // Иначе наплыв случался бы не там, где летит ракета, и выглядел бы рывком.
+  assert.match(frames[1].transform, /translate\(195px, 95px\)/);
+});
+
+test('угол один на весь перелёт', () => {
+  const frames = flightKeyframes({ x: 0, y: 0 }, { x: 0, y: 300 }, {
+    size: { width: 10, height: 10 }
+  });
+  // Ракета летит по прямой и уже смотрит носом на цель: доворачивать в пути
+  // незачем.
+  const angles = frames.map((f) => f.transform.match(/rotate\((-?[\d.]+)deg\)/)[1]);
+  assert.equal(new Set(angles).size, 1, `углы разошлись: ${angles}`);
+  assert.equal(Math.abs(Number(angles[0])), 180, 'вниз');
+});
+
+test('полёт стал впятеро медленнее', () => {
+  // Заказчик попросил именно «примерно в пять раз»: до этого движение
+  // читалось как рывок, за ним не успевал глаз.
+  const short = flightMs({ x: 0, y: 0 }, { x: 10, y: 0 });
+  const long = flightMs({ x: 0, y: 0 }, { x: 1900, y: 900 });
+  assert.ok(short >= 1200, `короткий перелёт ${short} мс — всё ещё рывок`);
+  assert.ok(long >= 5000, `дальний перелёт ${long} мс`);
+});
+
+test('стоянка задаётся без наплыва и без поворота', () => {
+  // На стоянке ракета стоит ровно и обычного размера: с ней в шапке сверяется
+  // глаз, и накренённый знак читается как сбой.
+  const resting = restingTransform({ x: 100, y: 50 }, { width: 14, height: 34 });
+  assert.equal(resting, 'translate(93px, 33px) rotate(0deg)');
+  assert.ok(!resting.includes('scale'));
 });

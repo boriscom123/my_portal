@@ -434,7 +434,14 @@ if (navMenu) {
  *
  * Расчёты живут в rocket-flight.js: их можно проверить без браузера, и они
  * проверены. Здесь только то, для чего нужны настоящие узлы страницы. */
-import { angleFor, centerOf, flightMs, isOnScreen, flightTarget } from './rocket-flight.js';
+import {
+  centerOf,
+  flightMs,
+  flightKeyframes,
+  restingTransform,
+  isOnScreen,
+  flightTarget
+} from './rocket-flight.js';
 
 const rocketLayer = document.querySelector('[data-rocket]');
 const rocketHome = document.querySelector('.logo .rocket');
@@ -444,77 +451,78 @@ if (rocketLayer && rocketHome && !reducedMotion.matches) {
   // Куда летим: узел страницы или null — значит домой, на стоянку.
   let target = null;
   let goingHome = false;
+  let flight = null;
 
-  /** Где стоянка прямо сейчас: шапка закреплена, но её высота меняется. */
   const homePoint = () => centerOf(rocketHome.getBoundingClientRect());
-
-  /** Где ракета сейчас — с учётом того, что она может быть в середине полёта. */
-  const currentPoint = () => centerOf(rocketLayer.getBoundingClientRect());
-
   const viewport = () => ({ width: window.innerWidth, height: window.innerHeight });
 
   /**
-   * Направляет ракету в точку от её нынешнего положения.
-   *
-   * Отсчёт идёт от того места, где ракета видна СЕЙЧАС, а не от прошлой цели:
-   * иначе новое нажатие на лету заставляло бы её сперва долететь до старой
-   * цели. Заказчик просил разворот сразу.
+   * Размер знака без учёта наплыва.
+   * Мерить надо именно так: в середине пути ракета крупнее, и снятый в этот
+   * миг размер сдвинул бы её на пол-корпуса при следующем перелёте.
    */
-  const aim = (point) => {
-    const from = currentPoint();
-    const ms = flightMs(from, point);
-    const half = { x: rocketLayer.offsetWidth / 2, y: rocketLayer.offsetHeight / 2 };
-    rocketLayer.style.transition = `transform ${ms}ms cubic-bezier(0.4, 0, 0.2, 1)`;
-    rocketLayer.style.transform =
-      `translate(${point.x - half.x}px, ${point.y - half.y}px) rotate(${angleFor(from, point)}deg)`;
-  };
+  const size = () => ({ width: rocketLayer.offsetWidth, height: rocketLayer.offsetHeight });
+
+  /**
+   * Где ракета видна СЕЙЧАС — с учётом того, что она может быть в полёте.
+   * От этой точки считается новый курс: иначе нажатие на лету заставляло бы её
+   * сперва долететь до старой цели.
+   */
+  const currentPoint = () => centerOf(rocketLayer.getBoundingClientRect());
 
   const land = () => {
     target = null;
     goingHome = false;
+    flight = null;
     rocketLayer.hidden = true;
     rocketHome.classList.remove('away');
+  };
+
+  /** Ведёт ракету в точку. onDone вызывается только при долёте, не при отмене. */
+  const flyTo = (point, onDone) => {
+    const from = currentPoint();
+    // Отмену делаем ПОСЛЕ замера: отменённая анимация возвращает узел в
+    // исходное положение, и замер после неё дал бы старую точку.
+    if (flight) flight.cancel();
+    // Закрепляем нынешнее положение в стиле, иначе следующий кадр начнётся со
+    // стоянки — ракета прыгнет.
+    rocketLayer.style.transform = restingTransform(from, size());
+
+    flight = rocketLayer.animate(flightKeyframes(from, point, { size: size() }), {
+      duration: flightMs(from, point),
+      // Разгон и торможение: равномерное движение выглядит как перетаскивание
+      // мышью, а не как полёт.
+      easing: 'ease-in-out',
+      fill: 'forwards'
+    });
+    flight.onfinish = onDone;
   };
 
   const flyHome = () => {
     target = null;
     goingHome = true;
-    aim(homePoint());
+    flyTo(homePoint(), land);
   };
 
-  /** Ставит ракету на стоянку без перехода — с этого начинается любой вылет. */
+  /** Ставит ракету на стоянку без движения — с этого начинается любой вылет. */
   const takeOff = () => {
     // Показать раньше, чем мерить: у спрятанного узла размеры нулевые, и
     // ракета встала бы на пол-корпуса мимо стоянки.
     rocketLayer.hidden = false;
     rocketHome.classList.add('away');
-    const home = homePoint();
-    const half = { x: rocketLayer.offsetWidth / 2, y: rocketLayer.offsetHeight / 2 };
-    rocketLayer.style.transition = 'none';
-    rocketLayer.style.transform = `translate(${home.x - half.x}px, ${home.y - half.y}px)`;
-    // Заставляем браузер учесть начальное положение: без этого первый перелёт
-    // случается мгновенно — переходу не с чего начинать.
-    void rocketLayer.offsetWidth;
+    rocketLayer.style.transform = restingTransform(homePoint(), size());
   };
-
-  rocketLayer.addEventListener('transitionend', (event) => {
-    if (event.propertyName !== 'transform') return;
-    // Долетели: с цели — домой, с дома — на стоянку. Нажатие на лету сюда не
-    // попадает: оно подменяет переход, и этот обработчик для прерванного
-    // перелёта не срабатывает.
-    if (goingHome) land();
-    else flyHome();
-  });
 
   document.addEventListener('click', (event) => {
     const found = flightTarget(event.target);
     if (!found) return;
 
-    const parked = rocketLayer.hidden;
+    if (rocketLayer.hidden) takeOff();
     target = found;
     goingHome = false;
-    if (parked) takeOff();
-    aim(centerOf(found.getBoundingClientRect()));
+    // Долетели до цели — домой. Нажали ещё раз по пути — этот обработчик не
+    // сработает: анимация будет отменена, а отменённая не завершается.
+    flyTo(centerOf(found.getBoundingClientRect()), flyHome);
   });
 
   // Цель уехала прокруткой — разворачиваемся домой, не дожидаясь прилёта.
