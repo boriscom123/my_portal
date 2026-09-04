@@ -13,6 +13,7 @@ import { mkdir, stat, writeFile, rm, access } from 'node:fs/promises';
 import { runFfmpeg, ffmpegArgsForClip } from '../lib/ffmpeg.js';
 import { toSrt } from '../lib/srt.js';
 import { mediaPath, registerAsset, assetById } from '../services/media.js';
+import { addJob } from '../queue.js';
 
 // Длина фрагмента. Минута — потолок площадок; сорок пять секунд оставляют
 // запас и не обрывают мысль на полуслове.
@@ -159,7 +160,7 @@ export function makeMakeClips(config, pool, queue) {
 
     // Нарезки — предпоследний шаг: обложка ставит урок на проверку, и она
     // должна быть последней, иначе автор увидит «ждёт проверки» на середине.
-    await queue.add('makeCover', { lessonId });
+    await addJob(queue, 'makeCover', { lessonId });
     return { clips: made.length };
   };
 }

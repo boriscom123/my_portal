@@ -12,6 +12,7 @@ import { Readable } from 'node:stream';
 import path from 'node:path';
 import { mediaPath, registerAsset } from '../services/media.js';
 import { loadIntegration, diskDownloadUrl } from '../services/disk.js';
+import { addJob } from '../queue.js';
 
 /**
  * Обеззараживает имя файла, пришедшее с чужого сервиса.
@@ -58,7 +59,7 @@ export function makeFetchSource(config, pool, queue, fetchImpl = fetch) {
       [asset.id, lessonId]
     );
 
-    await queue.add('extractAudio', { lessonId });
+    await addJob(queue, 'extractAudio', { lessonId });
     return { bytes: size };
   };
 }

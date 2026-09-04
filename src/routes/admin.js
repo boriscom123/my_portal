@@ -10,6 +10,7 @@ import { requireAdmin } from '../middleware/guards.js';
 import { PublicError } from '../middleware/errors.js';
 import { saveLesson, setLessonTags, getLessonBySlug } from '../services/lessons.js';
 import { notifyAboutLesson } from '../services/notify/lesson.js';
+import { addJob } from '../queue.js';
 
 /** Теги строкой из формы — в список: «docker, vps» → ['docker', 'vps']. */
 export function parseTags(value) {
@@ -78,7 +79,7 @@ export function adminRoutes(config, pool) {
       `UPDATE lessons SET pipeline_state = 'processing', pipeline_error = NULL WHERE id = $1`,
       [rows[0].id]
     );
-    await req.app.locals.queue.add(job.name, job.data ?? { lessonId: Number(rows[0].id) });
+    await addJob(req.app.locals.queue, job.name, job.data ?? { lessonId: Number(rows[0].id) });
     res.json({ step: job.name });
   });
 

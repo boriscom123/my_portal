@@ -6,6 +6,7 @@
 // Вызывается воркером по имени JOBS.transcribe.
 import { access } from 'node:fs/promises';
 import { mediaPath, assetById } from '../services/media.js';
+import { addJob } from '../queue.js';
 
 export function makeTranscribe(config, pool, queue, speech) {
   return async ({ lessonId, audioAssetId }) => {
@@ -56,7 +57,7 @@ export function makeTranscribe(config, pool, queue, speech) {
     // Речи в записи может не быть вовсе — например, урок целиком показывает
     // экран под музыку. Это не повод ронять обработку: субтитры пропускаем и
     // идём сразу за обложкой, иначе урок застрял бы на полпути.
-    await queue.add(segments.length ? 'subtitles' : 'makeCover', { lessonId });
+    await addJob(queue, segments.length ? 'subtitles' : 'makeCover', { lessonId });
     return { segments: segments.length, dropped, characters: text.length };
   };
 }

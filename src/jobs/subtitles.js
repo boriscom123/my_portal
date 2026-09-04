@@ -7,6 +7,7 @@
 import { writeFile, mkdir, stat } from 'node:fs/promises';
 import { toSrt, toVtt } from '../lib/srt.js';
 import { mediaPath, registerAsset } from '../services/media.js';
+import { addJob } from '../queue.js';
 
 export function makeSubtitles(config, pool, queue) {
   return async ({ lessonId }) => {
@@ -43,7 +44,7 @@ export function makeSubtitles(config, pool, queue) {
     // Следующий шаг — вертикальные нарезки: им нужны и субтитры, и реплики с
     // временами. Тексты от модели пропущены: они требовали облака, которого не
     // будет; заголовок пишет автор на экране проверки.
-    await queue.add('makeClips', { lessonId });
+    await addJob(queue, 'makeClips', { lessonId });
     return { segments: segments.length };
   };
 }

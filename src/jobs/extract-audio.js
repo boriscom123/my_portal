@@ -9,6 +9,7 @@ import { mkdir, stat, access } from 'node:fs/promises';
 import path from 'node:path';
 import { runFfmpeg, ffmpegArgsForAudio, probeDuration } from '../lib/ffmpeg.js';
 import { mediaPath, registerAsset, assetById } from '../services/media.js';
+import { addJob } from '../queue.js';
 
 export function makeExtractAudio(config, pool, queue) {
   return async ({ lessonId }) => {
@@ -58,7 +59,7 @@ export function makeExtractAudio(config, pool, queue) {
 
     // Следующий шаг ставим сами: знание о порядке конвейера живёт в шагах, а
     // не размазано по вызывающим.
-    await queue.add('transcribe', { lessonId, audioAssetId: asset.id });
+    await addJob(queue, 'transcribe', { lessonId, audioAssetId: asset.id });
     return { audioAssetId: asset.id, bytes: size, duration };
   };
 }

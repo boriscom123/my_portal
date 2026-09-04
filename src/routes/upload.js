@@ -18,6 +18,7 @@ import path from 'node:path';
 import { requireAdmin } from '../middleware/guards.js';
 import { PublicError } from '../middleware/errors.js';
 import { mediaPath, registerAsset } from '../services/media.js';
+import { addJob } from '../queue.js';
 
 // Размер куска. Восемь мегабайт: меньше — слишком много запросов на часовой
 // ролик, больше — обрыв стоит дороже, а память расходуется зря.
@@ -86,7 +87,7 @@ export function uploadRoutes(config, pool) {
     // Работа идёт в воркере: скачивание гигабайтного файла занимает минуты, а
     // HTTP-запрос столько не живёт — человек закроет вкладку и не узнает, чем
     // кончилось.
-    await req.app.locals.queue.add('fetchSource', { lessonId, diskPath: String(diskPath) });
+    await addJob(req.app.locals.queue, 'fetchSource', { lessonId, diskPath: String(diskPath) });
     res.json({ ok: true });
   });
 
