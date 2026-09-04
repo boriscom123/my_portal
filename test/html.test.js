@@ -233,3 +233,55 @@ test('строки надписи меряются шириной блока, а
     assert.match(rule.slice(0, 600), /font-size: [\d.]+cqi/, selector);
   }
 });
+
+test('в заглавном блоке крутятся опубликованные уроки со ссылками', async () => {
+  const { hero } = await import('../src/views/hero.js');
+  const markup = hero({
+    lessons: [
+      { slug: 'pervyj', title: 'Первый урок', description: 'Ставим VPS. И дальше текст.', status: 'published' },
+      { slug: 'vtoroj', title: 'Второй урок', description: '', status: 'published' },
+      { slug: 'chernovik', title: 'Черновик', description: '', status: 'draft' }
+    ]
+  });
+
+  assert.match(markup, /data-rotator/);
+  assert.match(markup, /href="\/lesson\/pervyj"/);
+  assert.match(markup, /href="\/lesson\/vtoroj"/);
+  // Черновики сюда не попадают даже автору: заглавный блок — витрина, а не
+  // рабочий стол.
+  assert.ok(!markup.includes('chernovik'));
+  // В описании берём первое предложение: абзац целиком в заглавный блок не
+  // влезает.
+  assert.match(markup, /Ставим VPS\.<\/span>/);
+  assert.ok(!markup.includes('И дальше текст'));
+});
+
+test('без скрипта виден первый урок, а не пустое место', async () => {
+  const { hero } = await import('../src/views/hero.js');
+  const markup = hero({
+    lessons: [
+      { slug: 'a', title: 'А', status: 'published' },
+      { slug: 'b', title: 'Б', status: 'published' }
+    ]
+  });
+  // Первый помечен в разметке, а не выбирается на месте: иначе у пришедшего
+  // без скрипта заглавный блок оказался бы пустым.
+  assert.match(markup, /<li class="hero-item current">[\s\S]{0,120}href="\/lesson\/a"/);
+  assert.equal(markup.match(/class="hero-item current"/g).length, 1);
+});
+
+test('пока уроков нет, вместо пустоты стоит текст', async () => {
+  const { hero } = await import('../src/views/hero.js');
+  const markup = hero({ lessons: [] });
+  assert.ok(!markup.includes('data-rotator'));
+  assert.match(markup, /hero-empty/);
+  assert.match(markup, /Первый урок уже собирается/);
+});
+
+test('пересменка не копится при переходах между страницами', async () => {
+  const app = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
+  // Счётчик живёт между переходами: без остановки прошлого их копилось бы всё
+  // больше, и уроки замелькали бы.
+  assert.match(app, /clearInterval\(rotatorTimer\)/);
+  assert.match(app, /function initPage\(\) \{\s*startRotator\(\);/);
+});

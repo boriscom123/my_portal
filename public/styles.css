@@ -1480,3 +1480,61 @@ label[for='cover-file'] {
   white-space: nowrap;
 }
 
+
+/* --- Сменяющиеся уроки в заглавном блоке --------------------------------- */
+
+.hero-rotator {
+  list-style: none;
+  padding: 0;
+  margin: clamp(18px, 3cqi, 30px) auto 0;
+  max-width: 34rem;
+  /* Высота от самой длинной строки: без сетки блок прыгал бы при каждой смене,
+     утаскивая за собой всё, что ниже. */
+  display: grid;
+}
+.hero-item {
+  grid-area: 1 / 1;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 600ms ease;
+}
+.hero-item.current {
+  opacity: 1;
+  visibility: visible;
+}
+.hero-item a {
+  display: grid;
+  gap: 6px;
+  text-decoration: none;
+  color: var(--fg);
+}
+.hero-item a:hover .hero-item-title,
+.hero-item a:focus .hero-item-title {
+  color: var(--flame);
+}
+.hero-item-title {
+  font-weight: 600;
+  font-size: clamp(17px, 4cqi, 22px);
+  line-height: 1.25;
+}
+.hero-item-text {
+  color: var(--muted);
+  font-size: clamp(14px, 3cqi, 16px);
+  line-height: 1.45;
+}
+
+.hero-empty {
+  margin: clamp(18px, 3cqi, 30px) auto 0;
+  max-width: 34rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* Без скрытия по visibility ссылки соседних уроков остаются доступны
+   клавиатуре и программе чтения с экрана: человек ушёл бы по ссылке, которой
+   не видит. */
+@media (prefers-reduced-motion: reduce) {
+  .hero-item {
+    transition: none;
+  }
+}

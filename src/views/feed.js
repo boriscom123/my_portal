@@ -61,9 +61,7 @@ export function feedPage({ config, lessons, news, user, tag = null }) {
 ${
   tag
     ? `<h1>${escapeHtml(heading)}</h1><p><a href="/">← все уроки</a></p>`
-    : `${hero()}
-<p class="lead">Claude Code, свой VPS и Telegram-бот. Каждый урок — работающий кусок системы,
-а не пример из документации. Код и переписка с заказчиком лежат в открытом репозитории.</p>`
+    : hero({ lessons })
 }
 
 <section>

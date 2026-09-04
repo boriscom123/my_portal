@@ -184,7 +184,49 @@ window
  *
  * Обработчики шапки и всего окна живут снаружи: шапка не подменяется, а
  * привязывать их заново значило бы копить их с каждым переходом. */
+// Пересменка уроков в заглавном блоке живёт между переходами: без остановки
+// прошлого счётчика после каждого перехода их копилось бы всё больше, и уроки
+// замелькали бы.
+let rotatorTimer = null;
+
+/**
+ * Сменяет уроки в заглавном блоке.
+ * Пауза при наведении и при попадании в блок клавиатурой: читать строку,
+ * которая уезжает из-под курсора, невозможно.
+ */
+function startRotator() {
+  clearInterval(rotatorTimer);
+  const rotator = document.querySelector('[data-rotator]');
+  if (!rotator) return;
+
+  const items = [...rotator.querySelectorAll('.hero-item')];
+  if (items.length < 2) return;
+
+  let index = items.findIndex((item) => item.classList.contains('current'));
+  let paused = false;
+
+  const show = (next) => {
+    items[index]?.classList.remove('current');
+    index = (next + items.length) % items.length;
+    items[index].classList.add('current');
+  };
+
+  for (const event of ['mouseenter', 'focusin']) {
+    rotator.addEventListener(event, () => (paused = true));
+  }
+  for (const event of ['mouseleave', 'focusout']) {
+    rotator.addEventListener(event, () => (paused = false));
+  }
+
+  // Пять секунд: короткий заголовок читается за две, длинное описание за
+  // четыре, и запас нужен тому, кто отвлёкся.
+  rotatorTimer = setInterval(() => {
+    if (!paused && !document.hidden) show(index + 1);
+  }, 5000);
+}
+
 function initPage() {
+  startRotator();
   const notificationsButton = document.querySelector('[data-notifications]');
 
   // Раздел настроек без объяснения выглядит поломкой: кнопка спрятана, и почему

@@ -17,8 +17,6 @@ export function stubPage(config, user = null) {
       'Видеоуроки о разработке с ИИ: Claude Code, свой VPS и Telegram-бот. Уроки, новости и борд идей для будущих выпусков.',
     body: `
 ${hero()}
-<p style="max-width:34rem">Claude Code, свой VPS и Telegram-бот. Каждый урок — работающий кусок системы,
-а не пример из документации. Код и переписка с заказчиком лежат в открытом репозитории.</p>
 
 <div class="card" style="max-width:34rem">
   <p style="margin-top:0"><span class="flame-dot"></span> <span class="flame">сайт строится</span></p>
