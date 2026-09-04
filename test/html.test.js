@@ -159,3 +159,35 @@ test('настройки открыты и гостю, но уведомлени
   const viewer = settingsPage({ config, user: { displayName: 'Зритель', role: 'user' } });
   assert.ok(!viewer.includes('/admin/settings'), 'зрителю показали подключения площадок');
 });
+
+test('летающий знак лежит отдельным слоем и не ловит нажатия', async () => {
+  const html = layout({ config, title: 'Т', description: 'о', body: '' });
+  // Слой отдельный, а не тот же узел, что в шапке: вырывать знак из разметки
+  // шапки ради полёта значит ломать её вёрстку на время движения.
+  assert.match(html, /<div class="rocket-flight" data-rocket hidden aria-hidden="true">/);
+  // Ракета в шапке остаётся — это стоянка.
+  assert.match(html, /<a class="logo"[\s\S]{0,200}class="rocket/);
+
+  const styles = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
+  const layer = styles.slice(styles.indexOf('.rocket-flight {'));
+  // Иначе пролетающая ракета перехватывала бы нажатия у кнопок под собой.
+  assert.match(layer.slice(0, 400), /pointer-events: none/);
+  // Заказчик просил: ракета не должна скрываться прокруткой.
+  assert.match(layer.slice(0, 400), /position: fixed/);
+});
+
+test('шапка закреплена, иначе ракете некуда лететь', async () => {
+  const styles = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
+  // Ракета летит к разделу навигации, а для этого раздел обязан оставаться на
+  // экране при прокрутке.
+  assert.match(styles, /\.site-header \{[\s\S]{0,200}position: sticky/);
+});
+
+test('кому движение мешает, тому его и не будет', async () => {
+  const styles = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
+  // Не вкусовщина: у части людей от движения на экране кружится голова.
+  assert.match(
+    styles,
+    /@media \(prefers-reduced-motion: reduce\)[\s\S]{0,200}\.rocket-flight[\s\S]{0,80}display: none/
+  );
+});
