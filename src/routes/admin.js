@@ -184,6 +184,10 @@ export function adminRoutes(config, pool) {
     if (!lesson.title) throw new PublicError('Сначала нужен заголовок — по нему и рисуем', 409);
     if (!req.app.locals.queue) throw new PublicError('Очередь недоступна', 503);
 
+    // Прошлый отказ убираем: иначе он покажется как ответ на новое нажатие.
+    await pool.query(`UPDATE lessons SET generated = generated - 'sideError' WHERE id = $1`, [
+      lesson.id
+    ]);
     await addJob(req.app.locals.queue, 'makeCoverImage', { lessonId: lesson.id });
     res.json({ started: true });
   });

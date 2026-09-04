@@ -186,6 +186,15 @@ export function pageRoutes(config, pool) {
       : null;
     const trimmedLabel = trimmedSeconds ? timeLabel(Math.round(trimmedSeconds * 1000)) : '—';
 
+    // Отказ показывается один раз — сразу после попытки — и стирается.
+    // Иначе он висит на странице вечно: заказчик нажал «нарисовать» однажды, а
+    // красная надпись про чужую квоту встречала его при каждом заходе.
+    if (lesson.sideError) {
+      await pool
+        .query(`UPDATE lessons SET generated = generated - 'sideError' WHERE id = $1`, [lesson.id])
+        .catch((error) => console.error('Не удалось убрать отказ довеска:', error.message));
+    }
+
     res.type('html').send(
       adminReviewPage({
         config,

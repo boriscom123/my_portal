@@ -272,3 +272,53 @@ test('удалить исходник или чужую обложку этим 
     assert.equal(rows[0].n, 2, 'ни один файл удалиться не должен был');
   });
 });
+
+test('отказ рисования показывается один раз и уходит', skipWithoutDb, async () => {
+  const config = await makeConfig();
+  await withTestDb(async (pool) => {
+    const { lesson, headers } = await seed(pool, config);
+    await pool.query(
+      `UPDATE lessons SET generated = jsonb_set(generated, '{sideError}', $1::jsonb) WHERE id = $2`,
+      [JSON.stringify({ step: 'makeCoverImage', message: 'квота исчерпана' }), lesson.id]
+    );
+
+    const app = finalize(createApp({ config, pool }));
+    await withServer(app, async (base) => {
+      const page = () =>
+        fetch(`${base}/admin/lesson/urok`, {
+          headers: { Accept: 'text/html', ...headers }
+        }).then((response) => response.text());
+
+      // Первый заход после попытки — отказ виден.
+      assert.match(await page(), /Нарисовать не вышло: квота исчерпана/);
+      // Второй — уже нет: иначе красная надпись про чужую квоту встречает
+      // автора при каждом заходе, хотя нажимал он однажды.
+      assert.ok(!(await page()).includes('Нарисовать не вышло'));
+    });
+  });
+});
+
+test('новая попытка не показывает прошлый отказ как свежий', skipWithoutDb, async () => {
+  const config = await makeConfig();
+  await withTestDb(async (pool) => {
+    const { lesson, headers } = await seed(pool, config);
+    await pool.query(
+      `UPDATE lessons SET generated = jsonb_set(generated, '{sideError}', $1::jsonb) WHERE id = $2`,
+      [JSON.stringify({ step: 'makeCoverImage', message: 'старый отказ' }), lesson.id]
+    );
+
+    const app = finalize(createApp({ config, pool, queue: { add: async () => {} } }));
+    await withServer(app, async (base) => {
+      const res = await fetch(`${base}/api/admin/lessons/urok/cover-image`, {
+        method: 'POST',
+        headers
+      });
+      assert.equal(res.status, 200);
+    });
+    const { rows } = await pool.query(
+      `SELECT generated ? 'sideError' AS has FROM lessons WHERE id = $1`,
+      [lesson.id]
+    );
+    assert.equal(rows[0].has, false);
+  });
+});
