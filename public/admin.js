@@ -413,3 +413,34 @@ document.querySelectorAll('[data-cover]').forEach((button) => {
     else button.disabled = false;
   });
 });
+
+// Загрузка обложки с компьютера. Одним запросом, а не кусками: картинка
+// небольшая, и протокол с продолжением после обрыва тут был бы лишним.
+const coverInput = document.querySelector('[data-cover-upload]');
+coverInput?.addEventListener('change', async () => {
+  const file = coverInput.files[0];
+  if (!file) return;
+
+  const label = document.querySelector('label[for="cover-file"]');
+  const wasText = label?.textContent;
+  if (label) label.textContent = 'Загружаю…';
+
+  try {
+    // Тип не подставляем свой: сервер всё равно определяет его по первым
+    // байтам файла, а не по заголовку.
+    const response = await fetch(`/api/upload/cover/${coverInput.dataset.coverUpload}`, {
+      method: 'PUT',
+      body: file
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body.error ?? `сервер ответил ${response.status}`);
+    }
+    toast('Обложка загружена.');
+    location.reload();
+  } catch (error) {
+    toast(`Не загрузилось: ${error.message}`, true);
+    if (label) label.textContent = wasText;
+    coverInput.value = '';
+  }
+});

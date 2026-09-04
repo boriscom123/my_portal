@@ -1230,3 +1230,9 @@ form[action='/search'] input {
   border: 1px solid var(--line);
   display: block;
 }
+
+/* Кнопка выбора файла: своё поле браузер рисует по-своему в каждом, поэтому
+   само поле спрятано, а нажимают на подпись к нему. */
+label[for='cover-file'] {
+  cursor: pointer;
+}

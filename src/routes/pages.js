@@ -31,6 +31,23 @@ import {
 import { PublicError } from '../middleware/errors.js';
 
 /**
+ * Откуда взялась обложка — словами.
+ * Видов три, и различаются они именем файла: кадр вырезал конвейер,
+ * нарисованную дала модель, загруженную принёс автор. Без подписи выбор из
+ * трёх одинаковых картинок превращается в угадывание.
+ * Вызывается из обработчика /admin/lesson/:slug.
+ */
+function coverLabel(row) {
+  const labels = [
+    ['cover-drawn', 'нарисованная'],
+    ['cover-uploaded', 'загруженная вами'],
+    ['cover', 'кадр из записи']
+  ];
+  const found = labels.find(([part]) => row.path.includes(part));
+  return { id: Number(row.id), label: found ? found[1] : 'обложка' };
+}
+
+/**
  * Текущий пользователь для шаблона: только имя и роль.
  * Зачем отдельной функцией: то же самое нужно каждой странице, а тащить в
  * шаблон весь req незачем — вид не должен знать про HTTP.
@@ -171,12 +188,7 @@ export function pageRoutes(config, pool) {
         transcript: transcript[0]?.text ?? null,
         // Обложек у урока бывает две: кадр из записи и нарисованная. Автор
         // выбирает, какая идёт в карточку.
-        covers: assets
-          .filter((row) => row.kind === 'cover')
-          .map((row) => ({
-            id: Number(row.id),
-            label: row.path.includes('cover-drawn') ? 'нарисованная' : 'кадр из записи'
-          })),
+        covers: assets.filter((row) => row.kind === 'cover').map(coverLabel),
         segments: segmentRows.map((row) => ({
           id: Number(row.id),
           startedMs: Number(row.started_ms),

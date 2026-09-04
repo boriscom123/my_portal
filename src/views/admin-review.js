@@ -117,17 +117,22 @@ ${
            .join('')}</ul>`
       : ''
   }
-  <p class="form-row">
+  <div class="form-row">
     <button class="button" type="button" data-draw-cover="${escapeHtml(lesson.slug)}"
       ${lesson.title ? '' : 'disabled title="Сначала нужен заголовок"'}>
       Нарисовать обложку
     </button>
-  </p>
+    <label class="button" for="cover-file">Загрузить с компьютера</label>
+    <input id="cover-file" type="file" accept="image/png,image/jpeg,image/webp" hidden
+      data-cover-upload="${escapeHtml(lesson.slug)}">
+  </div>
   <p class="hint">
     Кадр из записи берётся с десятой части урока и часто показывает экран
-    редактора. Рисование идёт минуту с лишним и требует включённой оплаты на
-    проекте Google: на бесплатной доле квота на картинки нулевая. Кадр при этом
-    никуда не девается — к нему можно вернуться одним нажатием.
+    редактора. Готовую картинку можно загрузить со своего компьютера — png,
+    jpeg или webp до десяти мегабайт. Рисование прямо здесь требует включённой
+    оплаты на проекте Google: на бесплатной доле квота на картинки нулевая.
+    Что бы вы ни выбрали, кадр из записи остаётся — к нему можно вернуться
+    одним нажатием.
   </p>
 </section>
 

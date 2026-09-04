@@ -18,11 +18,17 @@ import path from 'node:path';
 import { requireAdmin } from '../middleware/guards.js';
 import { PublicError } from '../middleware/errors.js';
 import { mediaPath, registerAsset } from '../services/media.js';
+import { imageTypeOf } from '../lib/image-type.js';
+import { getLessonBySlug } from '../services/lessons.js';
 import { addJob } from '../queue.js';
 
 // Размер куска. Восемь мегабайт: меньше — слишком много запросов на часовой
 // ролик, больше — обрыв стоит дороже, а память расходуется зря.
 const CHUNK_SIZE = 8 * 1024 * 1024;
+
+// Предел для обложки. Десять мегабайт с запасом покрывают любую разумную
+// картинку; больше — это уже не обложка, а чей-то способ занять диск.
+const COVER_LIMIT = 10 * 1024 * 1024;
 
 /**
  * Приводит имя файла к безопасному виду.
@@ -93,6 +99,53 @@ export function uploadRoutes(config, pool) {
 
   router.get('/:uploadId', async (req, res) => {
     res.json({ received: await receivedChunks(config, req.params.uploadId) });
+  });
+
+  // Обложка, выбранная автором на своём компьютере.
+  //
+  // Отдельно от загрузки исходника: там гигабайты кусками с продолжением после
+  // обрыва, здесь один небольшой файл, и городить вокруг него тот же протокол
+  // незачем.
+  router.put('/cover/:slug', async (req, res) => {
+    const lesson = await getLessonBySlug(pool, req.params.slug, { includeDrafts: true });
+    if (!lesson) throw new PublicError('Урок не найден', 404);
+
+    // Читаем в память, а не потоком на диск: предел небольшой, а тип файла
+    // определяется по первым байтам — писать на диск то, что окажется не
+    // картинкой, незачем.
+    const chunks = [];
+    let size = 0;
+    for await (const chunk of req) {
+      size += chunk.length;
+      if (size > COVER_LIMIT) throw new PublicError('Картинка больше десяти мегабайт', 413);
+      chunks.push(chunk);
+    }
+    const bytes = Buffer.concat(chunks);
+
+    // Вид определяем по самим байтам: заголовок и расширение задаёт браузер, а
+    // обложка потом отдаётся всем подряд.
+    const type = imageTypeOf(bytes);
+    if (!type) throw new PublicError('Это не картинка: принимаются png, jpeg и webp', 415);
+
+    const dir = `lesson-${lesson.id}`;
+    await mkdir(mediaPath(config, dir), { recursive: true });
+    // Имя постоянное: вторая загруженная обложка заменяет первую, а не копится
+    // в буфере до истечения срока.
+    const relative = `${dir}/cover-uploaded.${type}`;
+    await writeFile(mediaPath(config, relative), bytes);
+
+    const asset = await registerAsset(pool, config, {
+      lessonId: lesson.id,
+      kind: 'cover',
+      relativePath: relative,
+      bytes: bytes.length
+    });
+    await pool.query('UPDATE lessons SET cover_url = $1 WHERE id = $2', [
+      `/media/asset/${asset.id}`,
+      lesson.id
+    ]);
+
+    res.json({ assetId: asset.id, bytes: bytes.length, type });
   });
 
   router.put('/:uploadId/:index', async (req, res) => {
