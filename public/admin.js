@@ -5,7 +5,11 @@
  * нуля стоит человеку часа.
  * Подключается из src/views/admin-upload.js.
  */
-import { toast, request } from './app.js';
+// Из ui.js, а не из app.js: адрес app.js несёт отпечаток содержимого, и
+// импорт по адресу без отпечатка давал браузеру ВТОРУЮ копию модуля — со
+// вторым обработчиком выхода, второй регистрацией service worker и второй
+// ракетой.
+import { toast, request } from './ui.js';
 
 /**
  * Отправляет файл кусками, продолжая с места обрыва.
@@ -42,469 +46,480 @@ export async function uploadFile(file, lessonId, onProgress) {
   return finished.json();
 }
 
-const form = document.querySelector('#upload-form');
-form?.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const file = form.querySelector('input[type=file]').files[0];
-  const lessonId = Number(form.querySelector('select').value);
-  if (!file || !lessonId) {
-    toast('Выберите урок и файл.', true);
-    return;
-  }
-
-  const status = document.querySelector('#upload-status');
-  const progress = document.querySelector('#upload-progress');
-  const button = form.querySelector('button');
-  button.disabled = true;
-  progress.hidden = false;
-
-  try {
-    await uploadFile(file, lessonId, (share) => {
-      progress.value = Math.round(share * 100);
-      status.textContent = `Загружено ${progress.value}%`;
-    });
-    status.textContent = 'Загружено. Урок ушёл в обработку.';
-    toast('Файл принят, обработка началась.');
-  } catch (error) {
-    status.textContent = `Не дошло: ${error.message}`;
-    // Про продолжение говорим прямо: иначе человек начнёт всё заново, хотя
-    // сервер уже держит принятые куски.
-    toast(
-      `Загрузка прервалась: ${error.message}. Выберите тот же файл ещё раз — продолжим с места обрыва.`,
-      true
-    );
-  } finally {
-    button.disabled = false;
-  }
-});
-
-/* --- Подключение Яндекс Диска ------------------------------------------- */
-
-// Подключение идёт копированием кода, а не возвратом на наш адрес: в
-// приложении заказчика адрес возврата поменять нельзя. Для одного человека
-// это одно копирование раз в несколько месяцев.
-const diskCodeForm = document.querySelector('#disk-code-form');
-diskCodeForm?.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const code = new FormData(diskCodeForm).get('code');
-  const button = diskCodeForm.querySelector('button');
-  button.disabled = true;
-  try {
-    const answer = await request('/api/integrations/yandex-disk/code', {
-      method: 'POST',
-      body: JSON.stringify({ code })
-    });
-    if (answer) {
-      toast('Диск подключён.');
-      location.reload();
-    }
-  } catch (error) {
-    toast(`Не подключилось: ${error.message}`, true);
-  } finally {
-    button.disabled = false;
-  }
-});
-
-/* --- Выбор файла с Диска ------------------------------------------------- */
-
-const diskFiles = document.querySelector('#disk-files');
-if (diskFiles) {
-  /** Размер человеку: гигабайты, а не байты. */
-  const humanSize = (bytes) => `${(bytes / 1024 / 1024 / 1024).toFixed(2)} ГБ`;
-
-  request('/api/integrations/yandex-disk/files?path=disk:/')
-    .then((answer) => {
-      if (!answer) return;
-      if (!answer.files.length) {
-        diskFiles.innerHTML = '<li class="hint">В корне Диска видео не нашлось.</li>';
-        return;
-      }
-      diskFiles.innerHTML = answer.files
-        .map(
-          (file) => `<li class="form-row">
-            <span>${file.name} <span class="meta">${humanSize(file.bytes)}</span></span>
-            <button class="button" type="button" data-disk-path="${file.path}">В обработку</button>
-          </li>`
-        )
-        .join('');
-    })
-    .catch((error) => {
-      diskFiles.innerHTML = `<li class="hint">Список не читается: ${error.message}</li>`;
-    });
-
-  diskFiles.addEventListener('click', async (event) => {
-    const button = event.target.closest('[data-disk-path]');
-    if (!button) return;
-    const lessonId = Number(document.querySelector('#upload-form select').value);
-    if (!lessonId) {
-      toast('Сначала выберите урок.', true);
-      return;
-    }
-    button.disabled = true;
-    const answer = await request('/api/upload/from-disk', {
-      method: 'POST',
-      body: JSON.stringify({ lessonId, diskPath: button.dataset.diskPath })
-    });
-    if (answer) toast('Файл забирается с Диска. Обработка начнётся сама.');
-  });
-}
-
-/* --- Экран проверки урока ------------------------------------------------ */
-
-// Публикация и сохранение черновика — одна форма с двумя кнопками: тексты
-// автор правит одни и те же, разница только в том, видит ли их зритель.
-const reviewForm = document.querySelector('[data-approve]');
-reviewForm?.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const publish = event.submitter?.value === 'yes';
-  const data = new FormData(reviewForm);
-  const buttons = reviewForm.querySelectorAll('button');
-  buttons.forEach((button) => (button.disabled = true));
-
-  try {
-    const answer = await request(`/api/admin/lessons/${reviewForm.dataset.approve}/approve`, {
-      method: 'POST',
-      body: JSON.stringify({
-        title: data.get('title'),
-        description: data.get('description'),
-        tags: data.get('tags'),
-        publish
-      })
-    });
-    if (answer) {
-      toast(publish ? 'Урок опубликован, подписчики получат уведомление.' : 'Черновик сохранён.');
-      if (publish) location.href = `/lesson/${answer.lesson.slug}`;
-    }
-  } finally {
-    buttons.forEach((button) => (button.disabled = false));
-  }
-});
-
-// Повтор упавшего шага. Что именно повторяется, решает сервер по записанной
-// упавшей задаче — клиент не угадывает имя шага.
-const retryButton = document.querySelector('[data-retry]');
-retryButton?.addEventListener('click', async () => {
-  retryButton.disabled = true;
-  const answer = await request(`/api/admin/lessons/${retryButton.dataset.retry}/retry`, {
-    method: 'POST'
-  });
-  if (answer) {
-    toast(`Шаг «${answer.step}» запущен заново.`);
-    // Состояние урока меняет воркер, а не браузер: перечитываем страницу,
-    // чтобы автор увидел «обрабатывается», а не старую надпись про падение.
-    setTimeout(() => location.reload(), 1500);
-  } else {
-    retryButton.disabled = false;
-  }
-});
-
-/* --- Настройки подготовки урока ------------------------------------------ */
-
-// Вид подписей и монтаж — решения автора, а не разработчика. Пересборка идёт
-// отдельной кнопкой: она занимает у сервера полчаса.
-/**
- * Отвечает нажатием на самой кнопке, а не только всплывающим сообщением.
- * Всплывающее висит внизу экрана, а человек в этот момент смотрит на кнопку —
- * на длинной странице он его просто не видит и жмёт второй раз.
- */
-async function withButtonState(button, working, done, action) {
-  const wasText = button.textContent;
-  button.disabled = true;
-  button.textContent = working;
-  try {
-    await action();
-    button.textContent = done;
-    // Возвращаем подпись, но не сразу: иначе «Сохранено» мелькает и его не
-    // успевает заметить даже тот, кто смотрит прямо на кнопку.
-    setTimeout(() => {
-      button.textContent = wasText;
-      button.disabled = false;
-    }, 1600);
-  } catch (error) {
-    button.textContent = wasText;
-    button.disabled = false;
-    throw error;
-  }
-}
-
-const settingsForm = document.querySelector('[data-settings]');
-settingsForm?.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const data = new FormData(settingsForm);
-  const rebuild = event.submitter?.value === 'yes';
-  const pressed = event.submitter ?? settingsForm.querySelector('button');
-  const other = [...settingsForm.querySelectorAll('button')].filter((b) => b !== pressed);
-  other.forEach((button) => (button.disabled = true));
-
-  try {
-    await withButtonState(
-      pressed,
-      rebuild ? 'Запускаю…' : 'Сохраняю…',
-      rebuild ? 'Запущено' : 'Сохранено',
-      async () => {
-        const answer = await request(
-          `/api/admin/lessons/${settingsForm.dataset.settings}/settings`,
-          {
-            method: 'POST',
-            body: JSON.stringify({
-              subtitleOutline: data.get('subtitleOutline'),
-              subtitleColor: data.get('subtitleColor'),
-              cutPauses: data.get('cutPauses') === 'on',
-              minPauseSeconds: data.get('minPauseSeconds'),
-              rebuild
-            })
-          }
-        );
-        if (!answer) return;
-        toast(
-          rebuild
-            ? 'Пересборка запущена. Монтаж часовой записи занимает около получаса.'
-            : 'Настройки сохранены. Применятся при следующей сборке.'
-        );
-        // Страница перечитывается, чтобы кнопка пересборки стала выключенной:
-        // её состояние приходит с сервера, а не угадывается здесь.
-        if (rebuild) setTimeout(() => location.reload(), 1600);
-      }
-    );
-  } catch (error) {
-    // Без этого неудачное сохранение не показывало вообще ничего: request
-    // бросает, обработчик молчал, и человек видел кнопку как ни в чём не бывало.
-    toast(`Не сохранилось: ${error.message}`, true);
-  } finally {
-    if (!rebuild) other.forEach((button) => (button.disabled = false));
-  }
-});
-
-/* --- Правка титров ------------------------------------------------------- */
-
-// Распознавание ошибается в именах и терминах. Отправляем только изменённые
-// реплики: на часовом уроке их две с лишним сотни, и слать все — это мегабайт
-// ради одной поправленной строки.
-const transcriptForm = document.querySelector('[data-transcript]');
-if (transcriptForm) {
-  const original = new Map(
-    [...transcriptForm.querySelectorAll('[data-segment]')].map((input) => [
-      input.dataset.segment,
-      input.value
-    ])
-  );
-
-  transcriptForm.addEventListener('submit', async (event) => {
+/* --- Страничные обработчики ---------------------------------------------
+ *
+ * Всё это привязано к узлам внутри main, а при переходе без перезагрузки
+ * main подменяется целиком. Без повторной привязки кнопки на подменённой
+ * странице оказались бы мёртвыми — именно так эта беда и выглядит: страница
+ * открылась, а ничего не нажимается. */
+export function initPage() {
+  const form = document.querySelector('#upload-form');
+  form?.addEventListener('submit', async (event) => {
     event.preventDefault();
-    const changed = [...transcriptForm.querySelectorAll('[data-segment]')]
-      .filter((input) => input.value !== original.get(input.dataset.segment))
-      .map((input) => ({ id: Number(input.dataset.segment), text: input.value }));
-
-    if (!changed.length) {
-      toast('Ничего не поменялось.');
+    const file = form.querySelector('input[type=file]').files[0];
+    const lessonId = Number(form.querySelector('select').value);
+    if (!file || !lessonId) {
+      toast('Выберите урок и файл.', true);
       return;
     }
 
-    const button = event.submitter ?? transcriptForm.querySelector('button');
+    const status = document.querySelector('#upload-status');
+    const progress = document.querySelector('#upload-progress');
+    const button = form.querySelector('button');
+    button.disabled = true;
+    progress.hidden = false;
+
     try {
-      await withButtonState(button, 'Сохраняю…', 'Сохранено', async () => {
-        const answer = await request(
-          `/api/admin/lessons/${transcriptForm.dataset.transcript}/transcript`,
-          { method: 'POST', body: JSON.stringify({ segments: changed }) }
-        );
-        if (!answer) return;
-        for (const input of transcriptForm.querySelectorAll('[data-segment]')) {
-          original.set(input.dataset.segment, input.value);
-        }
-        toast(
-          `Поправлено реплик: ${answer.changed}. Субтитры пересобраны. ` +
-            'В вертикальные ролики правка попадёт после пересборки.'
-        );
+      await uploadFile(file, lessonId, (share) => {
+        progress.value = Math.round(share * 100);
+        status.textContent = `Загружено ${progress.value}%`;
       });
+      status.textContent = 'Загружено. Урок ушёл в обработку.';
+      toast('Файл принят, обработка началась.');
     } catch (error) {
-      toast(`Не сохранилось: ${error.message}`, true);
+      status.textContent = `Не дошло: ${error.message}`;
+      // Про продолжение говорим прямо: иначе человек начнёт всё заново, хотя
+      // сервер уже держит принятые куски.
+      toast(
+        `Загрузка прервалась: ${error.message}. Выберите тот же файл ещё раз — продолжим с места обрыва.`,
+        true
+      );
+    } finally {
+      button.disabled = false;
     }
   });
-}
 
-/* --- Заполнение полей из расшифровки ------------------------------------- */
+  /* --- Подключение Яндекс Диска ------------------------------------------- */
 
-// Заготовка, а не готовый текст: модели у портала нет, поэтому поля
-// заполняются извлечённым из расшифровки, и правит их автор.
-const autofillButton = document.querySelector('[data-autofill]');
+  // Подключение идёт копированием кода, а не возвратом на наш адрес: в
+  // приложении заказчика адрес возврата поменять нельзя. Для одного человека
+  // это одно копирование раз в несколько месяцев.
+  const diskCodeForm = document.querySelector('#disk-code-form');
+  diskCodeForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const code = new FormData(diskCodeForm).get('code');
+    const button = diskCodeForm.querySelector('button');
+    button.disabled = true;
+    try {
+      const answer = await request('/api/integrations/yandex-disk/code', {
+        method: 'POST',
+        body: JSON.stringify({ code })
+      });
+      if (answer) {
+        toast('Диск подключён.');
+        location.reload();
+      }
+    } catch (error) {
+      toast(`Не подключилось: ${error.message}`, true);
+    } finally {
+      button.disabled = false;
+    }
+  });
 
-/** Ждёт готовую заготовку, переспрашивая. null — не дождались. */
-async function waitForSuggestion(slug, seconds = 300) {
-  const deadline = Date.now() + seconds * 1000;
-  while (Date.now() < deadline) {
-    // Переспрашиваем раз в три секунды: модель отвечает за минуту с лишним, и
-    // чаще спрашивать незачем.
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-    const answer = await request(`/api/admin/lessons/${slug}/suggest`);
-    if (answer && !answer.pending) return answer;
-  }
-  return null;
-}
+  /* --- Выбор файла с Диска ------------------------------------------------- */
 
-autofillButton?.addEventListener('click', async () => {
-  const form = document.querySelector('[data-approve]');
-  if (!form) return;
-  const slug = autofillButton.dataset.autofill;
+  const diskFiles = document.querySelector('#disk-files');
+  if (diskFiles) {
+    /** Размер человеку: гигабайты, а не байты. */
+    const humanSize = (bytes) => `${(bytes / 1024 / 1024 / 1024).toFixed(2)} ГБ`;
 
-  try {
-    await withButtonState(autofillButton, 'Читаю урок…', 'Заполнено', async () => {
-      await request(`/api/admin/lessons/${slug}/suggest`, { method: 'POST' });
-      // Про время говорим честно: на бесплатной доле измеренный ответ занял
-      // от семидесяти секунд до двух с половиной минут.
-      toast('Читаю урок. Модель отвечает одну-три минуты — поля заполнятся сами.');
+    request('/api/integrations/yandex-disk/files?path=disk:/')
+      .then((answer) => {
+        if (!answer) return;
+        if (!answer.files.length) {
+          diskFiles.innerHTML = '<li class="hint">В корне Диска видео не нашлось.</li>';
+          return;
+        }
+        diskFiles.innerHTML = answer.files
+          .map(
+            (file) => `<li class="form-row">
+              <span>${file.name} <span class="meta">${humanSize(file.bytes)}</span></span>
+              <button class="button" type="button" data-disk-path="${file.path}">В обработку</button>
+            </li>`
+          )
+          .join('');
+      })
+      .catch((error) => {
+        diskFiles.innerHTML = `<li class="hint">Список не читается: ${error.message}</li>`;
+      });
 
-      const answer = await waitForSuggestion(slug);
-      if (!answer) {
-        toast('Модель не ответила за пять минут. Нажмите ещё раз позже.', true);
+    diskFiles.addEventListener('click', async (event) => {
+      const button = event.target.closest('[data-disk-path]');
+      if (!button) return;
+      const lessonId = Number(document.querySelector('#upload-form select').value);
+      if (!lessonId) {
+        toast('Сначала выберите урок.', true);
         return;
       }
-      form.querySelector('[name=title]').value = answer.title;
-      form.querySelector('[name=description]').value = answer.description;
-      form.querySelector('[name=tags]').value = answer.tags.join(', ');
-      if (answer.warning) toast(answer.warning, true);
-      else {
-        toast(
-          answer.source === 'model'
-            ? 'Поля заполнены моделью. Поправьте и сохраните.'
-            : 'Поля заполнены из расшифровки. Поправьте и сохраните.'
-        );
+      button.disabled = true;
+      const answer = await request('/api/upload/from-disk', {
+        method: 'POST',
+        body: JSON.stringify({ lessonId, diskPath: button.dataset.diskPath })
+      });
+      if (answer) toast('Файл забирается с Диска. Обработка начнётся сама.');
+    });
+  }
+
+  /* --- Экран проверки урока ------------------------------------------------ */
+
+  // Публикация и сохранение черновика — одна форма с двумя кнопками: тексты
+  // автор правит одни и те же, разница только в том, видит ли их зритель.
+  const reviewForm = document.querySelector('[data-approve]');
+  reviewForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const publish = event.submitter?.value === 'yes';
+    const data = new FormData(reviewForm);
+    const buttons = reviewForm.querySelectorAll('button');
+    buttons.forEach((button) => (button.disabled = true));
+
+    try {
+      const answer = await request(`/api/admin/lessons/${reviewForm.dataset.approve}/approve`, {
+        method: 'POST',
+        body: JSON.stringify({
+          title: data.get('title'),
+          description: data.get('description'),
+          tags: data.get('tags'),
+          publish
+        })
+      });
+      if (answer) {
+        toast(publish ? 'Урок опубликован, подписчики получат уведомление.' : 'Черновик сохранён.');
+        if (publish) location.href = `/lesson/${answer.lesson.slug}`;
       }
-    });
-  } catch (error) {
-    toast(`Не заполнилось: ${error.message}`, true);
-  }
-});
+    } finally {
+      buttons.forEach((button) => (button.disabled = false));
+    }
+  });
 
-/* --- Обложка ------------------------------------------------------------- */
-
-// Рисование идёт минуту с лишним, поэтому кнопка только ставит задачу, а
-// готовность видно по перечитанной странице: обложка — картинка, и подменять
-// её на месте значит показывать половину загруженного файла.
-const drawCoverButton = document.querySelector('[data-draw-cover]');
-drawCoverButton?.addEventListener('click', async () => {
-  try {
-    await withButtonState(drawCoverButton, 'Рисую…', 'Запущено', async () => {
-      const answer = await request(
-        `/api/admin/lessons/${drawCoverButton.dataset.drawCover}/cover-image`,
-        { method: 'POST' }
-      );
-      if (!answer) return;
-      toast('Рисую обложку. Это минута-две — обновите страницу, когда будет готово.');
-    });
-  } catch (error) {
-    toast(`Не нарисовалось: ${error.message}`, true);
-  }
-});
-
-// Выбор между кадром из записи и нарисованной. Отдельно от рисования:
-// возвращаться к кадру перерисовкой значило бы тратить минуту машины на то,
-// что уже лежит в буфере.
-document.querySelectorAll('[data-cover]').forEach((button) => {
-  button.addEventListener('click', async () => {
-    // Адрес урока берём у формы проверки: отдельный атрибут на каждой кнопке
-    // был бы четвёртой копией одного и того же значения на странице.
-    const slug = document.querySelector('[data-approve]')?.dataset.approve;
-    if (!slug) return;
-    button.disabled = true;
-    const answer = await request(`/api/admin/lessons/${slug}/cover/${button.dataset.cover}`, {
+  // Повтор упавшего шага. Что именно повторяется, решает сервер по записанной
+  // упавшей задаче — клиент не угадывает имя шага.
+  const retryButton = document.querySelector('[data-retry]');
+  retryButton?.addEventListener('click', async () => {
+    retryButton.disabled = true;
+    const answer = await request(`/api/admin/lessons/${retryButton.dataset.retry}/retry`, {
       method: 'POST'
     });
-    if (answer) location.reload();
-    else button.disabled = false;
-  });
-});
-
-// Загрузка обложки с компьютера. Одним запросом, а не кусками: картинка
-// небольшая, и протокол с продолжением после обрыва тут был бы лишним.
-const coverInput = document.querySelector('[data-cover-upload]');
-coverInput?.addEventListener('change', async () => {
-  const file = coverInput.files[0];
-  if (!file) return;
-
-  const label = document.querySelector('label[for="cover-file"]');
-  const wasText = label?.textContent;
-  if (label) label.textContent = 'Загружаю…';
-
-  try {
-    // Тип не подставляем свой: сервер всё равно определяет его по первым
-    // байтам файла, а не по заголовку.
-    const response = await fetch(`/api/upload/cover/${coverInput.dataset.coverUpload}`, {
-      method: 'PUT',
-      body: file
-    });
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({}));
-      throw new Error(body.error ?? `сервер ответил ${response.status}`);
+    if (answer) {
+      toast(`Шаг «${answer.step}» запущен заново.`);
+      // Состояние урока меняет воркер, а не браузер: перечитываем страницу,
+      // чтобы автор увидел «обрабатывается», а не старую надпись про падение.
+      setTimeout(() => location.reload(), 1500);
+    } else {
+      retryButton.disabled = false;
     }
-    toast('Обложка загружена.');
-    location.reload();
-  } catch (error) {
-    toast(`Не загрузилось: ${error.message}`, true);
-    if (label) label.textContent = wasText;
-    coverInput.value = '';
-  }
-});
+  });
 
-// Удаление обложки: загрузили не то — убрали. Спрашиваем подтверждение, потому
-// что кадр из записи заново берётся только пересборкой, а она минуты.
-document.querySelectorAll('[data-cover-remove]').forEach((button) => {
-  button.addEventListener('click', async () => {
-    if (!confirm('Удалить эту обложку? Файл уйдёт из буфера насовсем.')) return;
-    const slug = document.querySelector('[data-approve]')?.dataset.approve;
-    if (!slug) return;
+  /* --- Настройки подготовки урока ------------------------------------------ */
+
+  // Вид подписей и монтаж — решения автора, а не разработчика. Пересборка идёт
+  // отдельной кнопкой: она занимает у сервера полчаса.
+  /**
+   * Отвечает нажатием на самой кнопке, а не только всплывающим сообщением.
+   * Всплывающее висит внизу экрана, а человек в этот момент смотрит на кнопку —
+   * на длинной странице он его просто не видит и жмёт второй раз.
+   */
+  async function withButtonState(button, working, done, action) {
+    const wasText = button.textContent;
     button.disabled = true;
+    button.textContent = working;
     try {
-      const answer = await request(
-        `/api/admin/lessons/${slug}/cover/${button.dataset.coverRemove}`,
-        { method: 'DELETE' }
+      await action();
+      button.textContent = done;
+      // Возвращаем подпись, но не сразу: иначе «Сохранено» мелькает и его не
+      // успевает заметить даже тот, кто смотрит прямо на кнопку.
+      setTimeout(() => {
+        button.textContent = wasText;
+        button.disabled = false;
+      }, 1600);
+    } catch (error) {
+      button.textContent = wasText;
+      button.disabled = false;
+      throw error;
+    }
+  }
+
+  const settingsForm = document.querySelector('[data-settings]');
+  settingsForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const data = new FormData(settingsForm);
+    const rebuild = event.submitter?.value === 'yes';
+    const pressed = event.submitter ?? settingsForm.querySelector('button');
+    const other = [...settingsForm.querySelectorAll('button')].filter((b) => b !== pressed);
+    other.forEach((button) => (button.disabled = true));
+
+    try {
+      await withButtonState(
+        pressed,
+        rebuild ? 'Запускаю…' : 'Сохраняю…',
+        rebuild ? 'Запущено' : 'Сохранено',
+        async () => {
+          const answer = await request(
+            `/api/admin/lessons/${settingsForm.dataset.settings}/settings`,
+            {
+              method: 'POST',
+              body: JSON.stringify({
+                subtitleOutline: data.get('subtitleOutline'),
+                subtitleColor: data.get('subtitleColor'),
+                cutPauses: data.get('cutPauses') === 'on',
+                minPauseSeconds: data.get('minPauseSeconds'),
+                rebuild
+              })
+            }
+          );
+          if (!answer) return;
+          toast(
+            rebuild
+              ? 'Пересборка запущена. Монтаж часовой записи занимает около получаса.'
+              : 'Настройки сохранены. Применятся при следующей сборке.'
+          );
+          // Страница перечитывается, чтобы кнопка пересборки стала выключенной:
+          // её состояние приходит с сервера, а не угадывается здесь.
+          if (rebuild) setTimeout(() => location.reload(), 1600);
+        }
       );
-      if (answer) location.reload();
-      else button.disabled = false;
     } catch (error) {
-      toast(`Не удалилось: ${error.message}`, true);
-      button.disabled = false;
+      // Без этого неудачное сохранение не показывало вообще ничего: request
+      // бросает, обработчик молчал, и человек видел кнопку как ни в чём не бывало.
+      toast(`Не сохранилось: ${error.message}`, true);
+    } finally {
+      if (!rebuild) other.forEach((button) => (button.disabled = false));
     }
   });
-});
 
-/* --- Уроки: завести и убрать --------------------------------------------- */
+  /* --- Правка титров ------------------------------------------------------- */
 
-const newLessonForm = document.querySelector('[data-new-lesson]');
-newLessonForm?.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const title = new FormData(newLessonForm).get('title');
-  const button = event.submitter ?? newLessonForm.querySelector('button');
+  // Распознавание ошибается в именах и терминах. Отправляем только изменённые
+  // реплики: на часовом уроке их две с лишним сотни, и слать все — это мегабайт
+  // ради одной поправленной строки.
+  const transcriptForm = document.querySelector('[data-transcript]');
+  if (transcriptForm) {
+    const original = new Map(
+      [...transcriptForm.querySelectorAll('[data-segment]')].map((input) => [
+        input.dataset.segment,
+        input.value
+      ])
+    );
 
-  try {
-    await withButtonState(button, 'Завожу…', 'Готово', async () => {
-      const answer = await request('/api/admin/lessons', {
-        method: 'POST',
-        body: JSON.stringify({ title })
-      });
-      // Сразу открываем заведённый урок: следующее действие всё равно там.
-      if (answer) location.href = `/admin/lesson/${answer.lesson.slug}`;
+    transcriptForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const changed = [...transcriptForm.querySelectorAll('[data-segment]')]
+        .filter((input) => input.value !== original.get(input.dataset.segment))
+        .map((input) => ({ id: Number(input.dataset.segment), text: input.value }));
+
+      if (!changed.length) {
+        toast('Ничего не поменялось.');
+        return;
+      }
+
+      const button = event.submitter ?? transcriptForm.querySelector('button');
+      try {
+        await withButtonState(button, 'Сохраняю…', 'Сохранено', async () => {
+          const answer = await request(
+            `/api/admin/lessons/${transcriptForm.dataset.transcript}/transcript`,
+            { method: 'POST', body: JSON.stringify({ segments: changed }) }
+          );
+          if (!answer) return;
+          for (const input of transcriptForm.querySelectorAll('[data-segment]')) {
+            original.set(input.dataset.segment, input.value);
+          }
+          toast(
+            `Поправлено реплик: ${answer.changed}. Субтитры пересобраны. ` +
+              'В вертикальные ролики правка попадёт после пересборки.'
+          );
+        });
+      } catch (error) {
+        toast(`Не сохранилось: ${error.message}`, true);
+      }
     });
-  } catch (error) {
-    toast(`Не завелось: ${error.message}`, true);
   }
-});
 
-// Удаление урока необратимо: вместе с ним уходят файлы, расшифровка и отзывы.
-// Поэтому подтверждение называет урок по имени, а не спрашивает «вы уверены?».
-document.querySelectorAll('[data-lesson-delete]').forEach((button) => {
-  button.addEventListener('click', async () => {
-    const slug = button.dataset.lessonDelete;
-    const title = button.closest('.admin-lesson')?.querySelector('h3')?.textContent.trim() ?? slug;
-    if (!confirm(`Удалить урок «${title}» со всеми файлами, расшифровкой и отзывами?`)) return;
+  /* --- Заполнение полей из расшифровки ------------------------------------- */
 
-    button.disabled = true;
+  // Заготовка, а не готовый текст: модели у портала нет, поэтому поля
+  // заполняются извлечённым из расшифровки, и правит их автор.
+  const autofillButton = document.querySelector('[data-autofill]');
+
+  /** Ждёт готовую заготовку, переспрашивая. null — не дождались. */
+  async function waitForSuggestion(slug, seconds = 300) {
+    const deadline = Date.now() + seconds * 1000;
+    while (Date.now() < deadline) {
+      // Переспрашиваем раз в три секунды: модель отвечает за минуту с лишним, и
+      // чаще спрашивать незачем.
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      const answer = await request(`/api/admin/lessons/${slug}/suggest`);
+      if (answer && !answer.pending) return answer;
+    }
+    return null;
+  }
+
+  autofillButton?.addEventListener('click', async () => {
+    const form = document.querySelector('[data-approve]');
+    if (!form) return;
+    const slug = autofillButton.dataset.autofill;
+
     try {
-      const answer = await request(`/api/admin/lessons/${slug}`, { method: 'DELETE' });
-      if (answer) location.reload();
-      else button.disabled = false;
+      await withButtonState(autofillButton, 'Читаю урок…', 'Заполнено', async () => {
+        await request(`/api/admin/lessons/${slug}/suggest`, { method: 'POST' });
+        // Про время говорим честно: на бесплатной доле измеренный ответ занял
+        // от семидесяти секунд до двух с половиной минут.
+        toast('Читаю урок. Модель отвечает одну-три минуты — поля заполнятся сами.');
+
+        const answer = await waitForSuggestion(slug);
+        if (!answer) {
+          toast('Модель не ответила за пять минут. Нажмите ещё раз позже.', true);
+          return;
+        }
+        form.querySelector('[name=title]').value = answer.title;
+        form.querySelector('[name=description]').value = answer.description;
+        form.querySelector('[name=tags]').value = answer.tags.join(', ');
+        if (answer.warning) toast(answer.warning, true);
+        else {
+          toast(
+            answer.source === 'model'
+              ? 'Поля заполнены моделью. Поправьте и сохраните.'
+              : 'Поля заполнены из расшифровки. Поправьте и сохраните.'
+          );
+        }
+      });
     } catch (error) {
-      toast(`Не удалилось: ${error.message}`, true);
-      button.disabled = false;
+      toast(`Не заполнилось: ${error.message}`, true);
     }
   });
-});
+
+  /* --- Обложка ------------------------------------------------------------- */
+
+  // Рисование идёт минуту с лишним, поэтому кнопка только ставит задачу, а
+  // готовность видно по перечитанной странице: обложка — картинка, и подменять
+  // её на месте значит показывать половину загруженного файла.
+  const drawCoverButton = document.querySelector('[data-draw-cover]');
+  drawCoverButton?.addEventListener('click', async () => {
+    try {
+      await withButtonState(drawCoverButton, 'Рисую…', 'Запущено', async () => {
+        const answer = await request(
+          `/api/admin/lessons/${drawCoverButton.dataset.drawCover}/cover-image`,
+          { method: 'POST' }
+        );
+        if (!answer) return;
+        toast('Рисую обложку. Это минута-две — обновите страницу, когда будет готово.');
+      });
+    } catch (error) {
+      toast(`Не нарисовалось: ${error.message}`, true);
+    }
+  });
+
+  // Выбор между кадром из записи и нарисованной. Отдельно от рисования:
+  // возвращаться к кадру перерисовкой значило бы тратить минуту машины на то,
+  // что уже лежит в буфере.
+  document.querySelectorAll('[data-cover]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      // Адрес урока берём у формы проверки: отдельный атрибут на каждой кнопке
+      // был бы четвёртой копией одного и того же значения на странице.
+      const slug = document.querySelector('[data-approve]')?.dataset.approve;
+      if (!slug) return;
+      button.disabled = true;
+      const answer = await request(`/api/admin/lessons/${slug}/cover/${button.dataset.cover}`, {
+        method: 'POST'
+      });
+      if (answer) location.reload();
+      else button.disabled = false;
+    });
+  });
+
+  // Загрузка обложки с компьютера. Одним запросом, а не кусками: картинка
+  // небольшая, и протокол с продолжением после обрыва тут был бы лишним.
+  const coverInput = document.querySelector('[data-cover-upload]');
+  coverInput?.addEventListener('change', async () => {
+    const file = coverInput.files[0];
+    if (!file) return;
+
+    const label = document.querySelector('label[for="cover-file"]');
+    const wasText = label?.textContent;
+    if (label) label.textContent = 'Загружаю…';
+
+    try {
+      // Тип не подставляем свой: сервер всё равно определяет его по первым
+      // байтам файла, а не по заголовку.
+      const response = await fetch(`/api/upload/cover/${coverInput.dataset.coverUpload}`, {
+        method: 'PUT',
+        body: file
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error ?? `сервер ответил ${response.status}`);
+      }
+      toast('Обложка загружена.');
+      location.reload();
+    } catch (error) {
+      toast(`Не загрузилось: ${error.message}`, true);
+      if (label) label.textContent = wasText;
+      coverInput.value = '';
+    }
+  });
+
+  // Удаление обложки: загрузили не то — убрали. Спрашиваем подтверждение, потому
+  // что кадр из записи заново берётся только пересборкой, а она минуты.
+  document.querySelectorAll('[data-cover-remove]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      if (!confirm('Удалить эту обложку? Файл уйдёт из буфера насовсем.')) return;
+      const slug = document.querySelector('[data-approve]')?.dataset.approve;
+      if (!slug) return;
+      button.disabled = true;
+      try {
+        const answer = await request(
+          `/api/admin/lessons/${slug}/cover/${button.dataset.coverRemove}`,
+          { method: 'DELETE' }
+        );
+        if (answer) location.reload();
+        else button.disabled = false;
+      } catch (error) {
+        toast(`Не удалилось: ${error.message}`, true);
+        button.disabled = false;
+      }
+    });
+  });
+
+  /* --- Уроки: завести и убрать --------------------------------------------- */
+
+  const newLessonForm = document.querySelector('[data-new-lesson]');
+  newLessonForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const title = new FormData(newLessonForm).get('title');
+    const button = event.submitter ?? newLessonForm.querySelector('button');
+
+    try {
+      await withButtonState(button, 'Завожу…', 'Готово', async () => {
+        const answer = await request('/api/admin/lessons', {
+          method: 'POST',
+          body: JSON.stringify({ title })
+        });
+        // Сразу открываем заведённый урок: следующее действие всё равно там.
+        if (answer) location.href = `/admin/lesson/${answer.lesson.slug}`;
+      });
+    } catch (error) {
+      toast(`Не завелось: ${error.message}`, true);
+    }
+  });
+
+  // Удаление урока необратимо: вместе с ним уходят файлы, расшифровка и отзывы.
+  // Поэтому подтверждение называет урок по имени, а не спрашивает «вы уверены?».
+  document.querySelectorAll('[data-lesson-delete]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const slug = button.dataset.lessonDelete;
+      const title = button.closest('.admin-lesson')?.querySelector('h3')?.textContent.trim() ?? slug;
+      if (!confirm(`Удалить урок «${title}» со всеми файлами, расшифровкой и отзывами?`)) return;
+
+      button.disabled = true;
+      try {
+        const answer = await request(`/api/admin/lessons/${slug}`, { method: 'DELETE' });
+        if (answer) location.reload();
+        else button.disabled = false;
+      } catch (error) {
+        toast(`Не удалилось: ${error.message}`, true);
+        button.disabled = false;
+      }
+    });
+  });
+
+}
+
+initPage();

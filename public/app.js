@@ -1,4 +1,9 @@
 import { keyToBytes } from './push-key.js';
+import { startNavigation } from './navigation.js';
+import { toast, request, reportError } from './ui.js';
+
+// Помощники живут в ui.js; реэкспорт — чтобы не рвать чужие импорты.
+export { toast, request };
 
 /* Клиент портала: ванильный JS, без сборки.
  *
@@ -10,81 +15,6 @@ import { keyToBytes } from './push-key.js';
  * Подключается из src/views/layout.js на каждой странице.
  */
 
-/**
- * Короткое сообщение внизу экрана.
- * Зачем: без него отказ браузера остаётся между ним и нами, а человек видит
- * кнопку, которая «ничего не делает». Именно так и вышло с уведомлениями:
- * подписка падала молча.
- * Вызывается отовсюду, где действие человека может не получиться.
- */
-export function toast(text, isError = false) {
-  const box = document.createElement('div');
-  box.className = `toast${isError ? ' error' : ''}`;
-  // role="alert" заставляет программу чтения с экрана прочитать сообщение
-  // сразу, а не дождаться паузы: ошибка нужна человеку немедленно.
-  box.setAttribute('role', isError ? 'alert' : 'status');
-
-  const line = document.createElement('span');
-  line.textContent = text;
-  box.append(line);
-
-  if (isError) {
-    // Ошибку не прячем по таймеру: её надо успеть прочитать, а иногда и
-    // переписать. Закрывает человек, когда прочитал.
-    const close = document.createElement('button');
-    close.type = 'button';
-    close.className = 'toast-close';
-    close.textContent = '×';
-    close.setAttribute('aria-label', 'Закрыть сообщение');
-    close.addEventListener('click', () => box.remove());
-    box.append(close);
-  } else {
-    setTimeout(() => box.remove(), 6000);
-  }
-
-  document.body.append(box);
-}
-
-/**
- * Отправляет текст сбоя в журнал сервера.
- * Зачем: отказы браузера видит только человек у экрана, и он пересказывает их
- * по памяти. Пусть точный текст лежит там, где его можно прочитать. Шлём
- * только от вошедших — на публичный маршрут иначе полился бы мусор.
- * Вызывается там, где сбой невиден серверу.
- */
-async function reportError(where, error) {
-  try {
-    await fetch('/api/client-error', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ where, message: String(error?.message ?? error) })
-    });
-  } catch {
-    // Не дошло — не беда: человеку сообщение уже показано.
-  }
-}
-
-/**
- * Запрос к своему API с общей обработкой отказов.
- * Зачем: «войдите» на 401 нужно во всех обработчиках без исключения, и
- * повторять это в каждом — верный способ где-нибудь забыть.
- * Вызывается всеми обработчиками этого файла.
- */
-export async function request(url, options = {}) {
-  const res = await fetch(url, {
-    ...options,
-    headers: { 'Content-Type': 'application/json', ...(options.headers ?? {}) }
-  });
-  if (res.status === 401) {
-    location.href = '/login';
-    return null;
-  }
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error ?? 'Ошибка');
-  }
-  return res.json();
-}
 
 /* --- Уведомления --------------------------------------------------------
  * Кнопка появляется только там, где подписка вообще возможна: у гостя её нет,
@@ -209,76 +139,6 @@ async function subscribeToPush(key) {
   await request('/api/push/subscribe', { method: 'POST', body: JSON.stringify(subscription) });
 }
 
-const notificationsButton = document.querySelector('[data-notifications]');
-
-// Раздел настроек без объяснения выглядит поломкой: кнопка спрятана, и почему
-// — непонятно. Чаще всего это iOS в браузере: там уведомления работают только
-// у портала, установленного на домашний экран.
-if (notificationsButton && !('Notification' in window && 'serviceWorker' in navigator)) {
-  const note = document.querySelector('[data-notifications-note]');
-  if (note) note.hidden = false;
-}
-
-if (notificationsButton && 'Notification' in window && 'serviceWorker' in navigator) {
-  // Ключ забираем заранее, при загрузке страницы. Это не преждевременная
-  // оптимизация, а необходимость: Safari разрешает спрашивать разрешение
-  // только прямо в обработчике нажатия, а поход в сеть перед этим разрывает
-  // связь с нажатием — и подписка падает. Ровно на этом мы и стояли.
-  let vapidKey = null;
-
-  request('/api/push/key')
-    .then(async (answer) => {
-      if (!answer?.key) return;
-      vapidKey = answer.key;
-      notificationsButton.hidden = false;
-
-      const registration = await navigator.serviceWorker.getRegistration();
-      if (registration && (await registration.pushManager.getSubscription())) {
-        notificationsButton.title = 'Уведомления включены';
-        notificationsButton.disabled = true;
-      }
-    })
-    .catch(() => {
-      // Ключей нет или сервер недоступен — кнопка так и остаётся скрытой.
-    });
-
-  notificationsButton.addEventListener('click', () => {
-    if (isApple() && !isInstalledApp()) {
-      toast(
-        'На iPhone уведомления работают только в приложении: «Поделиться» → «На экран Домой», ' +
-          'потом открыть с домашнего экрана.',
-        true
-      );
-      reportError('push-not-standalone', new Error('открыто не как приложение'));
-      return;
-    }
-    if (!vapidKey) {
-      toast('Уведомления пока не настроены на сервере.', true);
-      return;
-    }
-
-    // Вызов идёт первой строкой и без await перед ним: так браузер видит, что
-    // разрешение спрашивают в ответ на нажатие человека.
-    Notification.requestPermission()
-      .then(async (permission) => {
-        if (permission !== 'granted') {
-          toast('Уведомления запрещены. Разрешить их можно в настройках браузера.', true);
-          return;
-        }
-        await subscribeToPush(vapidKey);
-        notificationsButton.title = 'Уведомления включены';
-        notificationsButton.disabled = true;
-        toast('Готово — уведомления о новых уроках будут приходить сюда.');
-      })
-      .catch((error) => {
-        // Показываем текст браузера как есть: он объясняет причину точнее
-        // любой нашей догадки. Тот же текст уходит в журнал сервера.
-        toast(`Не удалось включить уведомления: ${error.message}`, true);
-        reportError('push-subscribe', error);
-      });
-  });
-}
-
 /* --- Тема ---------------------------------------------------------------
  * По умолчанию берётся системная настройка, кнопка её перебивает. Выбор
  * хранится в браузере: сервер о нём не знает и знать не должен — это личная
@@ -316,93 +176,183 @@ window
   .matchMedia('(prefers-color-scheme: dark)')
   .addEventListener('change', updateThemeColor);
 
-document.querySelector('[data-theme-toggle]')?.addEventListener('click', () => {
-  const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const current = document.documentElement.dataset.theme || (systemDark ? 'dark' : 'light');
-  const next = current === 'dark' ? 'light' : 'dark';
-  applyTheme(next);
-  try {
-    localStorage.setItem(THEME_KEY, next);
-  } catch {
-    // Не сохранилось — тема продержится до перезагрузки страницы.
+/* --- Страничные обработчики ---------------------------------------------
+ *
+ * Всё, что привязано к узлам ВНУТРИ main. При переходе без перезагрузки
+ * содержимое main подменяется целиком, узлы становятся новыми, и без
+ * повторной привязки кнопки на подменённой странице оказались бы мёртвыми.
+ *
+ * Обработчики шапки и всего окна живут снаружи: шапка не подменяется, а
+ * привязывать их заново значило бы копить их с каждым переходом. */
+function initPage() {
+  const notificationsButton = document.querySelector('[data-notifications]');
+
+  // Раздел настроек без объяснения выглядит поломкой: кнопка спрятана, и почему
+  // — непонятно. Чаще всего это iOS в браузере: там уведомления работают только
+  // у портала, установленного на домашний экран.
+  if (notificationsButton && !('Notification' in window && 'serviceWorker' in navigator)) {
+    const note = document.querySelector('[data-notifications-note]');
+    if (note) note.hidden = false;
   }
-});
 
-/* --- Карточка урока: реакции и отзывы ----------------------------------- */
+  if (notificationsButton && 'Notification' in window && 'serviceWorker' in navigator) {
+    // Ключ забираем заранее, при загрузке страницы. Это не преждевременная
+    // оптимизация, а необходимость: Safari разрешает спрашивать разрешение
+    // только прямо в обработчике нажатия, а поход в сеть перед этим разрывает
+    // связь с нажатием — и подписка падает. Ровно на этом мы и стояли.
+    let vapidKey = null;
 
-const lessonCard = document.querySelector('[data-lesson]');
-if (lessonCard) {
-  const objectId = Number(lessonCard.dataset.lesson);
+    request('/api/push/key')
+      .then(async (answer) => {
+        if (!answer?.key) return;
+        vapidKey = answer.key;
+        notificationsButton.hidden = false;
 
-  for (const button of lessonCard.querySelectorAll('[data-rating]')) {
-    button.addEventListener('click', async () => {
-      // Нажатие по уже отданной оценке снимает её: иначе передумать нельзя,
-      // а сервер всё равно хранит одну оценку на человека.
-      // Имя класса обязано совпадать с тем, что ставит вид: разъехавшись, они
-      // не ломаются заметно — просто снять оценку становится нельзя, а
-      // повторное нажатие ставит её заново. Так и было после чистки кириллицы.
-      const isChosen = button.classList.contains('chosen');
-      const answer = await request('/api/reactions', {
-        method: isChosen ? 'DELETE' : 'POST',
-        body: JSON.stringify({ objectType: 'lesson', objectId, kind: button.dataset.rating })
+        const registration = await navigator.serviceWorker.getRegistration();
+        if (registration && (await registration.pushManager.getSubscription())) {
+          notificationsButton.title = 'Уведомления включены';
+          notificationsButton.disabled = true;
+        }
+      })
+      .catch(() => {
+        // Ключей нет или сервер недоступен — кнопка так и остаётся скрытой.
       });
-      if (answer) location.reload();
+
+    notificationsButton.addEventListener('click', () => {
+      if (isApple() && !isInstalledApp()) {
+        toast(
+          'На iPhone уведомления работают только в приложении: «Поделиться» → «На экран Домой», ' +
+            'потом открыть с домашнего экрана.',
+          true
+        );
+        reportError('push-not-standalone', new Error('открыто не как приложение'));
+        return;
+      }
+      if (!vapidKey) {
+        toast('Уведомления пока не настроены на сервере.', true);
+        return;
+      }
+
+      // Вызов идёт первой строкой и без await перед ним: так браузер видит, что
+      // разрешение спрашивают в ответ на нажатие человека.
+      Notification.requestPermission()
+        .then(async (permission) => {
+          if (permission !== 'granted') {
+            toast('Уведомления запрещены. Разрешить их можно в настройках браузера.', true);
+            return;
+          }
+          await subscribeToPush(vapidKey);
+          notificationsButton.title = 'Уведомления включены';
+          notificationsButton.disabled = true;
+          toast('Готово — уведомления о новых уроках будут приходить сюда.');
+        })
+        .catch((error) => {
+          // Показываем текст браузера как есть: он объясняет причину точнее
+          // любой нашей догадки. Тот же текст уходит в журнал сервера.
+          toast(`Не удалось включить уведомления: ${error.message}`, true);
+          reportError('push-subscribe', error);
+        });
     });
   }
 
-  const form = document.querySelector('#comment-form');
-  form?.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const button = form.querySelector('button');
-    button.disabled = true;
+  document.querySelector('[data-theme-toggle]')?.addEventListener('click', () => {
+    const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const current = document.documentElement.dataset.theme || (systemDark ? 'dark' : 'light');
+    const next = current === 'dark' ? 'light' : 'dark';
+    applyTheme(next);
     try {
-      const answer = await request('/api/comments', {
-        method: 'POST',
-        body: JSON.stringify({
-          objectType: 'lesson',
-          objectId,
-          body: new FormData(form).get('body')
-        })
-      });
-      // Перезагружаем: отзыв скрыт до проверки, но своему автору он виден —
-      // человек должен увидеть, что его слова не пропали.
-      if (answer) location.reload();
-    } finally {
-      button.disabled = false;
+      localStorage.setItem(THEME_KEY, next);
+    } catch {
+      // Не сохранилось — тема продержится до перезагрузки страницы.
     }
   });
-}
 
-/* --- Борд идей ----------------------------------------------------------- */
+  /* --- Карточка урока: реакции и отзывы ----------------------------------- */
 
-// Счётчик правим на месте, без перезагрузки: голосуют подряд за несколько идей,
-// и перезагрузка на каждый голос сбрасывала бы прокрутку к началу списка.
-for (const button of document.querySelectorAll('[data-vote]')) {
-  button.addEventListener('click', async () => {
-    const isVoted = button.classList.contains('отдан');
-    const answer = await request(`/api/ideas/${button.dataset.vote}/vote`, {
-      method: isVoted ? 'DELETE' : 'POST'
+  const lessonCard = document.querySelector('[data-lesson]');
+  if (lessonCard) {
+    const objectId = Number(lessonCard.dataset.lesson);
+
+    for (const button of lessonCard.querySelectorAll('[data-rating]')) {
+      button.addEventListener('click', async () => {
+        // Нажатие по уже отданной оценке снимает её: иначе передумать нельзя,
+        // а сервер всё равно хранит одну оценку на человека.
+        // Имя класса обязано совпадать с тем, что ставит вид: разъехавшись, они
+        // не ломаются заметно — просто снять оценку становится нельзя, а
+        // повторное нажатие ставит её заново. Так и было после чистки кириллицы.
+        const isChosen = button.classList.contains('chosen');
+        const answer = await request('/api/reactions', {
+          method: isChosen ? 'DELETE' : 'POST',
+          body: JSON.stringify({ objectType: 'lesson', objectId, kind: button.dataset.rating })
+        });
+        if (answer) location.reload();
+      });
+    }
+
+    const form = document.querySelector('#comment-form');
+    form?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const button = form.querySelector('button');
+      button.disabled = true;
+      try {
+        const answer = await request('/api/comments', {
+          method: 'POST',
+          body: JSON.stringify({
+            objectType: 'lesson',
+            objectId,
+            body: new FormData(form).get('body')
+          })
+        });
+        // Перезагружаем: отзыв скрыт до проверки, но своему автору он виден —
+        // человек должен увидеть, что его слова не пропали.
+        if (answer) location.reload();
+      } finally {
+        button.disabled = false;
+      }
     });
-    if (!answer) return;
-    const counter = button.querySelector('span');
-    counter.textContent = Number(counter.textContent) + (isVoted ? -1 : 1);
-    button.classList.toggle('отдан');
-    button.setAttribute('aria-label', isVoted ? 'Проголосовать' : 'Отозвать голос');
+  }
+
+  /* --- Борд идей ----------------------------------------------------------- */
+
+  // Счётчик правим на месте, без перезагрузки: голосуют подряд за несколько идей,
+  // и перезагрузка на каждый голос сбрасывала бы прокрутку к началу списка.
+  for (const button of document.querySelectorAll('[data-vote]')) {
+    button.addEventListener('click', async () => {
+      const isVoted = button.classList.contains('отдан');
+      const answer = await request(`/api/ideas/${button.dataset.vote}/vote`, {
+        method: isVoted ? 'DELETE' : 'POST'
+      });
+      if (!answer) return;
+      const counter = button.querySelector('span');
+      counter.textContent = Number(counter.textContent) + (isVoted ? -1 : 1);
+      button.classList.toggle('отдан');
+      button.setAttribute('aria-label', isVoted ? 'Проголосовать' : 'Отозвать голос');
+    });
+  }
+
+  const ideaForm = document.querySelector('#idea-form');
+  ideaForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const data = new FormData(ideaForm);
+    const answer = await request('/api/ideas', {
+      method: 'POST',
+      body: JSON.stringify({ title: data.get('title'), body: data.get('body') })
+    });
+    // Здесь перезагрузка уместна: идея видна сразу, и человек должен увидеть её
+    // в списке на своём месте — по числу голосов, а не там, где он ожидал.
+    if (answer) location.reload();
   });
+
 }
 
-const ideaForm = document.querySelector('#idea-form');
-ideaForm?.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const data = new FormData(ideaForm);
-  const answer = await request('/api/ideas', {
-    method: 'POST',
-    body: JSON.stringify({ title: data.get('title'), body: data.get('body') })
-  });
-  // Здесь перезагрузка уместна: идея видна сразу, и человек должен увидеть её
-  // в списке на своём месте — по числу голосов, а не там, где он ожидал.
-  if (answer) location.reload();
-});
+initPage();
+
+/* --- Переходы без перезагрузки -------------------------------------------
+ * Страницы по-прежнему собираются на сервере: поисковик их видит, мессенджер
+ * разворачивает превью, без скрипта портал работает. Здесь только подмена
+ * содержимого — и ради неё шапка не перерисовывается, поэтому летящая ракета
+ * долетает, а не начинает с нуля. */
+startNavigation({ onNavigated: initPage });
 
 /* --- Меню в шапке --------------------------------------------------------
  * Само меню работает без скрипта: это details, и оно откроется, даже если этот

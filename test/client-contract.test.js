@@ -50,10 +50,12 @@ test('у каждой зацепки в разметке есть обработ
     for (const match of source.matchAll(/\sdata-([a-z-]+)[=>\s]/g)) hooks.add(match[1]);
   }
 
-  const client = [
-    await readPublic('app.js'),
-    await readPublic('admin.js')
-  ].join('\n');
+  // Клиент разложен по модулям, и зацепку может слушать любой из них.
+  const client = (
+    await Promise.all(
+      ['app.js', 'admin.js', 'ui.js', 'navigation.js', 'rocket-flight.js'].map(readPublic)
+    )
+  ).join('\n');
 
   for (const hook of hooks) {
     assert.ok(
@@ -81,4 +83,31 @@ test('клиент ищет тот же класс отданной оценки
     client.includes(`classList.contains('${emitted}')`),
     `вид ставит класс ${emitted}, а клиент ищет другой`
   );
+});
+
+test('кабинет не тянет вторую копию общего кода', async () => {
+  // app.js страница грузит по адресу с отпечатком содержимого. Импорт из
+  // admin.js шёл по адресу без отпечатка — для браузера это ДРУГОЙ модуль, и
+  // весь общий код в кабинете выполнялся дважды: два обработчика выхода, две
+  // регистрации service worker, две ракеты.
+  const admin = await readPublic('admin.js');
+  assert.ok(
+    !/from '\.\/app\.js'/.test(admin),
+    'admin.js снова импортирует app.js — в кабинете будет вторая копия'
+  );
+  assert.match(admin, /from '\.\/ui\.js'/);
+});
+
+test('страничные обработчики привязываются заново после перехода', async () => {
+  // При переходе без перезагрузки содержимое main подменяется целиком: узлы
+  // новые, и без повторной привязки кнопки оказались бы мёртвыми.
+  const app = await readPublic('app.js');
+  assert.match(app, /function initPage\(\)/);
+  assert.match(app, /startNavigation\(\{ onNavigated: initPage \}\)/);
+  // Кабинет отдаёт свою привязку наружу: её вызывает переход, потому что
+  // повторный импорт уже загруженного модуля ничего не выполняет.
+  const admin = await readPublic('admin.js');
+  assert.match(admin, /export function initPage\(\)/);
+  const navigation = await readPublic('navigation.js');
+  assert.match(navigation, /module\.initPage\?\.\(\)/);
 });
