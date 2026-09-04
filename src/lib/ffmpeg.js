@@ -95,7 +95,14 @@ export function ffmpegArgsForClip({ input, subtitles, startSeconds, durationSeco
     'scale=1080:1920',
     // Шрифт называем явно: без имени libass просит Arial, которого в образе
     // нет, и подписи молча не рисуются.
-    `subtitles=${escaped}:force_style='FontName=DejaVu Sans,Fontsize=18,Outline=2,Alignment=2,MarginV=120'`
+    // Размер и отступ libass считает от условной высоты кадра в 288 точек, а
+    // не от настоящих 1920 — всё здесь умножается примерно на семь. Первый
+    // прогон с Fontsize=18 дал буквы в шестую часть экрана и шесть строк
+    // поверх записи, а MarginV=90 поднял подпись на шестьсот точек, в середину
+    // кадра. Десять и сорок — это буквы в семьдесят точек внизу кадра:
+    // читается с телефона, не закрывает показываемое и не лезет под кнопки
+    // площадки.
+    `subtitles=${escaped}:force_style='FontName=DejaVu Sans,Fontsize=10,Outline=1.5,Shadow=0,Alignment=2,MarginV=40'`
   ].join(',');
 
   return [

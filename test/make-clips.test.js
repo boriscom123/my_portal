@@ -127,3 +127,20 @@ test('пропавший шрифт считается отказом, а не �
   assert.equal(findComplaint(['frame= 45 fps=12'], failOn), null);
   assert.equal(findComplaint(output, null), null, 'без назначенной жалобы не придираемся');
 });
+
+test('подпись мелкая и внизу кадра, а не в середине', () => {
+  const args = ffmpegArgsForClip({
+    input: '/media/a.mp4',
+    subtitles: '/media/c.srt',
+    startSeconds: 0,
+    durationSeconds: 45,
+    output: '/media/c.mp4'
+  });
+  const style = args[args.indexOf('-vf') + 1];
+  // libass считает размер и отступ от условной высоты кадра в 288 точек, а не
+  // от настоящих 1920: всё умножается примерно на семь. С Fontsize=18 буквы
+  // заняли шестую часть экрана, а MarginV=90 поднял подпись в середину кадра —
+  // проверено глазами на настоящем ролике.
+  assert.match(style, /Fontsize=10\b/);
+  assert.match(style, /MarginV=40\b/);
+});

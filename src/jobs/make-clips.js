@@ -11,7 +11,7 @@
 // Вызывается воркером по имени JOBS.makeClips.
 import { mkdir, stat, writeFile, rm, access } from 'node:fs/promises';
 import { runFfmpeg, ffmpegArgsForClip } from '../lib/ffmpeg.js';
-import { toSrt } from '../lib/srt.js';
+import { toSrt, splitLongSegments } from '../lib/srt.js';
 import { mediaPath, registerAsset, assetById } from '../services/media.js';
 import { addJob } from '../queue.js';
 
@@ -125,7 +125,7 @@ export function makeMakeClips(config, pool, queue) {
       const relative = `${dir}/clip-${index + 1}.mp4`;
       await writeFile(
         subtitles,
-        toSrt(shiftSegments(segments, range.startedMs, range.endedMs)),
+        toSrt(splitLongSegments(shiftSegments(segments, range.startedMs, range.endedMs))),
         'utf8'
       );
       try {

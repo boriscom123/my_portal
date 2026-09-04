@@ -59,3 +59,52 @@ export function toVtt(segments) {
   );
   return ['WEBVTT', '', ...blocks].join('\n');
 }
+
+/**
+ * Дробит длинные реплики на короткие, деля время пропорционально длине.
+ *
+ * Whisper отдаёт реплику целым предложением — на девять секунд может прийтись
+ * строка в сто знаков. В субтитрах урока это нормально, а во вертикальном
+ * ролике такая строка занимает полкадра и закрывает то, что показывают.
+ * Проверено на настоящем ролике: шесть строк поверх экрана записи.
+ *
+ * Делим по словам: разрыв посреди слова читается как опечатка.
+ * Вызывается из src/jobs/make-clips.js.
+ */
+export function splitLongSegments(segments, maxChars = 40) {
+  const result = [];
+
+  for (const segment of segments) {
+    const words = String(segment.text).split(/\s+/).filter(Boolean);
+    if (!words.length) continue;
+
+    const chunks = [];
+    let current = '';
+    for (const word of words) {
+      if (current && `${current} ${word}`.length > maxChars) {
+        chunks.push(current);
+        current = word;
+      } else {
+        current = current ? `${current} ${word}` : word;
+      }
+    }
+    if (current) chunks.push(current);
+
+    // Время делим по длине кусков, а не поровну: короткий кусок читается
+    // быстрее длинного, и равные доли рассинхронизировали бы подписи с речью.
+    const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+    const spanMs = segment.endedMs - segment.startedMs;
+    let startedMs = segment.startedMs;
+
+    for (const [index, chunk] of chunks.entries()) {
+      const endedMs =
+        index === chunks.length - 1
+          ? segment.endedMs
+          : startedMs + Math.round((spanMs * chunk.length) / total);
+      result.push({ startedMs, endedMs, text: chunk });
+      startedMs = endedMs;
+    }
+  }
+
+  return result;
+}
