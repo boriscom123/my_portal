@@ -143,12 +143,20 @@ export function flightPlan({ from, to, size, fromAngle = 0, peakScale = PEAK_SCA
   return {
     angle,
     duration,
+    // Кривая у каждого отрезка своя, и это не украшение.
+    //
+    // Разворот начинается и кончается стоя — ему плавность с обеих сторон.
+    // А полёт обязан быть ОДНИМ движением: сперва разгон, потом торможение.
+    // Первый заход задавал обеим половинам плавное окончание, и ракета честно
+    // тормозила до нуля в середине пути — заказчик увидел это как замирание в
+    // самой крупной точке.
     keyframes: [
       // Стоим и поворачиваемся.
       { transform: at(from, fromAngle, 1), offset: 0, easing: 'ease-in-out' },
-      { transform: at(from, angle, 1), offset: turnEnd, easing: 'ease-in-out' },
-      // Летим, приближаясь к смотрящему на середине пути.
-      { transform: at(middle, angle, peakScale), offset: turnEnd + (1 - turnEnd) / 2 },
+      // Тронулись: разгоняемся к середине и проходим её на полном ходу.
+      { transform: at(from, angle, 1), offset: turnEnd, easing: 'ease-in' },
+      // Вторая половина: тормозим к цели.
+      { transform: at(middle, angle, peakScale), offset: turnEnd + (1 - turnEnd) / 2, easing: 'ease-out' },
       { transform: at(to, angle, 1), offset: 1 }
     ]
   };

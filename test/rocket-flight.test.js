@@ -177,3 +177,16 @@ test('стоянка задаётся без наплыва и без повор
   assert.equal(resting, 'translate(93px, 33px) rotate(0deg)');
   assert.ok(!resting.includes('scale'));
 });
+
+test('в середине пути ракета не тормозит до нуля', () => {
+  const plan = flightPlan({ from: { x: 0, y: 0 }, to: { x: 600, y: 0 }, size, fromAngle: 0 });
+  const [turnStart, flightStart, middle] = plan.keyframes;
+
+  // Разворот начинается и кончается стоя — ему плавность с обеих сторон.
+  assert.equal(turnStart.easing, 'ease-in-out');
+  // А полёт — одно движение: разгон до середины, торможение после. Первый
+  // заход давал обеим половинам плавное окончание, и ракета честно тормозила
+  // до нуля ровно в самой крупной точке — заказчик увидел это как замирание.
+  assert.equal(flightStart.easing, 'ease-in', 'вторая половина начнётся с нуля');
+  assert.equal(middle.easing, 'ease-out');
+});
