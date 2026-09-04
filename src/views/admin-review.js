@@ -183,6 +183,10 @@ ${
     ${escapeHtml(links.trimmed.duration)}. Субтитры к ней свои, с пересчитанными
     временами.
   </p>
+  <p class="hint">
+    <strong>На площадки уйдёт именно эта запись</strong>, а не исходник. Исходник
+    остаётся в буфере: из него можно смонтировать заново с другим порогом паузы.
+  </p>
   <p><a class="button-brand" href="/admin/lesson/${encodeURIComponent(lesson.slug)}/preview?trimmed=1">
     Смотреть смонтированную
   </a></p>
