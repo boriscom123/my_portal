@@ -69,3 +69,16 @@ test('worker не кеширует ответы API', async () => {
   // одному человеку страницу другого.
   assert.match(sw, /startsWith\('\/api\/'\)/);
 });
+
+test('клиент ищет тот же класс отданной оценки, что ставит вид', async () => {
+  // Вид переименовали при чистке кириллицы, клиент забыли. Ломается это тихо:
+  // снять свою оценку нельзя, повторное нажатие ставит её заново.
+  const view = await readFile(new URL('../src/views/lesson.js', import.meta.url), 'utf8');
+  const client = await readPublic('app.js');
+  const emitted = view.match(/rating-step\$\{[^}]*'\s*([a-z-]+)'/)?.[1];
+  assert.ok(emitted, 'вид перестал помечать отданную оценку');
+  assert.ok(
+    client.includes(`classList.contains('${emitted}')`),
+    `вид ставит класс ${emitted}, а клиент ищет другой`
+  );
+});

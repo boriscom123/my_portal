@@ -210,6 +210,15 @@ async function subscribeToPush(key) {
 }
 
 const notificationsButton = document.querySelector('[data-notifications]');
+
+// Раздел настроек без объяснения выглядит поломкой: кнопка спрятана, и почему
+// — непонятно. Чаще всего это iOS в браузере: там уведомления работают только
+// у портала, установленного на домашний экран.
+if (notificationsButton && !('Notification' in window && 'serviceWorker' in navigator)) {
+  const note = document.querySelector('[data-notifications-note]');
+  if (note) note.hidden = false;
+}
+
 if (notificationsButton && 'Notification' in window && 'serviceWorker' in navigator) {
   // Ключ забираем заранее, при загрузке страницы. Это не преждевременная
   // оптимизация, а необходимость: Safari разрешает спрашивать разрешение
@@ -329,7 +338,10 @@ if (lessonCard) {
     button.addEventListener('click', async () => {
       // Нажатие по уже отданной оценке снимает её: иначе передумать нельзя,
       // а сервер всё равно хранит одну оценку на человека.
-      const isChosen = button.classList.contains('отдана');
+      // Имя класса обязано совпадать с тем, что ставит вид: разъехавшись, они
+      // не ломаются заметно — просто снять оценку становится нельзя, а
+      // повторное нажатие ставит её заново. Так и было после чистки кириллицы.
+      const isChosen = button.classList.contains('chosen');
       const answer = await request('/api/reactions', {
         method: isChosen ? 'DELETE' : 'POST',
         body: JSON.stringify({ objectType: 'lesson', objectId, kind: button.dataset.rating })

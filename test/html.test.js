@@ -106,7 +106,23 @@ test('разделы в шапке лежат в меню, работающем 
   const menu = html.slice(html.indexOf('<details class="nav-menu"'), html.indexOf('</details>'));
   assert.match(menu, /href="\/search"/);
   assert.match(menu, /href="\/ideas"/);
-  assert.match(menu, /data-theme-toggle/);
+  // Тема и уведомления уехали в раздел настроек: в шапке они были двумя
+  // значками без подписей, и на телефоне их принимали за украшение.
+  assert.match(menu, /href="\/settings"/);
+  assert.ok(!menu.includes('data-theme-toggle'), 'переключатель темы остался в шапке');
+});
+
+test('выход оформлен как остальные пункты меню', () => {
+  const html = layout({
+    config,
+    title: 'Т',
+    description: 'о',
+    body: '',
+    user: { displayName: 'Автор', role: 'admin' }
+  });
+  // Кнопкой другого вида «Выйти» читалось бы как главное действие в меню,
+  // хотя это последнее, что человек делает.
+  assert.match(html, /<button class="nav-item" type="button" data-logout>/);
 });
 
 test('на широком экране меню разворачивается в строку', async () => {
@@ -114,4 +130,22 @@ test('на широком экране меню разворачивается �
   // Без этого правила на ноутбуке вместо привычной строки разделов осталась бы
   // одна кнопка с тремя полосками.
   assert.match(styles, /@media \(min-width: 720px\)[\s\S]{0,400}\.nav-toggle \{\s*display: none/);
+});
+
+test('настройки открыты и гостю, но уведомления — вошедшим', async () => {
+  const { settingsPage } = await import('../src/views/settings.js');
+  const guest = settingsPage({ config, user: null });
+  // Тема — настройка устройства, а не свойство учётной записи: закрывать её от
+  // зрителя незачем.
+  assert.match(guest, /data-theme-toggle/);
+  assert.ok(!guest.includes('data-notifications'), 'гостю предложили уведомления');
+  assert.match(guest, /href="\/login"/);
+
+  const author = settingsPage({ config, user: { displayName: 'Автор', role: 'admin' } });
+  assert.match(author, /data-notifications/);
+  // Подключения площадок — дело автора и живут в кабинете.
+  assert.match(author, /href="\/admin\/settings"/);
+
+  const viewer = settingsPage({ config, user: { displayName: 'Зритель', role: 'user' } });
+  assert.ok(!viewer.includes('/admin/settings'), 'зрителю показали подключения площадок');
 });

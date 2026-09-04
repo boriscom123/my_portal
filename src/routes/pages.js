@@ -9,6 +9,7 @@ import { telegramReturnPage } from '../views/telegram-return.js';
 import { adminUploadPage } from '../views/admin-upload.js';
 import { adminHomePage } from '../views/admin-home.js';
 import { adminLessonsPage } from '../views/admin-lessons.js';
+import { settingsPage } from '../views/settings.js';
 import { adminReviewPage } from '../views/admin-review.js';
 import { adminPreviewPage } from '../views/admin-preview.js';
 import { mediaLink } from '../lib/media-token.js';
@@ -285,6 +286,13 @@ export function pageRoutes(config, pool) {
     res.type('html').send(
       searchPage({ config, user, query, results: await searchSegments(pool, query) })
     );
+  });
+
+  // Настройки зрителя: тема и уведомления. Открыты всем — это настройки
+  // устройства, а не свойства учётной записи.
+  router.get('/settings', async (req, res) => {
+    const user = await currentUser(pool, req);
+    res.type('html').send(settingsPage({ config, user }));
   });
 
   router.get('/ideas', async (req, res) => {

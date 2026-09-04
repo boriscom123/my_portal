@@ -1353,3 +1353,40 @@ label[for='cover-file'] {
     display: inline-flex;
   }
 }
+
+/* «Выйти» — такой же пункт списка, как остальные разделы. Кнопкой другого вида
+   он читался бы как главное действие в меню, хотя это последнее, что человек
+   делает. */
+.nav .nav-item {
+  font: inherit;
+  color: var(--fg);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+.nav .nav-item:hover,
+.nav .nav-item:focus {
+  color: var(--flame);
+}
+.nav-menu[open] .nav .nav-item {
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  min-height: var(--tap-target);
+  display: flex;
+  align-items: center;
+}
+.nav-menu[open] .nav .nav-item:hover,
+.nav-menu[open] .nav .nav-item:focus {
+  background: var(--bg);
+}
+@media (min-width: 720px) {
+  .nav-menu[open] .nav .nav-item {
+    padding: 0;
+    min-height: 0;
+    display: inline-flex;
+  }
+}

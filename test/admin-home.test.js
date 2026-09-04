@@ -75,13 +75,13 @@ test('кабинет закрыт для обычного пользовател
 test('в шапке у автора есть ссылка на кабинет, у гостя — нет', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
     const own = await openAs(pool, 'admin', '/');
-    assert.match(own.html, /href="\/admin"/);
+    assert.match(own.html, /href="\/admin\/lessons"/);
 
     const app = finalize(createApp({ config, pool }));
     const guest = await withServer(app, async (base) =>
       (await fetch(`${base}/`, { headers: { Accept: 'text/html' } })).text()
     );
-    assert.ok(!guest.includes('href="/admin"'));
+    assert.ok(!guest.includes('href="/admin/lessons"'));
   });
 });
 
