@@ -34,3 +34,39 @@ export async function notifyAboutLesson(pool, channels, lesson) {
     );
   }
 }
+
+/**
+ * Будит автора, когда долгая работа над уроком кончилась.
+ *
+ * Копирование гигабайта, расшифровка часовой записи, нарезка роликов — всё это
+ * минуты и десятки минут. Автор не сидит над страницей всё это время, а без
+ * уведомления узнаёт об окончании, только зайдя проверить.
+ *
+ * Ключ несёт номер задачи: повтор той же задачи разбудит, а повторная доставка
+ * одного и того же события — нет.
+ * Вызывается из src/worker.js.
+ */
+export async function notifyJobDone(pool, channels, { lessonId, jobId, title, body }) {
+  const { rows } = await pool.query(
+    `SELECT l.slug, u.id AS user_id
+       FROM lessons l CROSS JOIN users u
+      WHERE l.id = $1 AND u.role = 'admin'`,
+    [lessonId]
+  );
+  if (!rows.length) return;
+
+  for (const row of rows) {
+    await notify(
+      pool,
+      {
+        userId: Number(row.user_id),
+        kind: 'lesson_job',
+        dedupKey: `job:${jobId}:${row.user_id}`,
+        title,
+        body,
+        url: `/admin/lesson/${row.slug}`
+      },
+      channels
+    );
+  }
+}

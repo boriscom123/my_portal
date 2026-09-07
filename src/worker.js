@@ -8,6 +8,9 @@ import { loadConfig } from './config.js';
 import { createPool } from './db.js';
 import { waitForSchema } from './migrate.js';
 import { createQueue, createWorker, scheduleCleanup, isPipelineJob, JOBS } from './queue.js';
+import { createWebPushChannel } from './services/notify/webpush.js';
+import { createTelegramChannel } from './services/notify/telegram.js';
+import { notifyJobDone } from './services/notify/lesson.js';
 import { makeFetchSource } from './jobs/fetch-source.js';
 import { makeExtractAudio } from './jobs/extract-audio.js';
 import { makeSubtitles } from './jobs/subtitles.js';
@@ -80,8 +83,36 @@ worker.on('active', async (job) => {
     .catch((error) => console.error('Не удалось записать текущий шаг:', error.message));
 });
 
-worker.on('completed', (job) => {
+// Каналы доставки собираются один раз: web-push настраивается глобально, а
+// повторная настройка на каждое уведомление — лишняя работа.
+const channels = {
+  webpush: createWebPushChannel(config, pool),
+  telegram: createTelegramChannel(config)
+};
+
+/**
+ * О чём сообщать по окончании. Не обо всём: «звук извлечён» посреди конвейера
+ * автору не нужен — ему нужен ИТОГ. Каждая строка здесь — работа, после
+ * которой человек возвращается к уроку и что-то делает.
+ */
+const DONE_MESSAGES = {
+  [JOBS.fetchSource]: { title: 'Запись скопирована', body: 'Можно запускать обработку' },
+  [JOBS.makeCover]: { title: 'Урок обработан', body: 'Расшифровка, субтитры и обложка готовы' },
+  [JOBS.makeClips]: { title: 'Ролики нарезаны', body: 'Вертикальные ролики готовы к просмотру' },
+  [JOBS.makeCoverImage]: { title: 'Обложка нарисована', body: 'Посмотрите, годится ли' },
+  [JOBS.suggestTexts]: { title: 'Заголовок предложен', body: 'Поля заполнены, поправьте и сохраните' }
+};
+
+worker.on('completed', async (job) => {
   console.log(`Задача ${job.name} выполнена`);
+
+  const message = DONE_MESSAGES[job.name];
+  if (!message || !job?.data?.lessonId) return;
+  await notifyJobDone(pool, channels, {
+    lessonId: job.data.lessonId,
+    jobId: `${job.name}-${job.id}`,
+    ...message
+  }).catch((error) => console.error('Уведомление об окончании не ушло:', error.message));
 });
 
 worker.on('failed', async (job, err) => {
@@ -106,6 +137,15 @@ worker.on('failed', async (job, err) => {
       .catch((dbError) => console.error('Не удалось записать отказ довеска:', dbError.message));
     return;
   }
+
+  // Об упавшей работе автор должен узнать сам, а не найти красную строку,
+  // случайно зайдя в кабинет.
+  await notifyJobDone(pool, channels, {
+    lessonId: job.data.lessonId,
+    jobId: `${job.name}-${job.id}-failed`,
+    title: 'Обработка упала',
+    body: `${job.name}: ${err.message}`.slice(0, 160)
+  }).catch((error) => console.error('Уведомление об отказе не ушло:', error.message));
 
   await pool
     .query(
