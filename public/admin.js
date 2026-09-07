@@ -134,7 +134,7 @@ export function initPage() {
           .map(
             (file) => `<li class="form-row">
               <span>${file.name} <span class="meta">${humanSize(file.bytes)}</span></span>
-              <button class="button" type="button" data-disk-path="${file.path}">В обработку</button>
+              <button class="button" type="button" data-disk-path="${file.path}">Скопировать на сайт</button>
             </li>`
           )
           .join('');
@@ -156,7 +156,7 @@ export function initPage() {
         method: 'POST',
         body: JSON.stringify({ lessonId, diskPath: button.dataset.diskPath })
       });
-      if (answer) toast('Файл забирается с Диска. Обработка начнётся сама.');
+      if (answer) toast('Файл копируется с Диска. Обработку запустите на экране урока.');
     });
   }
 

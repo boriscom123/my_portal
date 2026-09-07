@@ -116,7 +116,7 @@ ${
            <a class="button" href="/admin/lesson/${encodeURIComponent(lesson.slug)}/preview">
              Проверить запись
            </a>
-           <a class="button" href="/admin/upload">Заменить запись</a>
+           <a class="button" href="/admin/upload?lesson=${encodeURIComponent(lesson.slug)}">Заменить запись</a>
          </p>
          <p class="hint">
            Обработка снимает звук, распознаёт речь, собирает субтитры, монтирует
@@ -128,7 +128,7 @@ ${
            дальше конвейер сделает расшифровку, субтитры, монтаж и нарезки сам.
          </p>
          <p class="form-row">
-           <a class="button-brand" href="/admin/upload">Загрузить запись</a>
+           <a class="button-brand" href="/admin/upload?lesson=${encodeURIComponent(lesson.slug)}">Загрузить запись</a>
          </p>`
   }
 </section>

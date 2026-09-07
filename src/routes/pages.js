@@ -149,8 +149,18 @@ export function pageRoutes(config, pool) {
     const lessons = await listLessons(pool, { includeDrafts: true });
     // Подключён ли Диск, узнаём одним запросом: показывать список файлов или
     // кнопку подключения — решается здесь, а не мельканием в браузере.
+    // Урок мог прийти адресом: автор нажал «Загрузить запись» на своём уроке.
+    const chosen = req.query.lesson
+      ? await getLessonBySlug(pool, String(req.query.lesson), { includeDrafts: true })
+      : null;
     res.type('html').send(
-      adminUploadPage({ config, user, lessons, diskConnected: await diskConnected() })
+      adminUploadPage({
+        config,
+        user,
+        lessons,
+        lesson: chosen,
+        diskConnected: await diskConnected()
+      })
     );
   });
 

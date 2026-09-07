@@ -63,3 +63,54 @@ test('без уроков страница объясняет, что делат
     assert.match(r.html, /сначала заведите урок/i);
   });
 });
+
+/** Заголовки автора: страницу загрузки видит только он. */
+async function adminHeaders(pool) {
+  const { rows } = await pool.query(
+    `INSERT INTO users (display_name, role) VALUES ('Автор', 'admin') RETURNING id`
+  );
+  return {
+    Accept: 'text/html',
+    Authorization: `Bearer ${signSession({ userId: Number(rows[0].id), role: 'admin' }, config.jwtSecret)}`
+  };
+}
+
+test('урок из адреса подставляется, а список не показывается', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const lesson = await saveLesson(pool, { slug: 'urok', title: 'Мой урок' });
+    const headers = await adminHeaders(pool);
+    const app = finalize(createApp({ config, pool }));
+    await withServer(app, async (base) => {
+      const html = await (
+        await fetch(`${base}/admin/upload?lesson=urok`, { headers })
+      ).text();
+      // Выбирать из списка урок, который автор только что открыл, — лишний шаг
+      // и лишний повод ошибиться.
+      assert.match(html, new RegExp(`name="lessonId" value="${lesson.id}"`));
+      assert.ok(!html.includes('<select name="lessonId"'), 'список всё ещё показан');
+      assert.match(html, /Мой урок/);
+    });
+  });
+});
+
+test('без урока в адресе список остаётся', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    await saveLesson(pool, { slug: 'urok', title: 'Мой урок' });
+    const headers = await adminHeaders(pool);
+    const app = finalize(createApp({ config, pool }));
+    await withServer(app, async (base) => {
+      const html = await (await fetch(`${base}/admin/upload`, { headers })).text();
+      // Страницу могли открыть саму по себе — тогда урок надо выбрать.
+      assert.match(html, /<select name="lessonId"/);
+    });
+  });
+});
+
+test('кнопка у файла Диска говорит, что она делает', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const admin = await readFile(new URL('../public/admin.js', import.meta.url), 'utf8');
+  // Она копирует запись на сайт, а обработку запускает автор отдельно: надпись
+  // «В обработку» обещала не то, что происходит.
+  assert.match(admin, /Скопировать на сайт/);
+  assert.ok(!admin.includes('>В обработку<'));
+});
