@@ -9,6 +9,7 @@ import { escapeHtml } from '../lib/html.js';
 import { layout } from './layout.js';
 import { stateLabel } from './lesson-state.js';
 import { formatDate } from './feed.js';
+import { assetUrl } from '../lib/assets.js';
 
 function lessonRow(lesson) {
   const state = stateLabel(lesson);
@@ -82,6 +83,8 @@ ${
   lessons.length
     ? `<ul class="admin-lessons">${lessons.map(lessonRow).join('')}</ul>`
     : '<p class="hint">Уроков пока нет. Заведите первый — форма выше.</p>'
-}`
+}
+
+<script src="${assetUrl('/admin.js')}" type="module"></script>`
   });
 }

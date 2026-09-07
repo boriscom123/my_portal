@@ -111,3 +111,29 @@ test('страничные обработчики привязываются з�
   const navigation = await readPublic('navigation.js');
   assert.match(navigation, /module\.initPage\?\.\(\)/);
 });
+
+test('страница со своими зацепками подключает скрипт, который их слушает', async () => {
+  // Страница уроков не подключала admin.js вовсе: форма заведения урока
+  // отправлялась обычной перезагрузкой, а кнопки удаления не делали ничего.
+  // Со стороны это выглядит как «не получается создать урок».
+  const { readdir } = await import('node:fs/promises');
+  const viewsDir = new URL('../src/views/', import.meta.url);
+  const app = await readPublic('app.js');
+  const admin = await readPublic('admin.js');
+
+  for (const name of await readdir(viewsDir)) {
+    const source = await readFile(new URL(name, viewsDir), 'utf8');
+    const hooks = [...source.matchAll(/\sdata-([a-z-]+)[=>\s]/g)].map((match) => match[1]);
+    // Зацепки, которые слушает только кабинет: без его скрипта они мертвы.
+    const adminOnly = hooks.filter(
+      (hook) => admin.includes(`data-${hook}`) && !app.includes(`data-${hook}`)
+    );
+    if (!adminOnly.length) continue;
+
+    assert.match(
+      source,
+      /<script src="\$\{assetUrl\('\/admin\.js'\)\}" type="module">/,
+      `${name} использует ${adminOnly.join(', ')}, но не подключает admin.js`
+    );
+  }
+});
