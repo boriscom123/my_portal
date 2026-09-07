@@ -302,3 +302,27 @@ test('подвал прижат к низу на короткой страниц
   const main = styles.slice(styles.indexOf('main {'));
   assert.match(main.slice(0, 400), /flex: 1 0 auto/);
 });
+
+test('меню на телефоне висит под шапкой, а не поверх своей кнопки', async () => {
+  const styles = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
+  const rule = styles.slice(styles.indexOf('.nav-menu[open] + .nav {'));
+  // Пока список лежал внутри раскрывающегося элемента, его место было под
+  // кнопкой. Вынесенный соседом, он встал вровень с ней и накрыл её собой:
+  // нужна явная привязка к низу шапки.
+  assert.match(rule.slice(0, 600), /top: 100%/);
+});
+
+test('меню закрывается при переходе без перезагрузки', async () => {
+  const navigation = await readFile(new URL('../public/navigation.js', import.meta.url), 'utf8');
+  // Раньше меню закрывала перезагрузка. Её больше нет, и список разделов
+  // оставался висеть поверх новой страницы.
+  assert.match(navigation, /\[data-nav-menu\]'\)\?\.removeAttribute\('open'\)/);
+});
+
+test('поля ввода не мельче шестнадцати точек на телефоне', async () => {
+  const styles = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
+  // Safari на iPhone САМ увеличивает страницу, когда поле мельче, и обратно
+  // уже не отдаляет. Половина полей наследовала кегль подписи в четырнадцать.
+  const block = styles.slice(styles.indexOf('@media (max-width: 900px)'));
+  assert.match(block, /input,\s*select,\s*textarea \{\s*font-size: max\(16px, 1em\)/);
+});

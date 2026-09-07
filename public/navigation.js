@@ -133,6 +133,10 @@ export function startNavigation({ onNavigated } = {}) {
       return;
     }
 
+    // Меню на телефоне закрываем: раньше его закрывала перезагрузка, а теперь
+    // её нет, и список разделов оставался висеть поверх новой страницы.
+    document.querySelector('[data-nav-menu]')?.removeAttribute('open');
+
     if (push) history.pushState({}, '', url);
     document.title = page.title;
     main().replaceWith(page.main);
