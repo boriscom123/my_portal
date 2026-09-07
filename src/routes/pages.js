@@ -15,6 +15,7 @@ import { mediaLink } from '../lib/media-token.js';
 import { probeDuration } from '../lib/ffmpeg.js';
 import { mediaPath } from '../services/media.js';
 import { timeLabel } from '../views/search.js';
+import { humanBytes } from '../views/admin-review.js';
 import { requireAdmin } from '../middleware/guards.js';
 import { feedPage } from '../views/feed.js';
 import { lessonPage } from '../views/lesson.js';
@@ -153,12 +154,25 @@ export function pageRoutes(config, pool) {
     const chosen = req.query.lesson
       ? await getLessonBySlug(pool, String(req.query.lesson), { includeDrafts: true })
       : null;
+    // Есть ли уже запись у этого урока — главное, ради чего сюда заходят
+    // второй раз. Без этого страница молчит о том, чем кончилась прошлая
+    // попытка.
+    const { rows: sources } = chosen?.sourceAssetId
+      ? await pool.query('SELECT path, bytes FROM assets WHERE id = $1', [chosen.sourceAssetId])
+      : { rows: [] };
+
     res.type('html').send(
       adminUploadPage({
         config,
         user,
         lessons,
         lesson: chosen,
+        source: sources[0]
+          ? {
+              name: sources[0].path.split('/').pop(),
+              size: humanBytes(Number(sources[0].bytes))
+            }
+          : null,
         // Копирование могло начаться до этой загрузки страницы.
         copying:
           Boolean(chosen) &&

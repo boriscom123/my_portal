@@ -21,7 +21,8 @@ export function adminUploadPage({
   lessons,
   diskConnected = false,
   lesson = null,
-  copying = false
+  copying = false,
+  source = null
 }) {
   const options = lessons
     .map((item) => `<option value="${item.id}">${escapeHtml(item.title)}</option>`)
@@ -34,6 +35,14 @@ export function adminUploadPage({
     title: 'Загрузка урока — Solo AI Journey',
     description: 'Загрузка исходника урока в обработку.',
     body: `
+<nav class="admin-nav">
+  ${
+    lesson
+      ? `<a class="button" href="/admin/lesson/${encodeURIComponent(lesson.slug)}">← К уроку</a>`
+      : '<a class="button" href="/admin/lessons">← Уроки</a>'
+  }
+</nav>
+
 <h1>Загрузка записи</h1>
 ${
   lesson
@@ -42,6 +51,24 @@ ${
          Запись только скопируется на сайт — обработку запустите там же кнопкой.
        </p>`
     : '<p class="lead">Запись только скопируется на сайт — обработку запустите на экране урока.</p>'
+}
+
+${
+  lesson
+    ? // Главное, ради чего сюда заходят второй раз: есть уже запись или нет.
+      // Без этой строки страница молчит о том, чем кончилась прошлая попытка.
+      `<p class="card${source ? '' : ' hint'}" data-source-state>
+         ${
+           source
+             ? `Запись на сайте: ${escapeHtml(source.name)}, ${escapeHtml(source.size)}.
+                Новая заменит её.
+                <a href="/admin/lesson/${encodeURIComponent(lesson.slug)}">Открыть урок</a>`
+             : copying
+               ? 'Копирую запись с Диска — это минуты.'
+               : 'Записи у урока пока нет.'
+         }
+       </p>`
+    : ''
 }
 <p class="lead">Файл идёт кусками: если связь оборвётся, загрузка продолжится
 с места обрыва, а не с начала. Вкладку можно свернуть, но не закрывать.</p>

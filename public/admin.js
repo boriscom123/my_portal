@@ -154,35 +154,47 @@ export function initPage() {
         await new Promise((resolve) => setTimeout(resolve, 4000));
         const state = await request(`/api/admin/lessons/${slug}/state`).catch(() => null);
         if (!state) continue;
-        if (state.state === 'uploading') continue;
 
+        // Ждём ПОЯВЛЕНИЯ ЗАПИСИ, а не ухода конкретного состояния. Первый
+        // заход ждал «загружается», но как только воркер берёт задачу,
+        // состояние становится «обрабатывается» — и страница объявляла провал
+        // на второй секунде, пока файл преспокойно копировался.
         if (state.hasSource) {
           button.textContent = 'Скопировано';
+          // Строку состояния переписываем сразу: человек смотрит на неё, а не
+          // на кнопку в списке файлов.
+          const note = document.querySelector('[data-source-state]');
+          if (note) {
+            note.classList.remove('hint');
+            note.textContent = 'Запись на сайте. Обработку запустите на экране урока.';
+          }
           toast('Запись на сайте. Обработку запустите на экране урока.');
-        } else {
+          return;
+        }
+        if (state.state === 'failed') {
           button.textContent = 'Не скопировалось';
           button.disabled = false;
           toast(`Не скопировалось: ${state.error ?? 'причина не записана'}`, true);
+          return;
         }
-        return;
       }
       button.textContent = 'Копирование затянулось';
       toast('Копирование идёт дольше сорока минут. Откройте урок и посмотрите состояние.', true);
     }
 
     // Копирование могло начаться до этой загрузки страницы: человек обновил её
-  // или вернулся позже. Тогда молчать нельзя — подхватываем ожидание.
-  const resumeSlug = document.querySelector('[data-copy-watch]')?.dataset.copyWatch;
-  if (resumeSlug) {
-    const mark = document.createElement('span');
-    mark.className = 'hint';
-    mark.textContent = 'Копирую…';
-    diskFiles.before(mark);
-    diskFiles.querySelectorAll('[data-disk-path]').forEach((item) => (item.disabled = true));
-    waitForCopy(resumeSlug, mark);
-  }
+    // или вернулся позже. Тогда молчать нельзя — подхватываем ожидание.
+    const resumeSlug = document.querySelector('[data-copy-watch]')?.dataset.copyWatch;
+    if (resumeSlug) {
+      const mark = document.createElement('span');
+      mark.className = 'hint';
+      mark.textContent = 'Копирую…';
+      diskFiles.before(mark);
+      diskFiles.querySelectorAll('[data-disk-path]').forEach((item) => (item.disabled = true));
+      waitForCopy(resumeSlug, mark);
+    }
 
-  diskFiles.addEventListener('click', async (event) => {
+    diskFiles.addEventListener('click', async (event) => {
       const button = event.target.closest('[data-disk-path]');
       if (!button) return;
       const lessonId = Number(document.querySelector('[name=lessonId]')?.value);

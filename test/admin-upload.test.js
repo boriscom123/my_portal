@@ -196,3 +196,55 @@ test('когда запись уже на месте, ждать нечего', 
     });
   });
 });
+
+test('со страницы загрузки есть выход к уроку', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    await saveLesson(pool, { slug: 'urok', title: 'Урок' });
+    const headers = await adminHeaders(pool);
+    const app = finalize(createApp({ config, pool }));
+    await withServer(app, async (base) => {
+      const withLesson = await (
+        await fetch(`${base}/admin/upload?lesson=urok`, { headers })
+      ).text();
+      const from = withLesson.indexOf('<nav class="admin-nav">');
+      const nav = withLesson.slice(from, withLesson.indexOf('</nav>', from));
+      assert.match(nav, /href="\/admin\/lesson\/urok">← К уроку/);
+
+      // Открыли страницу саму по себе — возвращаемся к списку.
+      const alone = await (await fetch(`${base}/admin/upload`, { headers })).text();
+      const start = alone.indexOf('<nav class="admin-nav">');
+      assert.match(alone.slice(start, alone.indexOf('</nav>', start)), /← Уроки/);
+    });
+  });
+});
+
+test('страница говорит, есть ли уже запись', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const lesson = await saveLesson(pool, { slug: 'urok', title: 'Урок' });
+    const headers = await adminHeaders(pool);
+    const app = finalize(createApp({ config, pool }));
+
+    await withServer(app, async (base) => {
+      const empty = await (await fetch(`${base}/admin/upload?lesson=urok`, { headers })).text();
+      assert.match(empty, /Записи у урока пока нет/);
+    });
+
+    const { rows } = await pool.query(
+      `INSERT INTO assets (lesson_id, kind, path, bytes, expires_at)
+       VALUES ($1, 'source', 'lesson-1/L2-1.mp4', 1042118795, now() + interval '7 days')
+       RETURNING id`,
+      [lesson.id]
+    );
+    await pool.query('UPDATE lessons SET source_asset_id = $1 WHERE id = $2', [
+      rows[0].id,
+      lesson.id
+    ]);
+
+    await withServer(app, async (base) => {
+      const filled = await (await fetch(`${base}/admin/upload?lesson=urok`, { headers })).text();
+      // Ради этой строки сюда и заходят второй раз: чем кончилась прошлая
+      // попытка.
+      assert.match(filled, /Запись на сайте: L2-1\.mp4, 993\.8 МБ/);
+    });
+  });
+});
