@@ -183,16 +183,15 @@ export function initPage() {
     }
 
     // Копирование могло начаться до этой загрузки страницы: человек обновил её
-    // или вернулся позже. Тогда молчать нельзя — подхватываем ожидание.
-    const resumeSlug = document.querySelector('[data-copy-watch]')?.dataset.copyWatch;
-    if (resumeSlug) {
-      const mark = document.createElement('span');
-      mark.className = 'hint';
-      mark.textContent = 'Копирую…';
-      diskFiles.before(mark);
-      diskFiles.querySelectorAll('[data-disk-path]').forEach((item) => (item.disabled = true));
-      waitForCopy(resumeSlug, mark);
-    }
+  // или вернулся позже. Тогда молчать нельзя — подхватываем ожидание, а ход
+  // показываем строкой состояния под заголовком, а не отдельной пометкой у
+  // списка файлов: двух надписей об одном человек не читает, он их путает.
+  const watch = document.querySelector('[data-copy-watch]');
+  if (watch) {
+    const note = document.querySelector('[data-source-state]');
+    diskFiles.querySelectorAll('[data-disk-path]').forEach((item) => (item.disabled = true));
+    if (note) waitForCopy(watch.dataset.copyWatch, note);
+  }
 
     diskFiles.addEventListener('click', async (event) => {
       const button = event.target.closest('[data-disk-path]');

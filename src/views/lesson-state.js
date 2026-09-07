@@ -34,7 +34,9 @@ export const STEP_LABELS = {
 /** Состояние урока словами: с названием шага, если он известен. */
 export function stateLabel(lesson) {
   const base = PIPELINE_LABELS[lesson.pipelineState] ?? lesson.pipelineState;
-  if (lesson.pipelineState !== 'processing') return base;
+  // Название шага дописываем и к загрузке: копирование с Диска идёт минуты, и
+  // «загружается» без уточнения так же немо, как «обрабатывается».
+  if (!['processing', 'uploading'].includes(lesson.pipelineState)) return base;
   const step = STEP_LABELS[lesson.pipelineJob?.name];
   return step ? `${base}: ${step}` : base;
 }

@@ -75,11 +75,16 @@ worker.on('active', async (job) => {
   // Довески состояние урока не трогают: урок при них не «обрабатывается», он
   // уже готов и ждёт проверки.
   if (!job?.data?.lessonId || !isPipelineJob(job.name)) return;
+  // Копирование с Диска — это загрузка, а не обработка: обработку автор
+  // запускает отдельной кнопкой, и называть копирование обработкой значит
+  // путать его же собственный порядок действий.
+  const state = job.name === JOBS.fetchSource ? 'uploading' : 'processing';
   await pool
-    .query(
-      `UPDATE lessons SET pipeline_state = 'processing', pipeline_job = $1 WHERE id = $2`,
-      [JSON.stringify({ name: job.name, data: job.data }), job.data.lessonId]
-    )
+    .query(`UPDATE lessons SET pipeline_state = $1, pipeline_job = $2 WHERE id = $3`, [
+      state,
+      JSON.stringify({ name: job.name, data: job.data }),
+      job.data.lessonId
+    ])
     .catch((error) => console.error('Не удалось записать текущий шаг:', error.message));
 });
 

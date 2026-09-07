@@ -153,3 +153,18 @@ test('шаги конвейера отличаются от довесков', a
     assert.ok(!isPipelineJob(step), `${step} — довесок, а не шаг конвейера`);
   }
 });
+
+test('копирование с Диска называется загрузкой, а не обработкой', () => {
+  // Обработку автор запускает отдельной кнопкой. Называть копирование
+  // обработкой значит путать его же собственный порядок действий.
+  assert.equal(
+    stateLabel({ pipelineState: 'uploading', pipelineJob: { name: 'fetchSource' } }),
+    'загружается: скачивается с Диска'
+  );
+});
+
+test('воркер помечает копирование загрузкой', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const worker = await readFile(new URL('../src/worker.js', import.meta.url), 'utf8');
+  assert.match(worker, /job\.name === JOBS\.fetchSource \? 'uploading' : 'processing'/);
+});

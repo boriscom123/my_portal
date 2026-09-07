@@ -334,7 +334,7 @@ ${
     <div class="form-row">
       <button class="button" type="submit">Сохранить настройки</button>
       <button class="button-brand" type="submit" name="rebuild" value="yes"
-        ${busy ? 'disabled title="Пересборка уже идёт"' : ''}>
+        ${busy ? 'disabled title="Идёт другая работа"' : ''}>
         Сохранить и пересобрать
       </button>
     </div>
@@ -347,8 +347,9 @@ ${
   ${
     busy
       ? `<p class="hint danger">
-           Пересборка уже идёт: ${escapeHtml(state)}. Вторая такая же заняла бы
-           те же ядра и обогнала бы первую — кнопка выключена, пока не закончится.
+           Сейчас идёт другая работа: ${escapeHtml(state)}. Пока она не
+           закончится, пересобирать нельзя — вторая заняла бы те же два ядра и
+           переписывала бы те же файлы вперемешку.
          </p>`
       : ''
   }
