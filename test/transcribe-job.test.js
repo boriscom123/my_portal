@@ -82,7 +82,7 @@ test('повтор шага заменяет расшифровку, а не у�
   });
 });
 
-test('запись без речи не роняет конвейер, а идёт сразу за обложкой', skipWithoutDb, async () => {
+test('запись без речи не роняет обработку, а просто заканчивает её', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
     const { config, lessonId, audioAssetId } = await seed(pool);
     const queue = makeQueue();
@@ -92,8 +92,11 @@ test('запись без речи не роняет конвейер, а идё
     const result = await makeTranscribe(config, pool, queue, silent)({ lessonId, audioAssetId });
 
     // Урок может целиком показывать экран под музыку. Субтитры делать не из
-    // чего, но останавливать обработку на полпути незачем.
-    assert.equal(queue.added[0].name, 'makeCover');
+    // чего, но урок обязан выйти из «обработки», иначе кнопки останутся
+    // заперты навсегда.
+    assert.equal(queue.added.length, 0);
+    const { rows } = await pool.query('SELECT pipeline_state FROM lessons WHERE id = $1', [lessonId]);
+    assert.equal(rows[0].pipeline_state, 'review');
     assert.equal(result.dropped, 3);
   });
 });

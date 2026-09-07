@@ -58,10 +58,10 @@ const handlers = {
   [JOBS.fetchSource]: makeFetchSource(config, pool),
   [JOBS.extractAudio]: makeExtractAudio(config, pool, queue),
   [JOBS.transcribe]: makeTranscribe(config, pool, queue, speech),
-  [JOBS.subtitles]: makeSubtitles(config, pool, queue),
+  [JOBS.subtitles]: makeSubtitles(config, pool),
   [JOBS.suggestTexts]: makeSuggestTexts(config, pool, createTexts(config)),
   [JOBS.makeCoverImage]: makeMakeCoverImage(config, pool, createImages(config)),
-  [JOBS.trimPauses]: makeTrimPauses(config, pool, queue),
+  [JOBS.trimPauses]: makeTrimPauses(config, pool),
   [JOBS.makeClips]: makeMakeClips(config, pool),
   [JOBS.makeCover]: makeMakeCover(config, pool),
   [JOBS.cleanupMedia]: makeCleanupMedia(config, pool)
@@ -102,7 +102,11 @@ const channels = {
  */
 const DONE_MESSAGES = {
   [JOBS.fetchSource]: { title: 'Запись скопирована', body: 'Можно запускать обработку' },
-  [JOBS.makeCover]: { title: 'Урок обработан', body: 'Расшифровка, субтитры и обложка готовы' },
+  // Конец обработки звука — теперь субтитры, а не обложка: конвейер дальше не
+  // идёт, и уведомление на makeCover в этой ветке уже не сработало бы.
+  [JOBS.subtitles]: { title: 'Субтитры готовы', body: 'Проверьте расшифровку в кабинете' },
+  [JOBS.trimPauses]: { title: 'Монтаж готов', body: 'Запись с вырезанными паузами собрана' },
+  [JOBS.makeCover]: { title: 'Обложка готова', body: 'Кадр из записи взят' },
   [JOBS.makeClips]: { title: 'Ролики нарезаны', body: 'Вертикальные ролики готовы к просмотру' },
   [JOBS.makeCoverImage]: { title: 'Обложка нарисована', body: 'Посмотрите, годится ли' },
   [JOBS.suggestTexts]: { title: 'Заголовок предложен', body: 'Поля заполнены, поправьте и сохраните' }

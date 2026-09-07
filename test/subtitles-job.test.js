@@ -22,10 +22,7 @@ test('оба файла ложатся в буфер и попадают в уч
       [lesson.id]
     );
 
-    const added = [];
-    await makeSubtitles(config, pool, { add: async (n, d) => added.push({ n, d }) })({
-      lessonId: lesson.id
-    });
+    await makeSubtitles(config, pool)({ lessonId: lesson.id });
 
     const srt = await readFile(path.join(config.media.dir, `lesson-${lesson.id}/subtitles.srt`), 'utf8');
     assert.match(srt, /первая реплика/);
@@ -38,11 +35,14 @@ test('оба файла ложатся в буфер и попадают в уч
       `SELECT count(*)::int AS n FROM assets WHERE kind = 'subtitles'`
     );
     assert.equal(rows[0].n, 2);
-    // Следующий шаг — монтаж: он сам решит по настройкам урока, резать паузы
-    // или передать дальше. Обложка идёт последней, потому что она ставит урок
-    // на проверку. Нарезок в цепочке нет — их собирает автор после правки
-    // титров, иначе их пришлось бы резать дважды.
-    assert.equal(added[0].n, 'trimPauses');
+    // Дальше цепочка не идёт: обработка звука на субтитрах и кончается, а
+    // монтаж, обложку и нарезки автор запускает своими кнопками. Урок при этом
+    // обязан выйти из «обработки», иначе все кнопки останутся заперты.
+    const { rows: state } = await pool.query(
+      'SELECT pipeline_state FROM lessons WHERE id = $1',
+      [lesson.id]
+    );
+    assert.equal(state[0].pipeline_state, 'review');
   });
 });
 
@@ -55,7 +55,7 @@ test('повтор шага не плодит записей в учёте', ski
        VALUES ($1, 0, 1000, 'реплика')`,
       [lesson.id]
     );
-    const job = makeSubtitles(config, pool, { add: async () => {} });
+    const job = makeSubtitles(config, pool);
     await job({ lessonId: lesson.id });
     await job({ lessonId: lesson.id });
     const { rows } = await pool.query(
@@ -70,7 +70,7 @@ test('без расшифровки шаг объясняет, чего не х�
   await withTestDb(async (pool) => {
     const lesson = await saveLesson(pool, { slug: 'urok', title: 'Урок' });
     await assert.rejects(
-      makeSubtitles(config, pool, { add: async () => {} })({ lessonId: lesson.id }),
+      makeSubtitles(config, pool)({ lessonId: lesson.id }),
       /нет расшифровки/i
     );
   });

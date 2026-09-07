@@ -442,6 +442,24 @@ export function initPage() {
     }
   });
 
+  // Кадр из записи. Раньше его брал конвейер сам, в конце обработки; теперь
+  // каждый шаг запускает автор, и кадр — такая же кнопка, как остальные.
+  const coverFrameButton = document.querySelector('[data-cover-frame]');
+  coverFrameButton?.addEventListener('click', async () => {
+    try {
+      await withButtonState(coverFrameButton, 'Беру кадр…', 'Запущено', async () => {
+        const answer = await request(
+          `/api/admin/lessons/${coverFrameButton.dataset.coverFrame}/cover-frame`,
+          { method: 'POST' }
+        );
+        if (!answer) return;
+        toast('Беру кадр из записи. Это секунды — обновите страницу.');
+      });
+    } catch (error) {
+      toast(`Не получилось: ${error.message}`, true);
+    }
+  });
+
   // Выбор между кадром из записи и нарисованной. Отдельно от рисования:
   // возвращаться к кадру перерисовкой значило бы тратить минуту машины на то,
   // что уже лежит в буфере.
@@ -570,7 +588,7 @@ export function initPage() {
           { method: 'POST' }
         );
         if (!answer) return;
-        toast('Обработка запущена. На часовом уроке это около получаса.');
+        toast('Распознаю речь. На часовом уроке это около получаса — уведомление придёт.');
         setTimeout(() => location.reload(), 1600);
       });
     } catch (error) {

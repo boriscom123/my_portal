@@ -7,9 +7,8 @@
 import { writeFile, mkdir, stat } from 'node:fs/promises';
 import { toSrt, toVtt } from '../lib/srt.js';
 import { mediaPath, registerAsset } from '../services/media.js';
-import { addJob } from '../queue.js';
 
-export function makeSubtitles(config, pool, queue) {
+export function makeSubtitles(config, pool) {
   return async ({ lessonId }) => {
     const { rows } = await pool.query(
       `SELECT started_ms, ended_ms, text FROM transcript_segments
@@ -41,11 +40,17 @@ export function makeSubtitles(config, pool, queue) {
       });
     }
 
-    // Следующий шаг — монтаж: он решает по настройкам урока, вырезать паузы
-    // или сразу передать дальше. Нарезки в конвейер не входят: они вшивают
-    // подписи внутрь видео, и до правки титров резать их значит резать дважды. Тексты от модели пропущены: они требовали
-    // облака, которого не будет; заголовок пишет автор на экране проверки.
-    await addJob(queue, 'trimPauses', { lessonId });
+    // Здесь обработка звука и кончается. Монтаж, обложка и нарезки — отдельные
+    // действия по кнопкам: каждое занимает у машины минуты, а решает, нужны ли
+    // они этому уроку, автор. Возвращаем урок на проверку, иначе он остался бы
+    // «в обработке».
+    //
+    // Тексты от модели тут пропущены: они требовали облака, которого не будет;
+    // заголовок предлагает модель по расшифровке, отдельной кнопкой.
+    await pool.query(
+      `UPDATE lessons SET pipeline_state = 'review', pipeline_error = NULL WHERE id = $1`,
+      [lessonId]
+    );
     return { segments: segments.length };
   };
 }

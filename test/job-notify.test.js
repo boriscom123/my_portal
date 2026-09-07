@@ -101,12 +101,14 @@ test('воркер сообщает об итогах, а не о каждом �
   const from = worker.indexOf('const DONE_MESSAGES');
   const block = worker.slice(from, worker.indexOf('worker.on(', from));
 
-  // Итоги, после которых человек возвращается к уроку и что-то делает.
-  for (const step of ['fetchSource', 'makeCover', 'makeClips']) {
+  // Итоги, после которых человек возвращается к уроку и что-то делает. Каждый
+  // из этих шагов теперь запускается кнопкой и на себе же кончается — значит,
+  // каждый и должен разбудить телефон.
+  for (const step of ['fetchSource', 'subtitles', 'trimPauses', 'makeCover', 'makeClips']) {
     assert.match(block, new RegExp(`JOBS\\.${step}`), `нет уведомления об окончании ${step}`);
   }
-  // «Звук извлечён» посреди конвейера автору не нужен.
-  for (const step of ['extractAudio', 'subtitles', 'cleanupMedia']) {
+  // «Звук извлечён» посреди обработки автору не нужен.
+  for (const step of ['extractAudio', 'cleanupMedia']) {
     assert.ok(!block.includes(`JOBS.${step}`), `${step} будит зря`);
   }
 });

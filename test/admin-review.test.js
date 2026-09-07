@@ -50,15 +50,18 @@ async function seed(pool, { failed = false } = {}) {
      VALUES ($1, 0, 4000, 'Здравствуйте, сегодня разбираем docker compose.')`,
     [lesson.id]
   );
+  // Ссылку на исходник урок держит у себя, а не только в учёте файлов: по ней
+  // кнопки решают, есть ли что обрабатывать.
   await pool.query(
     `UPDATE lessons SET pipeline_state = $2, pipeline_error = $3, pipeline_job = $4,
-                        cover_url = '/media/asset/7'
+                        cover_url = '/media/asset/7', source_asset_id = $5
       WHERE id = $1`,
     [
       lesson.id,
       failed ? 'failed' : 'review',
       failed ? 'makeCover: ffmpeg вышел с кодом 1' : null,
-      failed ? JSON.stringify({ name: 'makeCover', data: { lessonId: lesson.id } }) : null
+      failed ? JSON.stringify({ name: 'makeCover', data: { lessonId: lesson.id } }) : null,
+      assets.find((asset) => asset.kind === 'source').id
     ]
   );
 
@@ -276,22 +279,26 @@ test('пока идёт сборка, вторую запустить нельз
   });
 });
 
-test('настройки сохраняются и во время сборки — не запускается только пересборка', skipWithoutDb, async () => {
-  await withTestDb(async (pool) => {
-    const { adminId } = await seed(pool);
-    await pool.query(`UPDATE lessons SET pipeline_state = 'processing' WHERE slug = 'urok'`);
-    const app = finalize(createApp({ config, pool }));
-    await withServer(app, async (base) => {
-      const res = await fetch(`${base}/api/admin/lessons/urok/settings`, {
-        method: 'POST',
-        headers: asAdmin(adminId),
-        body: JSON.stringify({ subtitleColor: '#ffcc00', rebuild: false })
+test(
+  'настройки сохраняются и во время сборки — не запускается только пересборка',
+  skipWithoutDb,
+  async () => {
+    await withTestDb(async (pool) => {
+      const { adminId } = await seed(pool);
+      await pool.query(`UPDATE lessons SET pipeline_state = 'processing' WHERE slug = 'urok'`);
+      const app = finalize(createApp({ config, pool }));
+      await withServer(app, async (base) => {
+        const res = await fetch(`${base}/api/admin/lessons/urok/settings`, {
+          method: 'POST',
+          headers: asAdmin(adminId),
+          body: JSON.stringify({ subtitleColor: '#ffcc00', rebuild: false })
+        });
+        assert.equal(res.status, 200);
+        assert.equal((await res.json()).settings.subtitleColor, '#ffcc00');
       });
-      assert.equal(res.status, 200);
-      assert.equal((await res.json()).settings.subtitleColor, '#ffcc00');
     });
-  });
-});
+  }
+);
 
 test('во время сборки кнопка пересборки выключена и объяснена', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
@@ -506,6 +513,8 @@ test('обработка запускается кнопкой, а не сама
 test('без записи обрабатывать нечего, и это сказано', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
     const { adminId } = await seed(pool);
+    // Черновик без исходника: файл не загружали, ссылки на запись у урока нет.
+    await pool.query('UPDATE lessons SET source_asset_id = NULL');
     const app = finalize(createApp({ config, pool, queue: { add: async () => {} } }));
     await withServer(app, async (base) => {
       const res = await fetch(`${base}/api/admin/lessons/urok/process`, {
@@ -538,5 +547,64 @@ test('готовые титры на записи отключают вшива�
     });
     const { rows } = await pool.query('SELECT settings FROM lessons WHERE slug = $1', ['urok']);
     assert.equal(rows[0].settings.burnedSubtitles, true);
+  });
+});
+
+test('обработка отделена от загрузки и кончается на субтитрах', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const { adminId } = await seed(pool);
+    const added = [];
+    const app = finalize(
+      createApp({ config, pool, queue: { add: async (name, data) => added.push({ name, data }) } })
+    );
+    await withServer(app, async (base) => {
+      const html = await (
+        await fetch(`${base}/admin/lesson/urok`, {
+          headers: { Accept: 'text/html', ...asAdmin(adminId) }
+        })
+      ).text();
+
+      // Кнопка обработки живёт в своём разделе, а не рядом с загрузкой: это
+      // разные шаги, и автор просил не смешивать их на экране.
+      const record = html.indexOf('<h2>Запись</h2>');
+      const processing = html.indexOf('<h2>Обработка звука</h2>');
+      const button = html.indexOf('data-process="urok"');
+      assert.ok(record >= 0 && processing > record, 'обработка должна идти отдельным разделом');
+      assert.ok(button > processing, 'кнопка обработки должна быть в разделе обработки');
+
+      const res = await fetch(`${base}/api/admin/lessons/urok/process`, {
+        method: 'POST',
+        headers: asAdmin(adminId)
+      });
+      assert.equal(res.status, 200);
+    });
+    // Запускается именно снятие звука: дальше цепочка сама доходит до
+    // субтитров и там останавливается.
+    assert.equal(added[0].name, 'extractAudio');
+  });
+});
+
+test('кадр на обложку берётся по нажатию, а не хвостом обработки', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const { adminId } = await seed(pool);
+    const added = [];
+    const app = finalize(
+      createApp({ config, pool, queue: { add: async (name, data) => added.push({ name, data }) } })
+    );
+    await withServer(app, async (base) => {
+      const html = await (
+        await fetch(`${base}/admin/lesson/urok`, {
+          headers: { Accept: 'text/html', ...asAdmin(adminId) }
+        })
+      ).text();
+      assert.match(html, /data-cover-frame="urok"/);
+
+      const res = await fetch(`${base}/api/admin/lessons/urok/cover-frame`, {
+        method: 'POST',
+        headers: asAdmin(adminId)
+      });
+      assert.equal(res.status, 200);
+    });
+    assert.equal(added[0].name, 'makeCover');
   });
 });

@@ -104,32 +104,48 @@ ${
                : ''
            }. ${
              processed
-               ? 'Обработана: есть расшифровка, субтитры и обложка.'
+               ? 'Речь распознана: расшифровка и субтитры есть.'
                : 'Обработка ещё не запускалась — расшифровки и субтитров нет.'
            }
          </p>
          <p class="form-row">
-           <button class="${processed ? 'button' : 'button-brand'}" type="button"
-             data-process="${escapeHtml(lesson.slug)}" ${busy ? 'disabled title="Урок уже обрабатывается"' : ''}>
-             ${processed ? 'Обработать заново' : 'Обработать'}
-           </button>
-           <a class="button" href="/admin/lesson/${encodeURIComponent(lesson.slug)}/preview">
+           <a class="button-brand" href="/admin/lesson/${encodeURIComponent(lesson.slug)}/preview">
              Проверить запись
            </a>
            <a class="button" href="/admin/upload?lesson=${encodeURIComponent(lesson.slug)}">Заменить запись</a>
-         </p>
-         <p class="hint">
-           Обработка снимает звук, распознаёт речь, собирает субтитры, монтирует
-           запись по настройкам ниже и берёт кадр на обложку. На часовом уроке
-           это около получаса.
          </p>`
       : `<p class="hint">
-           Записи ещё нет. Загрузите её с компьютера или возьмите с Яндекс Диска —
-           дальше конвейер сделает расшифровку, субтитры, монтаж и нарезки сам.
+           Записи ещё нет. Загрузите её с компьютера или возьмите с Яндекс Диска;
+           обработка, монтаж и нарезки — отдельными кнопками, когда файл будет здесь.
          </p>
          <p class="form-row">
            <a class="button-brand" href="/admin/upload?lesson=${encodeURIComponent(lesson.slug)}">Загрузить запись</a>
          </p>`
+  }
+</section>
+
+<section class="card">
+  <h2>Обработка звука</h2>
+  <p class="hint">
+    Снимает звуковую дорожку, распознаёт речь и собирает субтитры. Больше
+    ничего: монтаж, обложку и вертикальные ролики вы запускаете отдельными
+    кнопками ниже — каждое занимает минуты, и нужны они не всякому уроку.
+    На часовой записи это около получаса; по окончании придёт уведомление.
+  </p>
+  ${
+    hasSource
+      ? `<p class="form-row">
+           <button class="${processed ? 'button' : 'button-brand'}" type="button"
+             data-process="${escapeHtml(lesson.slug)}" ${busy ? 'disabled title="Идёт другая работа"' : ''}>
+             ${processed ? 'Обработать заново' : 'Обработать'}
+           </button>
+         </p>
+         ${
+           processed
+             ? '<p class="hint">Субтитры уже есть — повтор перезапишет их.</p>'
+             : '<p class="hint">Субтитров пока нет.</p>'
+         }`
+      : '<p class="hint">Сначала загрузите запись — обрабатывать нечего.</p>'
   }
 </section>
 
@@ -167,6 +183,10 @@ ${
       : ''
   }
   <div class="form-row">
+    <button class="button" type="button" data-cover-frame="${escapeHtml(lesson.slug)}"
+      ${hasSource ? '' : 'disabled title="Сначала загрузите запись"'}>
+      Взять кадр из записи
+    </button>
     <button class="button" type="button" data-draw-cover="${escapeHtml(lesson.slug)}"
       ${lesson.title ? '' : 'disabled title="Сначала нужен заголовок"'}>
       Нарисовать обложку

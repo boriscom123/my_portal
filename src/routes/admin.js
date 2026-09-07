@@ -237,6 +237,25 @@ export function adminRoutes(config, pool) {
     res.json({ started: true });
   });
 
+  // Взять кадр из записи на обложку. Отдельным действием, как и всё
+  // остальное: конвейер больше не тянет за собой то, о чём автора не спросили.
+  router.post('/lessons/:slug/cover-frame', async (req, res) => {
+    const lesson = await getLessonBySlug(pool, req.params.slug, { includeDrafts: true });
+    if (!lesson) throw new PublicError('Урок не найден', 404);
+    if (!req.app.locals.queue) throw new PublicError('Очередь недоступна', 503);
+    if (['uploading', 'processing'].includes(lesson.pipelineState)) {
+      throw new PublicError('Сейчас идёт другая работа. Дождитесь окончания', 409);
+    }
+    if (!lesson.sourceAssetId) throw new PublicError('Записи ещё нет: сначала загрузите её', 409);
+
+    await pool.query(
+      `UPDATE lessons SET pipeline_state = 'processing', pipeline_error = NULL WHERE id = $1`,
+      [lesson.id]
+    );
+    await addJob(req.app.locals.queue, 'makeCover', { lessonId: lesson.id });
+    res.json({ started: true });
+  });
+
   // Собрать вертикальные ролики. Отдельным действием, а не шагом конвейера:
   // ролики вшивают подписи внутрь видео, и до правки титров резать их значит
   // резать дважды — а это минуты машины на каждый заход.

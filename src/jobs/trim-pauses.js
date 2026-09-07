@@ -14,9 +14,8 @@ import { keepRanges, remapSegments, trimmedDurationMs, concatList } from '../lib
 import { toSrt, toVtt } from '../lib/srt.js';
 import { readSettings } from '../lib/settings.js';
 import { mediaPath, registerAsset, assetById } from '../services/media.js';
-import { addJob } from '../queue.js';
 
-export function makeTrimPauses(config, pool, queue) {
+export function makeTrimPauses(config, pool) {
   return async ({ lessonId }) => {
     const { rows } = await pool.query(
       'SELECT source_asset_id, duration_seconds, settings FROM lessons WHERE id = $1',
@@ -25,8 +24,14 @@ export function makeTrimPauses(config, pool, queue) {
     if (!rows[0]) throw new Error('урок не найден');
 
     const settings = readSettings(rows[0].settings);
+    const done = () =>
+      pool.query(
+        `UPDATE lessons SET pipeline_state = 'review', pipeline_error = NULL WHERE id = $1`,
+        [lessonId]
+      );
+
     if (!settings.cutPauses) {
-      await addJob(queue, 'makeCover', { lessonId });
+      await done();
       return { skipped: 'вырезание пауз выключено в настройках урока' };
     }
 
@@ -68,7 +73,7 @@ export function makeTrimPauses(config, pool, queue) {
     const ranges = keepRanges(silences, { durationSeconds: rows[0].duration_seconds });
     if (!ranges.length) {
       // Речи в записи нет — резать нечего, и пустой файл автору не нужен.
-      await addJob(queue, 'makeCover', { lessonId });
+      await done();
       return { skipped: 'речи в записи не нашлось' };
     }
 
@@ -109,9 +114,8 @@ export function makeTrimPauses(config, pool, queue) {
       });
     }
 
-    // Дальше обложка, а не нарезки: нарезки вшивают подписи внутрь видео, и
-    // до правки титров резать их значит резать дважды.
-    await addJob(queue, 'makeCover', { lessonId });
+    // Дальше ничего: обложку и нарезки автор запускает своими кнопками.
+    await done();
     return {
       ranges: ranges.length,
       silences: silences.length,

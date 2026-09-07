@@ -76,9 +76,7 @@ test('запись становится короче, а субтитры к н�
 
   await withTestDb(async (pool) => {
     const { config, lessonId } = await seed(pool, { cutPauses: true, minPauseSeconds: 2 });
-    const added = [];
-    const queue = { add: async (name) => added.push(name) };
-    const result = await makeTrimPauses(config, pool, queue)({ lessonId });
+    const result = await makeTrimPauses(config, pool)({ lessonId });
 
     assert.equal(result.ranges, 2, 'должно остаться два куска речи');
     assert.ok(result.silences >= 1, 'тишина посередине должна была найтись');
@@ -103,9 +101,13 @@ test('запись становится короче, а субтитры к н�
     assert.ok(paths.includes(`${dir}/trimmed.vtt`));
     // Список кусков — рабочий файл, в буфере ему делать нечего.
     assert.ok(!paths.some((item) => item.endsWith('trim-list.txt')));
-    // Нарезки в конвейер больше не входят: их собирает автор, когда поправит
-    // титры. Монтаж ведёт сразу к обложке.
-    assert.equal(added[0], 'makeCover');
+    // Дальше монтаж никого не зовёт: обложку и нарезки автор запускает сам.
+    // Но урок обязан выйти из «обработки», иначе кнопки останутся заперты.
+    const { rows: state } = await pool.query(
+      'SELECT pipeline_state FROM lessons WHERE id = $1',
+      [lessonId]
+    );
+    assert.equal(state[0].pipeline_state, 'review');
   });
 });
 
@@ -114,13 +116,14 @@ test('выключенный монтаж просто пропускается'
 
   await withTestDb(async (pool) => {
     const { config, lessonId } = await seed(pool, { cutPauses: false });
-    const added = [];
-    const result = await makeTrimPauses(config, pool, { add: async (n) => added.push(n) })({
-      lessonId
-    });
+    const result = await makeTrimPauses(config, pool)({ lessonId });
     // Пересжатие часовой записи занимает полчаса машины: без спроса нельзя.
     assert.match(result.skipped, /выключено/);
-    assert.equal(added[0], 'makeCover', 'конвейер должен идти дальше');
+    const { rows: state } = await pool.query(
+      'SELECT pipeline_state FROM lessons WHERE id = $1',
+      [lessonId]
+    );
+    assert.equal(state[0].pipeline_state, 'review', 'урок должен выйти из обработки');
     const { rows } = await pool.query(
       `SELECT count(*)::int n FROM assets WHERE lesson_id = $1 AND kind = 'trimmed'`,
       [lessonId]

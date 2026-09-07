@@ -56,8 +56,15 @@ export function makeTranscribe(config, pool, queue, speech) {
 
     // Речи в записи может не быть вовсе — например, урок целиком показывает
     // экран под музыку. Это не повод ронять обработку: субтитры пропускаем и
-    // идём сразу за обложкой, иначе урок застрял бы на полпути.
-    await addJob(queue, segments.length ? 'subtitles' : 'makeCover', { lessonId });
+    // на этом заканчиваем, иначе урок застрял бы в «обработке» навсегда.
+    if (segments.length) {
+      await addJob(queue, 'subtitles', { lessonId });
+    } else {
+      await pool.query(
+        `UPDATE lessons SET pipeline_state = 'review', pipeline_error = NULL WHERE id = $1`,
+        [lessonId]
+      );
+    }
     return { segments: segments.length, dropped, characters: text.length };
   };
 }
