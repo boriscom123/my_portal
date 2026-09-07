@@ -192,6 +192,36 @@ export function adminRoutes(config, pool) {
     res.json({ started: true });
   });
 
+  // Запустить обработку загруженной записи: звук, расшифровка, субтитры,
+  // монтаж, обложка. Отдельным действием от загрузки, потому что загрузка —
+  // это копирование файла на сайт, а обработка занимает у машины полчаса.
+  // Сразу после копирования её запускать нельзя: сперва автор убеждается, что
+  // скопировалась нужная запись.
+  router.post('/lessons/:slug/process', async (req, res) => {
+    const lesson = await getLessonBySlug(pool, req.params.slug, { includeDrafts: true });
+    if (!lesson) throw new PublicError('Урок не найден', 404);
+    if (!req.app.locals.queue) throw new PublicError('Очередь недоступна', 503);
+    if (['uploading', 'processing'].includes(lesson.pipelineState)) {
+      throw new PublicError('Урок уже обрабатывается. Дождитесь окончания', 409);
+    }
+
+    const { rows } = await pool.query(
+      `SELECT source_asset_id FROM lessons WHERE id = $1`,
+      [lesson.id]
+    );
+    if (!rows[0]?.source_asset_id) {
+      throw new PublicError('Записи ещё нет: сначала загрузите её', 409);
+    }
+
+    await pool.query(
+      `UPDATE lessons SET pipeline_state = 'processing', pipeline_error = NULL, pipeline_job = NULL
+        WHERE id = $1`,
+      [lesson.id]
+    );
+    await addJob(req.app.locals.queue, 'extractAudio', { lessonId: lesson.id });
+    res.json({ started: true });
+  });
+
   // Собрать вертикальные ролики. Отдельным действием, а не шагом конвейера:
   // ролики вшивают подписи внутрь видео, и до правки титров резать их значит
   // резать дважды — а это минуты машины на каждый заход.

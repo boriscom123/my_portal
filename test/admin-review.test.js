@@ -464,3 +464,77 @@ test('во время обработки вторую нарезку не зап
     });
   });
 });
+
+test('обработка запускается кнопкой, а не сама', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const { lesson, adminId } = await seed(pool);
+    const { rows } = await pool.query(
+      `SELECT id FROM assets WHERE lesson_id = $1 AND kind = 'source'`,
+      [lesson.id]
+    );
+    await pool.query('UPDATE lessons SET source_asset_id = $1 WHERE id = $2', [
+      rows[0].id,
+      lesson.id
+    ]);
+
+    const added = [];
+    const app = finalize(
+      createApp({ config, pool, queue: { add: async (name, data) => added.push({ name, data }) } })
+    );
+    await withServer(app, async (base) => {
+      const html = await (
+        await fetch(`${base}/admin/lesson/urok`, {
+          headers: { Accept: 'text/html', ...asAdmin(adminId) }
+        })
+      ).text();
+      assert.match(html, /data-process="urok"/);
+
+      const res = await fetch(`${base}/api/admin/lessons/urok/process`, {
+        method: 'POST',
+        headers: asAdmin(adminId)
+      });
+      assert.equal(res.status, 200);
+    });
+    // Обработка начинается со снятия звука: скачивание и загрузка её больше не
+    // тянут за собой, потому что сперва автор смотрит, ту ли запись положил.
+    assert.equal(added[0].name, 'extractAudio');
+  });
+});
+
+test('без записи обрабатывать нечего, и это сказано', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const { adminId } = await seed(pool);
+    const app = finalize(createApp({ config, pool, queue: { add: async () => {} } }));
+    await withServer(app, async (base) => {
+      const res = await fetch(`${base}/api/admin/lessons/urok/process`, {
+        method: 'POST',
+        headers: asAdmin(adminId)
+      });
+      assert.equal(res.status, 409);
+      assert.match((await res.json()).error, /Записи ещё нет/);
+    });
+  });
+});
+
+test('готовые титры на записи отключают вшивание своих', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const { adminId } = await seed(pool);
+    const app = finalize(createApp({ config, pool }));
+    await withServer(app, async (base) => {
+      await fetch(`${base}/api/admin/lessons/urok/settings`, {
+        method: 'POST',
+        headers: asAdmin(adminId),
+        body: JSON.stringify({ burnedSubtitles: true })
+      });
+      const html = await (
+        await fetch(`${base}/admin/lesson/urok`, {
+          headers: { Accept: 'text/html', ...asAdmin(adminId) }
+        })
+      ).text();
+      // Иначе в ролике выйдут две строки подписей друг под другом.
+      assert.match(html, /name="burnedSubtitles" type="checkbox" checked/);
+    });
+    const { rows } = await pool.query('SELECT settings FROM lessons WHERE slug = $1', ['urok']);
+    assert.equal(rows[0].settings.burnedSubtitles, true);
+  });
+});

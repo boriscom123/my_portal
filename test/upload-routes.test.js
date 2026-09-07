@@ -97,12 +97,14 @@ test('файл собирается из кусков в правильном п
       const collected = await readFile(path.join(config.media.dir, rows[0].path), 'utf8');
       assert.equal(collected, parts.join(''));
 
-      // Урок ушёл в обработку и знает свой исходник.
+      // Запись скопирована, урок знает свой исходник и ЖДЁТ: обработку
+      // запускает автор кнопкой. Прежде здесь ставилось «обрабатывается», а
+      // задача не создавалась вовсе — урок висел в обработке, которой не было.
       const { rows: lesson } = await pool.query(
         'SELECT pipeline_state, source_asset_id FROM lessons WHERE id = $1',
         [lessonId]
       );
-      assert.equal(lesson[0].pipeline_state, 'processing');
+      assert.equal(lesson[0].pipeline_state, 'idle');
       assert.equal(Number(lesson[0].source_asset_id), done.asset.id);
     });
   });

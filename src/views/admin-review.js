@@ -53,6 +53,9 @@ export function adminReviewPage({
   // Пока записи нет, главное действие — загрузить её. Когда есть, предлагать
   // загрузку как главное действие значит звать сделать то, что уже сделано.
   const hasSource = assets.some((asset) => asset.kind === 'source' || asset.kind === 'trimmed');
+  // Обработана ли запись: по субтитрам видно надёжнее, чем по состоянию —
+  // состояние сбрасывается, а файлы остаются.
+  const processed = assets.some((asset) => asset.kind === 'subtitles');
   // Пока конвейер работает, вторую пересборку запускать нельзя: она заняла бы
   // те же два ядра и обогнала бы первую — файлы переписывались бы вперемешку.
   const busy = ['uploading', 'processing'].includes(lesson.pipelineState);
@@ -95,16 +98,30 @@ ${
   ${
     hasSource
       ? `<p class="hint">
-           Длительность ${escapeHtml(humanDuration(lesson.durationSeconds))}. Плеер
-           показывает запись вместе с дорожкой субтитров — так видно, как подписи
-           ложатся на видео.
+           Запись на сайте${
+             lesson.durationSeconds
+               ? `, длительность ${escapeHtml(humanDuration(lesson.durationSeconds))}`
+               : ''
+           }. ${
+             processed
+               ? 'Обработана: есть расшифровка, субтитры и обложка.'
+               : 'Обработка ещё не запускалась — расшифровки и субтитров нет.'
+           }
          </p>
          <p class="form-row">
-           <a class="button-brand"
-              href="/admin/lesson/${encodeURIComponent(lesson.slug)}/preview">
+           <button class="${processed ? 'button' : 'button-brand'}" type="button"
+             data-process="${escapeHtml(lesson.slug)}" ${busy ? 'disabled title="Урок уже обрабатывается"' : ''}>
+             ${processed ? 'Обработать заново' : 'Обработать'}
+           </button>
+           <a class="button" href="/admin/lesson/${encodeURIComponent(lesson.slug)}/preview">
              Проверить запись
            </a>
            <a class="button" href="/admin/upload">Заменить запись</a>
+         </p>
+         <p class="hint">
+           Обработка снимает звук, распознаёт речь, собирает субтитры, монтирует
+           запись по настройкам ниже и берёт кадр на обложку. На часовом уроке
+           это около получаса.
          </p>`
       : `<p class="hint">
            Записи ещё нет. Загрузите её с компьютера или возьмите с Яндекс Диска —
@@ -218,47 +235,6 @@ ${
 </section>
 
 <section class="card">
-  <h2>Как готовить урок</h2>
-  <form id="settings-form" data-settings="${escapeHtml(lesson.slug)}">
-    <label>Толщина обводки подписей
-      <input name="subtitleOutline" type="number" min="0" max="4" step="0.1"
-             value="${escapeHtml(String(settings.subtitleOutline))}">
-    </label>
-    <label>Цвет подписей
-      <input name="subtitleColor" type="color" value="${escapeHtml(settings.subtitleColor)}">
-    </label>
-    <label class="checkbox-row">
-      <input name="cutPauses" type="checkbox" ${settings.cutPauses ? 'checked' : ''}>
-      Готовить вариант с вырезанными паузами
-    </label>
-    <label>Пауза короче этой не режется, секунд
-      <input name="minPauseSeconds" type="number" min="0.5" max="30" step="0.5"
-             value="${escapeHtml(String(settings.minPauseSeconds))}">
-    </label>
-    <div class="form-row">
-      <button class="button" type="submit">Сохранить настройки</button>
-      <button class="button-brand" type="submit" name="rebuild" value="yes"
-        ${busy ? 'disabled title="Пересборка уже идёт"' : ''}>
-        Сохранить и пересобрать
-      </button>
-    </div>
-  </form>
-  <p class="hint">
-    Настройки применяются при сборке роликов и монтаже. «Пересобрать» запускает
-    её заново на уже загруженной записи — расшифровывать повторно не нужно.
-    Монтаж часовой записи занимает у сервера около получаса.
-  </p>
-  ${
-    busy
-      ? `<p class="hint danger">
-           Пересборка уже идёт: ${escapeHtml(state)}. Вторая такая же заняла бы
-           те же ядра и обогнала бы первую — кнопка выключена, пока не закончится.
-         </p>`
-      : ''
-  }
-</section>
-
-<section class="card">
   <h2>Расшифровка</h2>
   ${
     segments.length
@@ -328,6 +304,55 @@ ${
 </section>`
     : ''
 }
+
+<section class="card">
+  <h2>Как готовить урок</h2>
+  <form id="settings-form" data-settings="${escapeHtml(lesson.slug)}">
+    <label>Толщина обводки подписей
+      <input name="subtitleOutline" type="number" min="0" max="4" step="0.1"
+             value="${escapeHtml(String(settings.subtitleOutline))}">
+    </label>
+    <label>Цвет подписей
+      <input name="subtitleColor" type="color" value="${escapeHtml(settings.subtitleColor)}">
+    </label>
+    <label class="checkbox-row">
+      <input name="cutPauses" type="checkbox" ${settings.cutPauses ? 'checked' : ''}>
+      Готовить вариант с вырезанными паузами
+    </label>
+    <label class="checkbox-row">
+      <input name="burnedSubtitles" type="checkbox" ${settings.burnedSubtitles ? 'checked' : ''}>
+      На записи уже есть наложенные титры
+    </label>
+    <p class="hint">
+      Если титры уже на записи, в вертикальные ролики свои вшиваться не будут:
+      иначе выйдут две строки подписей друг под другом.
+    </p>
+    <label>Пауза короче этой не режется, секунд
+      <input name="minPauseSeconds" type="number" min="0.5" max="30" step="0.5"
+             value="${escapeHtml(String(settings.minPauseSeconds))}">
+    </label>
+    <div class="form-row">
+      <button class="button" type="submit">Сохранить настройки</button>
+      <button class="button-brand" type="submit" name="rebuild" value="yes"
+        ${busy ? 'disabled title="Пересборка уже идёт"' : ''}>
+        Сохранить и пересобрать
+      </button>
+    </div>
+  </form>
+  <p class="hint">
+    Настройки применяются при сборке роликов и монтаже. «Пересобрать» запускает
+    её заново на уже загруженной записи — расшифровывать повторно не нужно.
+    Монтаж часовой записи занимает у сервера около получаса.
+  </p>
+  ${
+    busy
+      ? `<p class="hint danger">
+           Пересборка уже идёт: ${escapeHtml(state)}. Вторая такая же заняла бы
+           те же ядра и обогнала бы первую — кнопка выключена, пока не закончится.
+         </p>`
+      : ''
+  }
+</section>
 
 <section class="card">
   <h2>Вертикальные ролики</h2>

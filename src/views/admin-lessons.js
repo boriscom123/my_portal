@@ -65,17 +65,14 @@ export function adminLessonsPage({ config, user, lessons, diskConnected = false 
 <section class="card">
   <h2>Завести урок</h2>
   <form id="new-lesson-form" data-new-lesson>
-    <label>Заголовок
-      <input name="title" required maxlength="200"
-        placeholder="Можно черновой — поправите после расшифровки">
-    </label>
     <div class="form-row">
-      <button class="button-brand" type="submit">Завести</button>
+      <button class="button-brand" type="submit">Завести урок</button>
     </div>
   </form>
   <p class="hint">
-    Адрес урока соберётся из заголовка сам. Дальше загрузите запись — с
-    компьютера или с Яндекс Диска, — и конвейер сделает остальное.
+    Название спрашивать нечего: на этом шаге его неоткуда взять. Урок получит
+    временное имя с датой, а настоящее предложит модель по расшифровке — и вы
+    его поправите. Дальше: загрузить запись, потом нажать «Обработать».
   </p>
 </section>
 

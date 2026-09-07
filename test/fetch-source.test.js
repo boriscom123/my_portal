@@ -29,15 +29,12 @@ function diskStub(content) {
   };
 }
 
-test('файл ложится в буфер и запускает обработку', skipWithoutDb, async () => {
+test('файл ложится в буфер, но обработку не запускает', skipWithoutDb, async () => {
   const config = await makeConfig();
   await withTestDb(async (pool) => {
     const lesson = await saveLesson(pool, { slug: 'urok', title: 'Урок' });
     await saveIntegration(pool, config, { name: 'yandex-disk', token: 'token' });
-    const added = [];
-    const queue = { add: async (name, data) => added.push({ name, data }) };
-
-    const result = await makeFetchSource(config, pool, queue, diskStub('содержимое файла'))({
+    const result = await makeFetchSource(config, pool, diskStub('содержимое файла'))({
       lessonId: lesson.id,
       diskPath: 'disk:/video/urok.mp4'
     });
@@ -52,14 +49,17 @@ test('файл ложится в буфер и запускает обработ
       'содержимое файла'
     );
     assert.equal(result.bytes, Buffer.byteLength('содержимое файла'));
-    // Следующий шаг ставится сам: порядок конвейера живёт в шагах.
-    assert.equal(added[0].name, 'extractAudio');
+    // Обработку запускает автор кнопкой: скачивание только копирует запись на
+    // сайт. Прежде оно сразу тянуло за собой всю обработку, и ошибку с выбором
+    // файла можно было заметить только через полчаса счёта.
 
     const { rows: lessonRows } = await pool.query(
       'SELECT pipeline_state, source_asset_id FROM lessons WHERE id = $1',
       [lesson.id]
     );
-    assert.equal(lessonRows[0].pipeline_state, 'processing');
+    // Запись скопирована и ждёт: урок не «обрабатывается», обработку запускает
+    // автор.
+    assert.equal(lessonRows[0].pipeline_state, 'idle');
     assert.ok(lessonRows[0].source_asset_id);
   });
 });
@@ -69,7 +69,7 @@ test('без подключённого Диска шаг говорит об э
   await withTestDb(async (pool) => {
     const lesson = await saveLesson(pool, { slug: 'urok', title: 'Урок' });
     await assert.rejects(
-      makeFetchSource(config, pool, { add: async () => {} }, diskStub('х'))({
+      makeFetchSource(config, pool, diskStub('х'))({
         lessonId: lesson.id,
         diskPath: 'disk:/urok.mp4'
       }),
@@ -84,7 +84,7 @@ test('чужое имя файла не уводит запись за пред�
     const lesson = await saveLesson(pool, { slug: 'urok', title: 'Урок' });
     await saveIntegration(pool, config, { name: 'yandex-disk', token: 'token' });
 
-    await makeFetchSource(config, pool, { add: async () => {} }, diskStub('x'))({
+    await makeFetchSource(config, pool, diskStub('x'))({
       lessonId: lesson.id,
       diskPath: 'disk:/../../etc/passwd'
     });
@@ -108,7 +108,7 @@ test('отказ скачивания объясняется', skipWithoutDb, as
       return { ok: false, status: 503, text: async () => 'занято' };
     };
     await assert.rejects(
-      makeFetchSource(config, pool, { add: async () => {} }, failing)({
+      makeFetchSource(config, pool, failing)({
         lessonId: lesson.id,
         diskPath: 'disk:/urok.mp4'
       }),

@@ -12,7 +12,6 @@ import { Readable } from 'node:stream';
 import path from 'node:path';
 import { mediaPath, registerAsset } from '../services/media.js';
 import { loadIntegration, diskDownloadUrl } from '../services/disk.js';
-import { addJob } from '../queue.js';
 
 /**
  * Обеззараживает имя файла, пришедшее с чужого сервиса.
@@ -27,7 +26,7 @@ function safeFileName(diskPath) {
   return clean || 'source.mp4';
 }
 
-export function makeFetchSource(config, pool, queue, fetchImpl = fetch) {
+export function makeFetchSource(config, pool, fetchImpl = fetch) {
   return async ({ lessonId, diskPath }) => {
     const integration = await loadIntegration(pool, config, 'yandex-disk');
     if (!integration) throw new Error('Яндекс Диск не подключён');
@@ -59,7 +58,14 @@ export function makeFetchSource(config, pool, queue, fetchImpl = fetch) {
       [asset.id, lessonId]
     );
 
-    await addJob(queue, 'extractAudio', { lessonId });
+    // Дальше ничего не ставим: запись только скопирована на сайт. Обработку
+    // запускает автор кнопкой, когда убедился, что скопировалась нужная. До
+    // этой правки скачивание сразу тянуло за собой всю обработку, и ошибку с
+    // выбором файла можно было заметить только через полчаса счёта.
+    await pool.query(
+      `UPDATE lessons SET pipeline_state = 'idle', pipeline_error = NULL WHERE id = $1`,
+      [lessonId]
+    );
     return { bytes: size };
   };
 }

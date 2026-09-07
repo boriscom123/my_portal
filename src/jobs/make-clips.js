@@ -117,6 +117,9 @@ export function makeMakeClips(config, pool) {
 
     const settings = readSettings(rows[0].settings);
     const style = { outline: settings.subtitleOutline, color: toAssColor(settings.subtitleColor) };
+    // Если подписи уже наложены на запись, свои вшивать нельзя: получились бы
+    // две строки друг под другом.
+    const burnSubtitles = !settings.burnedSubtitles;
     const ranges = pickClipRanges(segments, rows[0].duration_seconds);
     const dir = `lesson-${lessonId}`;
     await mkdir(mediaPath(config, dir), { recursive: true });
@@ -125,16 +128,18 @@ export function makeMakeClips(config, pool) {
     for (const [index, range] of ranges.entries()) {
       const subtitles = mediaPath(config, `${dir}/clip-${index + 1}.srt`);
       const relative = `${dir}/clip-${index + 1}.mp4`;
-      await writeFile(
-        subtitles,
-        toSrt(splitLongSegments(shiftSegments(segments, range.startedMs, range.endedMs))),
-        'utf8'
-      );
+      if (burnSubtitles) {
+        await writeFile(
+          subtitles,
+          toSrt(splitLongSegments(shiftSegments(segments, range.startedMs, range.endedMs))),
+          'utf8'
+        );
+      }
       try {
         await runFfmpeg(
           ffmpegArgsForClip({
             input,
-            subtitles,
+            subtitles: burnSubtitles ? subtitles : null,
             startSeconds: range.startedMs / 1000,
             durationSeconds: (range.endedMs - range.startedMs) / 1000,
             output: mediaPath(config, relative),

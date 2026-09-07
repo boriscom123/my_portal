@@ -91,7 +91,7 @@ test('второй урок с тем же заголовком получает
   });
 });
 
-test('без заголовка урок не заводится', skipWithoutDb, async () => {
+test('урок заводится и без заголовка — с временным именем по дате', skipWithoutDb, async () => {
   const config = await makeConfig();
   await withTestDb(async (pool) => {
     const headers = await adminHeaders(pool, config);
@@ -100,9 +100,14 @@ test('без заголовка урок не заводится', skipWithoutDb
       const res = await fetch(`${base}/api/admin/lessons`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ title: '   ' })
+        body: JSON.stringify({})
       });
-      assert.equal(res.status, 400);
+      // На первом шаге название неоткуда взять: его предложит модель по
+      // расшифровке, а пока урок надо отличать в списке.
+      assert.equal(res.status, 200);
+      const { lesson } = await res.json();
+      assert.match(lesson.title, /^Урок от \d{4}-\d{2}-\d{2}$/);
+      assert.match(lesson.slug, /^urok-ot-\d{4}-\d{2}-\d{2}/);
     });
   });
 });

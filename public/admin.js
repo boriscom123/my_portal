@@ -261,6 +261,7 @@ export function initPage() {
                 subtitleOutline: data.get('subtitleOutline'),
                 subtitleColor: data.get('subtitleColor'),
                 cutPauses: data.get('cutPauses') === 'on',
+        burnedSubtitles: data.get('burnedSubtitles') === 'on',
                 minPauseSeconds: data.get('minPauseSeconds'),
                 rebuild
               })
@@ -483,14 +484,15 @@ export function initPage() {
   const newLessonForm = document.querySelector('[data-new-lesson]');
   newLessonForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
-    const title = new FormData(newLessonForm).get('title');
     const button = event.submitter ?? newLessonForm.querySelector('button');
 
     try {
       await withButtonState(button, 'Завожу…', 'Готово', async () => {
+        // Названия здесь нет намеренно: на первом шаге его неоткуда взять.
+        // Урок получит временное имя с датой, настоящее придёт из расшифровки.
         const answer = await request('/api/admin/lessons', {
           method: 'POST',
-          body: JSON.stringify({ title })
+          body: JSON.stringify({})
         });
         // Сразу открываем заведённый урок: следующее действие всё равно там.
         if (answer) location.href = `/admin/lesson/${answer.lesson.slug}`;
@@ -518,6 +520,27 @@ export function initPage() {
         button.disabled = false;
       }
     });
+  });
+
+  /* --- Обработка записи --------------------------------------------------- */
+
+  // Обработка идёт полчаса, поэтому кнопка только ставит задачу. Дальше ход
+  // работы видно в списке уроков: он перечитывает себя, пока что-то считается.
+  const processButton = document.querySelector('[data-process]');
+  processButton?.addEventListener('click', async () => {
+    try {
+      await withButtonState(processButton, 'Запускаю…', 'Запущено', async () => {
+        const answer = await request(
+          `/api/admin/lessons/${processButton.dataset.process}/process`,
+          { method: 'POST' }
+        );
+        if (!answer) return;
+        toast('Обработка запущена. На часовом уроке это около получаса.');
+        setTimeout(() => location.reload(), 1600);
+      });
+    } catch (error) {
+      toast(`Не запустилось: ${error.message}`, true);
+    }
   });
 
   /* --- Вертикальные ролики ----------------------------------------------- */

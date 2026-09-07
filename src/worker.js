@@ -52,7 +52,7 @@ for (const [name, model, modelUrl] of [
 
 // Обработчики шагов конвейера. Добавляются по мере готовности.
 const handlers = {
-  [JOBS.fetchSource]: makeFetchSource(config, pool, queue),
+  [JOBS.fetchSource]: makeFetchSource(config, pool),
   [JOBS.extractAudio]: makeExtractAudio(config, pool, queue),
   [JOBS.transcribe]: makeTranscribe(config, pool, queue, speech),
   [JOBS.subtitles]: makeSubtitles(config, pool, queue),

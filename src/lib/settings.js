@@ -19,6 +19,9 @@ export const DEFAULT_SETTINGS = {
   // Вырезать ли паузы из записи. По умолчанию нет: монтаж занимает полчаса
   // машины, и включать его без спроса нельзя.
   cutPauses: false,
+  // Есть ли на записи уже наложенные подписи. Если есть, в вертикальные ролики
+  // вшивать свои не нужно: получились бы две строки подписей друг под другом.
+  burnedSubtitles: false,
   // Пауза короче этой не режется: без неё речь звучит рублено, будто человек
   // говорит без дыхания.
   minPauseSeconds: 2
@@ -54,6 +57,7 @@ export function readSettings(stored = {}) {
       ? String(source.subtitleColor).toLowerCase()
       : DEFAULT_SETTINGS.subtitleColor,
     cutPauses: source.cutPauses === true || source.cutPauses === 'on',
+    burnedSubtitles: source.burnedSubtitles === true || source.burnedSubtitles === 'on',
     minPauseSeconds: clampNumber(
       source.minPauseSeconds ?? DEFAULT_SETTINGS.minPauseSeconds,
       LIMITS.minPauseSeconds,

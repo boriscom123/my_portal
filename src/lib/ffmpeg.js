@@ -94,7 +94,7 @@ export function ffmpegArgsForClip({
   // Запятые и двоеточия в пути ffmpeg считает разделителями фильтра, а
   // одинарная кавычка обрывает имя. Экранируем — иначе урок с двоеточием в
   // имени файла уронил бы нарезку.
-  const escaped = String(subtitles).replace(/([\\':,[\]])/g, '\\$1');
+  const escaped = subtitles ? String(subtitles).replace(/([\\':,[\]])/g, '\\$1') : null;
   const filter = [
     // Из кадра берётся центральная колонка шириной 9/16 высоты — то, что
     // остаётся, если из горизонтали вырезать вертикаль.
@@ -109,10 +109,18 @@ export function ffmpegArgsForClip({
     // кадра. Десять и сорок — это буквы в семьдесят точек внизу кадра:
     // читается с телефона, не закрывает показываемое и не лезет под кнопки
     // площадки.
-    `subtitles=${escaped}:force_style='FontName=DejaVu Sans,Fontsize=10,` +
-      `PrimaryColour=${style.color ?? '&HFFFFFF'},Outline=${style.outline ?? 0.8},` +
-      `Shadow=0,Alignment=2,MarginV=40'`
-  ].join(',');
+    //
+    // Файла субтитров может не быть вовсе: автор отметил, что подписи уже
+    // наложены на саму запись. Вшивать свои поверх — это две строки подписей
+    // друг под другом.
+    escaped
+      ? `subtitles=${escaped}:force_style='FontName=DejaVu Sans,Fontsize=10,` +
+        `PrimaryColour=${style.color ?? '&HFFFFFF'},Outline=${style.outline ?? 0.8},` +
+        `Shadow=0,Alignment=2,MarginV=40'`
+      : null
+  ]
+    .filter(Boolean)
+    .join(',');
 
   return [
     '-hide_banner',

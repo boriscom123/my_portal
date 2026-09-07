@@ -15,14 +15,17 @@ import { mediaPath } from './media.js';
  * адресом невозможны на уровне базы, и падать на этом при похожих заголовках
  * незачем.
  */
-export async function createLesson(pool, { title, description = '' }) {
-  const clean = String(title ?? '').trim();
-  if (!clean) throw new Error('у урока должен быть заголовок');
+export async function createLesson(pool, { title = '', description = '' } = {}) {
+  const date = new Date().toISOString().slice(0, 10);
+  // Название необязательно: на первом шаге его ещё неоткуда взять, а после
+  // расшифровки его предложит модель и поправит автор. Временное — с датой,
+  // чтобы урок можно было отличить в списке.
+  const clean = String(title ?? '').trim() || `Урок от ${date}`;
 
   const { rows: taken } = await pool.query('SELECT slug FROM lessons');
   // Из заголовка вроде «!!! ???» адреса не выйдет — тогда собираем от даты:
   // урок без адреса не открыть.
-  const base = slugify(clean) || `urok-${new Date().toISOString().slice(0, 10)}`;
+  const base = slugify(clean) || `urok-${date}`;
   const slug = uniqueSlug(base, taken.map((row) => row.slug));
 
   const { rows } = await pool.query(

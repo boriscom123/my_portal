@@ -194,8 +194,11 @@ export function uploadRoutes(config, pool) {
       relativePath: relative,
       bytes: size
     });
+    // Запись скопирована — и только. Обработку запускает автор кнопкой.
+    // Прежде здесь ставилось «обрабатывается», но задача не создавалась вовсе:
+    // урок так и висел в обработке, которой не было.
     await pool.query(
-      `UPDATE lessons SET source_asset_id = $1, pipeline_state = 'processing', pipeline_error = NULL
+      `UPDATE lessons SET source_asset_id = $1, pipeline_state = 'idle', pipeline_error = NULL
         WHERE id = $2`,
       [asset.id, info.lessonId]
     );
