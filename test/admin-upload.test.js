@@ -114,3 +114,49 @@ test('кнопка у файла Диска говорит, что она дел
   assert.match(admin, /Скопировать на сайт/);
   assert.ok(!admin.includes('>В обработку<'));
 });
+
+test('второе копирование в тот же урок не принимается', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const lesson = await saveLesson(pool, { slug: 'urok', title: 'Урок' });
+    await pool.query(`UPDATE lessons SET pipeline_state = 'uploading' WHERE id = $1`, [lesson.id]);
+    const headers = await adminHeaders(pool);
+    const app = finalize(createApp({ config, pool, queue: { add: async () => {} } }));
+    await withServer(app, async (base) => {
+      const res = await fetch(`${base}/api/upload/from-disk`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lessonId: lesson.id, diskPath: 'disk:/urok.mp4' })
+      });
+      // Второе копирование писало бы поверх первого на полпути. Отказ живёт на
+      // сервере, а не только в выключенной кнопке: страница могла быть открыта
+      // до начала копирования.
+      assert.equal(res.status, 409);
+    });
+  });
+});
+
+test('копирование отдаёт адрес урока — по нему страница и спрашивает', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const lesson = await saveLesson(pool, { slug: 'urok', title: 'Урок' });
+    const headers = await adminHeaders(pool);
+    const app = finalize(createApp({ config, pool, queue: { add: async () => {} } }));
+    await withServer(app, async (base) => {
+      const started = await (
+        await fetch(`${base}/api/upload/from-disk`, {
+          method: 'POST',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lessonId: lesson.id, diskPath: 'disk:/urok.mp4' })
+        })
+      ).json();
+      assert.equal(started.slug, 'urok');
+
+      // Работа идёт в воркере, и по ответу о ней ничего не известно: страница
+      // спрашивает состояние отдельно.
+      const state = await (
+        await fetch(`${base}/api/admin/lessons/urok/state`, { headers })
+      ).json();
+      assert.equal(state.state, 'uploading');
+      assert.equal(state.hasSource, false);
+    });
+  });
+});

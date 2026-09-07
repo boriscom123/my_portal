@@ -143,53 +143,64 @@ export function initPage() {
         diskFiles.innerHTML = `<li class="hint">Список не читается: ${error.message}</li>`;
       });
 
+    /**
+     * Ждёт, пока запись докопируется с Диска.
+     * Работа идёт в воркере, и по ответу на запрос о ней ничего не известно: без
+     * опроса кнопка молчит минутами, а человек жмёт её второй раз.
+     */
+    async function waitForCopy(slug, button) {
+      const deadline = Date.now() + 40 * 60 * 1000;
+      while (Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 4000));
+        const state = await request(`/api/admin/lessons/${slug}/state`).catch(() => null);
+        if (!state) continue;
+        if (state.state === 'uploading') continue;
+
+        if (state.hasSource) {
+          button.textContent = 'Скопировано';
+          toast('Запись на сайте. Обработку запустите на экране урока.');
+        } else {
+          button.textContent = 'Не скопировалось';
+          button.disabled = false;
+          toast(`Не скопировалось: ${state.error ?? 'причина не записана'}`, true);
+        }
+        return;
+      }
+      button.textContent = 'Копирование затянулось';
+      toast('Копирование идёт дольше сорока минут. Откройте урок и посмотрите состояние.', true);
+    }
+
     diskFiles.addEventListener('click', async (event) => {
       const button = event.target.closest('[data-disk-path]');
       if (!button) return;
-      const lessonId = Number(document.querySelector('#upload-form select').value);
+      const lessonId = Number(document.querySelector('[name=lessonId]')?.value);
       if (!lessonId) {
         toast('Сначала выберите урок.', true);
         return;
       }
-      button.disabled = true;
-      const answer = await request('/api/upload/from-disk', {
-        method: 'POST',
-        body: JSON.stringify({ lessonId, diskPath: button.dataset.diskPath })
-      });
-      if (answer) toast('Файл копируется с Диска. Обработку запустите на экране урока.');
+
+      // Выключаем ВСЕ кнопки списка, а не только нажатую: копирование идёт в
+      // один урок, и второй файл поверх первого писать некуда.
+      const buttons = [...diskFiles.querySelectorAll('[data-disk-path]')];
+      buttons.forEach((item) => (item.disabled = true));
+      const wasText = button.textContent;
+      button.textContent = 'Копирую…';
+
+      try {
+        const answer = await request('/api/upload/from-disk', {
+          method: 'POST',
+          body: JSON.stringify({ lessonId, diskPath: button.dataset.diskPath })
+        });
+        if (!answer) return;
+        toast('Копирую с Диска. Это минуты — страницу можно не держать открытой.');
+        await waitForCopy(answer.slug, button);
+      } catch (error) {
+        toast(`Не запустилось: ${error.message}`, true);
+        button.textContent = wasText;
+        buttons.forEach((item) => (item.disabled = false));
+      }
     });
   }
-
-  /* --- Экран проверки урока ------------------------------------------------ */
-
-  // Публикация и сохранение черновика — одна форма с двумя кнопками: тексты
-  // автор правит одни и те же, разница только в том, видит ли их зритель.
-  const reviewForm = document.querySelector('[data-approve]');
-  reviewForm?.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const publish = event.submitter?.value === 'yes';
-    const data = new FormData(reviewForm);
-    const buttons = reviewForm.querySelectorAll('button');
-    buttons.forEach((button) => (button.disabled = true));
-
-    try {
-      const answer = await request(`/api/admin/lessons/${reviewForm.dataset.approve}/approve`, {
-        method: 'POST',
-        body: JSON.stringify({
-          title: data.get('title'),
-          description: data.get('description'),
-          tags: data.get('tags'),
-          publish
-        })
-      });
-      if (answer) {
-        toast(publish ? 'Урок опубликован, подписчики получат уведомление.' : 'Черновик сохранён.');
-        if (publish) location.href = `/lesson/${answer.lesson.slug}`;
-      }
-    } finally {
-      buttons.forEach((button) => (button.disabled = false));
-    }
-  });
 
   // Повтор упавшего шага. Что именно повторяется, решает сервер по записанной
   // упавшей задаче — клиент не угадывает имя шага.
@@ -261,7 +272,7 @@ export function initPage() {
                 subtitleOutline: data.get('subtitleOutline'),
                 subtitleColor: data.get('subtitleColor'),
                 cutPauses: data.get('cutPauses') === 'on',
-        burnedSubtitles: data.get('burnedSubtitles') === 'on',
+                burnedSubtitles: data.get('burnedSubtitles') === 'on',
                 minPauseSeconds: data.get('minPauseSeconds'),
                 rebuild
               })
@@ -507,7 +518,8 @@ export function initPage() {
   document.querySelectorAll('[data-lesson-delete]').forEach((button) => {
     button.addEventListener('click', async () => {
       const slug = button.dataset.lessonDelete;
-      const title = button.closest('.admin-lesson')?.querySelector('h3')?.textContent.trim() ?? slug;
+      const title =
+        button.closest('.admin-lesson')?.querySelector('h3')?.textContent.trim() ?? slug;
       if (!confirm(`Удалить урок «${title}» со всеми файлами, расшифровкой и отзывами?`)) return;
 
       button.disabled = true;
@@ -562,7 +574,6 @@ export function initPage() {
       toast(`Не запустилось: ${error.message}`, true);
     }
   });
-
 }
 
 initPage();

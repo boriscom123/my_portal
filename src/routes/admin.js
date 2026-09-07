@@ -192,6 +192,21 @@ export function adminRoutes(config, pool) {
     res.json({ started: true });
   });
 
+  // Что сейчас с уроком. Нужен странице загрузки: копирование гигабайта идёт
+  // минуты, и без опроса кнопка молчит, а человек жмёт её второй раз.
+  router.get('/lessons/:slug/state', async (req, res) => {
+    const { rows } = await pool.query(
+      `SELECT pipeline_state, pipeline_error, source_asset_id FROM lessons WHERE slug = $1`,
+      [req.params.slug]
+    );
+    if (!rows[0]) throw new PublicError('Урок не найден', 404);
+    res.json({
+      state: rows[0].pipeline_state,
+      error: rows[0].pipeline_error,
+      hasSource: Boolean(rows[0].source_asset_id)
+    });
+  });
+
   // Запустить обработку загруженной записи: звук, расшифровка, субтитры,
   // монтаж, обложка. Отдельным действием от загрузки, потому что загрузка —
   // это копирование файла на сайт, а обработка занимает у машины полчаса.

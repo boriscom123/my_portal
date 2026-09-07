@@ -89,12 +89,25 @@ export function uploadRoutes(config, pool) {
     const { lessonId, diskPath } = req.body ?? {};
     if (!lessonId || !diskPath) throw new PublicError('Не указан урок или файл');
 
+    const { rows } = await pool.query('SELECT slug, pipeline_state FROM lessons WHERE id = $1', [
+      Number(lessonId)
+    ]);
+    if (!rows[0]) throw new PublicError('Урок не найден', 404);
+    // Второе копирование в тот же урок писало бы поверх первого на полпути.
+    // Отказ живёт на сервере, а не только в выключенной кнопке: страница могла
+    // быть открыта до начала копирования.
+    if (['uploading', 'processing'].includes(rows[0].pipeline_state)) {
+      throw new PublicError('Для этого урока уже идёт работа. Дождитесь окончания', 409);
+    }
+
     await pool.query(`UPDATE lessons SET pipeline_state = 'uploading' WHERE id = $1`, [lessonId]);
     // Работа идёт в воркере: скачивание гигабайтного файла занимает минуты, а
     // HTTP-запрос столько не живёт — человек закроет вкладку и не узнает, чем
     // кончилось.
     await addJob(req.app.locals.queue, 'fetchSource', { lessonId, diskPath: String(diskPath) });
-    res.json({ ok: true });
+    // Адрес урока нужен странице, чтобы спрашивать, докопировалось ли: работа
+    // идёт в воркере, и по ответу на этот запрос о ней ничего не известно.
+    res.json({ ok: true, slug: rows[0].slug });
   });
 
   router.get('/:uploadId', async (req, res) => {
