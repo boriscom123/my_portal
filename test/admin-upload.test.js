@@ -160,3 +160,39 @@ test('копирование отдаёт адрес урока — по нем�
     });
   });
 });
+
+test('страница подхватывает уже идущее копирование', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const lesson = await saveLesson(pool, { slug: 'urok', title: 'Урок' });
+    await pool.query(`UPDATE lessons SET pipeline_state = 'processing' WHERE id = $1`, [lesson.id]);
+    const headers = await adminHeaders(pool);
+    const app = finalize(createApp({ config, pool }));
+    await withServer(app, async (base) => {
+      const html = await (await fetch(`${base}/admin/upload?lesson=urok`, { headers })).text();
+      // Копирование могло начаться до загрузки страницы: человек обновил её
+      // или вернулся позже. Молчать в этом случае нельзя.
+      assert.match(html, /data-copy-watch="urok"/);
+    });
+  });
+});
+
+test('когда запись уже на месте, ждать нечего', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const lesson = await saveLesson(pool, { slug: 'urok', title: 'Урок' });
+    const { rows } = await pool.query(
+      `INSERT INTO assets (lesson_id, kind, path, bytes, expires_at)
+       VALUES ($1, 'source', 'urok/source.mp4', 10, now() + interval '7 days') RETURNING id`,
+      [lesson.id]
+    );
+    await pool.query(
+      `UPDATE lessons SET source_asset_id = $1, pipeline_state = 'processing' WHERE id = $2`,
+      [rows[0].id, lesson.id]
+    );
+    const headers = await adminHeaders(pool);
+    const app = finalize(createApp({ config, pool }));
+    await withServer(app, async (base) => {
+      const html = await (await fetch(`${base}/admin/upload?lesson=urok`, { headers })).text();
+      assert.ok(!html.includes('data-copy-watch'), 'страница ждёт копирования, которое кончилось');
+    });
+  });
+});

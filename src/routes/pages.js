@@ -159,6 +159,11 @@ export function pageRoutes(config, pool) {
         user,
         lessons,
         lesson: chosen,
+        // Копирование могло начаться до этой загрузки страницы.
+        copying:
+          Boolean(chosen) &&
+          !chosen.sourceAssetId &&
+          ['uploading', 'processing'].includes(chosen.pipelineState),
         diskConnected: await diskConnected()
       })
     );

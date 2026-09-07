@@ -15,7 +15,14 @@ import { escapeHtml } from '../lib/html.js';
 import { assetUrl } from '../lib/assets.js';
 import { layout } from './layout.js';
 
-export function adminUploadPage({ config, user, lessons, diskConnected = false, lesson = null }) {
+export function adminUploadPage({
+  config,
+  user,
+  lessons,
+  diskConnected = false,
+  lesson = null,
+  copying = false
+}) {
   const options = lessons
     .map((item) => `<option value="${item.id}">${escapeHtml(item.title)}</option>`)
     .join('');
@@ -68,7 +75,14 @@ ${
   <progress id="upload-progress" max="100" value="0" hidden></progress>
 </form>
 
-<section class="card" id="disk-block">
+<section class="card" id="disk-block"
+  ${
+    copying
+      ? // Копирование началось раньше этой загрузки страницы: человек обновил
+        // её или вернулся позже. Пометка даёт скрипту подхватить ожидание.
+        `data-copy-watch="${escapeHtml(lesson.slug)}"`
+      : ''
+  }>
   <h2>С Яндекс Диска</h2>
   ${
     diskConnected

@@ -170,7 +170,19 @@ export function initPage() {
       toast('Копирование идёт дольше сорока минут. Откройте урок и посмотрите состояние.', true);
     }
 
-    diskFiles.addEventListener('click', async (event) => {
+    // Копирование могло начаться до этой загрузки страницы: человек обновил её
+  // или вернулся позже. Тогда молчать нельзя — подхватываем ожидание.
+  const resumeSlug = document.querySelector('[data-copy-watch]')?.dataset.copyWatch;
+  if (resumeSlug) {
+    const mark = document.createElement('span');
+    mark.className = 'hint';
+    mark.textContent = 'Копирую…';
+    diskFiles.before(mark);
+    diskFiles.querySelectorAll('[data-disk-path]').forEach((item) => (item.disabled = true));
+    waitForCopy(resumeSlug, mark);
+  }
+
+  diskFiles.addEventListener('click', async (event) => {
       const button = event.target.closest('[data-disk-path]');
       if (!button) return;
       const lessonId = Number(document.querySelector('[name=lessonId]')?.value);
