@@ -246,10 +246,24 @@ export function findComplaint(lines, failOn) {
   return line ? line.trim() : null;
 }
 
-/** Складывает объяснение отказа из кода возврата и хвоста вывода. */
-export function describeFailure(code, lines) {
+/**
+ * Складывает объяснение отказа из кода возврата и хвоста вывода.
+ *
+ * Имя программы приходит снаружи: этой функцией объясняет свои отказы и
+ * расшифровка, а «ffmpeg завершился» на упавшем whisper отправляет автора
+ * чинить не то.
+ *
+ * Пустой код — не отказ программы, а её убийство сигналом. На двух гигабайтах
+ * памяти воркера так кончается ровно одно: памяти не хватило, и ядро выбрало
+ * самого прожорливого. Писать про это «код null» — значит не сказать ничего.
+ */
+export function describeFailure(code, lines, tool = 'ffmpeg') {
   const tail = lines.slice(-TAIL_LINES).join('\n').trim();
-  return `ffmpeg завершился с кодом ${code}${tail ? `:\n${tail}` : ''}`;
+  const reason =
+    code === null
+      ? `${tool} убит системой: не хватило памяти`
+      : `${tool} завершился с кодом ${code}`;
+  return `${reason}${tail ? `:\n${tail}` : ''}`;
 }
 
 /**

@@ -210,7 +210,7 @@ export function runWhisper(bin, args) {
     child.on('error', reject);
     child.on('close', (code) => {
       if (code === 0) resolve();
-      else reject(new Error(describeFailure(code, lines)));
+      else reject(new Error(describeFailure(code, lines, 'whisper')));
     });
   });
 }
