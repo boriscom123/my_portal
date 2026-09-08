@@ -25,6 +25,15 @@ import { makeCleanupMedia } from './jobs/cleanup-media.js';
 import { makeTranscribe } from './jobs/transcribe.js';
 import { createSpeech } from './services/speech.js';
 import { ensureModel } from './lib/whisper.js';
+import { makePublishYoutube } from './jobs/publish-youtube.js';
+import { youtubeAccessToken } from './services/platforms/youtube-auth.js';
+import {
+  startUploadSession,
+  uploadVideoFile,
+  insertCaptions,
+  setThumbnail
+} from './services/platforms/youtube.js';
+import { shrinkThumbnail } from './lib/ffmpeg.js';
 
 const config = loadConfig();
 const pool = createPool(config.db);
@@ -64,7 +73,17 @@ const handlers = {
   [JOBS.trimPauses]: makeTrimPauses(config, pool),
   [JOBS.makeClips]: makeMakeClips(config, pool),
   [JOBS.makeCover]: makeMakeCover(config, pool),
-  [JOBS.cleanupMedia]: makeCleanupMedia(config, pool)
+  [JOBS.cleanupMedia]: makeCleanupMedia(config, pool),
+  // Площадка передаётся шагу набором функций, а не импортом внутрь него: так
+  // шаг проверяется тестом без сети, и так же рядом встанет вторая площадка.
+  [JOBS.publishYoutube]: makePublishYoutube(config, pool, {
+    accessToken: youtubeAccessToken,
+    startUploadSession,
+    uploadVideoFile,
+    insertCaptions,
+    setThumbnail,
+    shrinkThumbnail
+  })
 };
 
 const worker = createWorker(config, handlers);
@@ -109,7 +128,13 @@ const DONE_MESSAGES = {
   [JOBS.makeCover]: { title: 'Обложка готова', body: 'Кадр из записи взят' },
   [JOBS.makeClips]: { title: 'Ролики нарезаны', body: 'Вертикальные ролики готовы к просмотру' },
   [JOBS.makeCoverImage]: { title: 'Обложка нарисована', body: 'Посмотрите, годится ли' },
-  [JOBS.suggestTexts]: { title: 'Заголовок предложен', body: 'Поля заполнены, поправьте и сохраните' }
+  [JOBS.suggestTexts]: { title: 'Заголовок предложен', body: 'Поля заполнены, поправьте и сохраните' },
+  // Про приватность говорим сразу: иначе автор решит, что ролик уже виден
+  // зрителям, и не пойдёт его открывать.
+  [JOBS.publishYoutube]: {
+    title: 'Ролик на YouTube',
+    body: 'Лежит приватным — откройте его в студии'
+  }
 };
 
 worker.on('completed', async (job) => {

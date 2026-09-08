@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { escapeHtml } from '../src/lib/html.js';
 import { layout } from '../src/views/layout.js';
+import { lessonPage } from '../src/views/lesson.js';
 
 const config = { publicBaseUrl: 'https://soloaijourney.online' };
 
@@ -331,4 +332,31 @@ test('поля ввода не мельче шестнадцати точек н
   // inherit }» — вес идентификатора против веса имени тега, — и порог молча
   // проигрывал им на заголовке, описании и тегах. Держим important.
   assert.match(block, /font-size: max\(16px, 1em\) !important/);
+});
+
+test('карточка молчит про площадку, пока ролик не публичен', () => {
+  // Приватный ролик чужому человеку не открывается: кнопка на карточке вела бы
+  // зрителя в отказ площадки. Правило в виде уже есть — тест держит его на
+  // месте: строка отбора короткая, снести её при правке соседней разметки легко,
+  // а заметит это зритель, а не мы.
+  const html = lessonPage({
+    config,
+    user: null,
+    comments: [],
+    lesson: {
+      id: 1,
+      slug: 'urok',
+      title: 'Урок',
+      description: '',
+      tags: [],
+      coverUrl: null,
+      publishedAt: new Date(),
+      publications: [
+        { platform: 'youtube', state: 'ready', url: 'https://youtu.be/private-1' },
+        { platform: 'rutube', state: 'published', url: 'https://rutube.ru/video/public-1' }
+      ]
+    }
+  });
+  assert.doesNotMatch(html, /private-1/, 'приватный ролик показывать нельзя');
+  assert.match(html, /public-1/, 'а публичный — нужно');
 });

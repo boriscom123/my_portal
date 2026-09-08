@@ -28,7 +28,11 @@ export const JOBS = {
   cleanupMedia: 'cleanupMedia',
   // Скачивание исходника по ссылке с Яндекс Диска: второй путь загрузки
   // наравне с браузером.
-  fetchSource: 'fetchSource'
+  fetchSource: 'fetchSource',
+  // Выкладка на площадку. Имя своё у каждой площадки: у каждой свой запуск и
+  // своя кнопка. Общий шаг появится, когда площадок станет несколько и станет
+  // видно, что у них правда общего.
+  publishYoutube: 'publishYoutube'
 };
 
 /**
@@ -114,7 +118,15 @@ const RETRY = { attempts: 3, backoff: { type: 'exponential', delay: 30_000 } };
  * одного и того же отказа, и всё это время автор видел бы «обрабатывается».
  * Решение о повторе тут за человеком: в кабинете для этого есть кнопка.
  */
-const NO_RETRY_JOBS = new Set([JOBS.transcribe, JOBS.makeClips, JOBS.trimPauses]);
+const NO_RETRY_JOBS = new Set([
+  JOBS.transcribe,
+  JOBS.makeClips,
+  JOBS.trimPauses,
+  // Выкладка: автоматический повтор после наполовину прошедшей загрузки рискует
+  // вторым роликом на канале, а удалять его придётся руками. Решение о повторе
+  // здесь за человеком — в кабинете для этого есть кнопка.
+  JOBS.publishYoutube
+]);
 
 /**
  * Настройки для конкретного шага.

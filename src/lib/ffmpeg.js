@@ -51,6 +51,38 @@ export function ffmpegArgsForWav(input, output) {
   ];
 }
 
+/**
+ * Аргументы для обложки под предел площадки.
+ *
+ * Ширина 1280 — та, что показывает YouTube; отдавать больше значит платить
+ * мегабайтами за пиксели, которых никто не увидит. min() держит меньшие
+ * картинки нетронутыми: растягивать обложку вверх незачем, от этого она только
+ * тяжелеет.
+ */
+export function ffmpegArgsForThumbnail({ input, output }) {
+  return [
+    '-hide_banner',
+    '-loglevel', 'error',
+    '-i', input,
+    '-vf', "scale='min(1280,iw)':-2",
+    '-q:v', '4',
+    '-y',
+    output
+  ];
+}
+
+/**
+ * Пережимает обложку под предел площадки и отдаёт путь к пережатой.
+ * Кладёт рядом, а не поверх: обложка принадлежит уроку и порталу, и портить её
+ * ради чужого предела нельзя — на витрине она нужна крупной.
+ * Вызывается из src/worker.js при выкладке на площадку.
+ */
+export async function shrinkThumbnail(input) {
+  const output = `${input.replace(/\.[^.]+$/, '')}-platform.jpg`;
+  await runFfmpeg(ffmpegArgsForThumbnail({ input, output }));
+  return output;
+}
+
 /** Аргументы для кадра на обложку. */
 export function ffmpegArgsForCover({ input, atSeconds, output }) {
   return [

@@ -74,7 +74,7 @@ export function createApp({ config, pool, fetchImpl, queue = null }) {
   // подключения одного роутера означали бы, что номер обложки принимается за
   // токен, — на этом обложка и отдавала 403.
   app.use('/media', mediaRoutes(config, pool));
-  app.use('/api/admin', adminRoutes(config, pool));
+  app.use('/api/admin', adminRoutes(config, pool, fetchImpl));
   app.use('/api', lessonRoutes(config, pool));
   app.use('/api', searchRoutes(config, pool));
   app.use('/api', feedbackRoutes(config, pool));

@@ -68,6 +68,24 @@ export async function forgetAsset(pool, id) {
 }
 
 /** Один файл по номеру. null, если его уже нет. */
+/**
+ * Все файлы урока. Шагам нужен выбор, а не один известный заранее: выкладка
+ * сама решает, монтаж уезжает или исходник, и какие субтитры к нему в пару.
+ * Вызывается из src/jobs/publish-youtube.js и src/routes/admin.js.
+ */
+export async function assetsOfLesson(pool, lessonId) {
+  const { rows } = await pool.query(
+    'SELECT id, kind, path, bytes FROM assets WHERE lesson_id = $1 ORDER BY id',
+    [lessonId]
+  );
+  return rows.map((row) => ({
+    id: Number(row.id),
+    kind: row.kind,
+    path: row.path,
+    bytes: Number(row.bytes)
+  }));
+}
+
 export async function assetById(pool, id) {
   const { rows } = await pool.query(
     'SELECT id, lesson_id, kind, path, bytes, expires_at FROM assets WHERE id = $1',

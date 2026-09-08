@@ -87,6 +87,25 @@ export async function getLessonBySlug(pool, slug, { includeDrafts = false }) {
 }
 
 /**
+ * Урок по номеру — для шагов конвейера. Они знают номер, а не slug: имя урока
+ * меняется вместе с заголовком, а задача в очереди живёт минутами и часами.
+ * Теги здесь нужны: они уезжают на площадку вместе с роликом.
+ * Вызывается из src/jobs/publish-youtube.js.
+ */
+export async function getLessonById(pool, id) {
+  const { rows } = await pool.query(
+    `SELECT l.*, COALESCE(array_agg(t.slug ORDER BY t.slug) FILTER (WHERE t.slug IS NOT NULL), '{}') AS tags
+       FROM lessons l
+       LEFT JOIN lesson_tags lt ON lt.lesson_id = l.id
+       LEFT JOIN tags t ON t.id = lt.tag_id
+      WHERE l.id = $1
+      GROUP BY l.id`,
+    [id]
+  );
+  return rows.length ? toLesson(rows[0]) : null;
+}
+
+/**
  * Заводит или обновляет урок по slug.
  * Зачем один метод на оба случая: карточка урока правится многократно — при
  * загрузке, после расшифровки, после проверки автором, — и раздельные

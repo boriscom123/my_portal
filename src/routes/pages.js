@@ -11,6 +11,7 @@ import { adminLessonsPage } from '../views/admin-lessons.js';
 import { settingsPage } from '../views/settings.js';
 import { adminReviewPage } from '../views/admin-review.js';
 import { adminPreviewPage } from '../views/admin-preview.js';
+import { publicationsFor } from '../services/publications.js';
 import { mediaLink } from '../lib/media-token.js';
 import { probeDuration } from '../lib/ffmpeg.js';
 import { mediaPath } from '../services/media.js';
@@ -124,6 +125,17 @@ export function pageRoutes(config, pool) {
     return rows.length > 0;
   };
 
+  /**
+   * Подключён ли канал YouTube. По строке в таблице подключений, а не вопросом
+   * самой площадке: спрашивать её на каждой загрузке страницы незачем, а токен
+   * всё равно обновляется перед выкладкой.
+   * Вызывается из обработчика /admin/upload.
+   */
+  const youtubeConnected = async () => {
+    const { rows } = await pool.query(`SELECT 1 FROM integrations WHERE name = 'youtube'`);
+    return rows.length > 0;
+  };
+
   // Кабинет как отдельная страница больше ничего не даёт: список уроков живёт
   // в «Уроках», подключения — в «Настройках». Оставляем перенаправление, а не
   // убираем адрес совсем: он мог остаться в закладках и в истории браузера.
@@ -178,7 +190,8 @@ export function pageRoutes(config, pool) {
           Boolean(chosen) &&
           !chosen.sourceAssetId &&
           ['uploading', 'processing'].includes(chosen.pipelineState),
-        diskConnected: await diskConnected()
+        diskConnected: await diskConnected(),
+        youtubeConnected: await youtubeConnected()
       })
     );
   });
@@ -242,6 +255,9 @@ export function pageRoutes(config, pool) {
         // Отказ необязательного шага: показывается рядом с его кнопкой, а не
         // как «обработка упала» на весь урок.
         sideError: lesson.sideError,
+        // Публикации целиком, с причиной отказа: карточке урока хватает ссылки
+        // и состояния, а кабинету нужно ещё и объяснение.
+        publications: await publicationsFor(pool, lesson.id),
         segments: segmentRows.map((row) => ({
           id: Number(row.id),
           startedMs: Number(row.started_ms),
