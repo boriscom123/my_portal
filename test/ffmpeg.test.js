@@ -3,7 +3,12 @@
 // вместо голого кода возврата.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ffmpegArgsForAudio, parseDuration, describeFailure } from '../src/lib/ffmpeg.js';
+import {
+  ffmpegArgsForAudio,
+  ffmpegArgsForThumbnail,
+  parseDuration,
+  describeFailure
+} from '../src/lib/ffmpeg.js';
 
 test('звук извлекается в опус 16 кГц моно', () => {
   const args = ffmpegArgsForAudio('/media/in.mp4', '/media/out.ogg');
@@ -50,4 +55,17 @@ test('имя программы в объяснении — та, что упа�
   // отправить автора чинить не то.
   assert.match(describeFailure(1, [], 'whisper'), /whisper/);
   assert.match(describeFailure(1, []), /ffmpeg/);
+});
+
+test('обложка пережимается в пределы площадки', () => {
+  // Предел YouTube — 2 МБ. Обложка, выбранная заказчиком для первого же урока,
+  // весит 2 040 881 байт: с какой стороны предела она окажется, зависит от
+  // того, считает площадка мегабайт как 1 000 000 или 1 048 576. Гадать не
+  // будем — тяжёлое пережимаем.
+  const args = ffmpegArgsForThumbnail({ input: '/media/cover.jpg', output: '/media/thumb.jpg' });
+  assert.ok(args.includes('/media/cover.jpg'));
+  assert.ok(args.includes('/media/thumb.jpg'));
+  // Ширина ролика на площадке — 1280; больше отдавать незачем.
+  assert.ok(args.some((arg) => /scale=.*1280/.test(String(arg))));
+  assert.ok(args.includes('-q:v'), 'без пережатия качеством размер не упадёт');
 });

@@ -51,6 +51,26 @@ export function ffmpegArgsForWav(input, output) {
   ];
 }
 
+/**
+ * Аргументы для обложки под предел площадки.
+ *
+ * Ширина 1280 — та, что показывает YouTube; отдавать больше значит платить
+ * мегабайтами за пиксели, которых никто не увидит. min() держит меньшие
+ * картинки нетронутыми: растягивать обложку вверх незачем, от этого она только
+ * тяжелеет.
+ */
+export function ffmpegArgsForThumbnail({ input, output }) {
+  return [
+    '-hide_banner',
+    '-loglevel', 'error',
+    '-i', input,
+    '-vf', "scale='min(1280,iw)':-2",
+    '-q:v', '4',
+    '-y',
+    output
+  ];
+}
+
 /** Аргументы для кадра на обложку. */
 export function ffmpegArgsForCover({ input, atSeconds, output }) {
   return [
