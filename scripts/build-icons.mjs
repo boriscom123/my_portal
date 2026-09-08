@@ -4,8 +4,17 @@
 // при первой же правке ракеты. Зачем скриптом, а не руками в редакторе:
 // иконок пять, и любая ручная операция здесь однажды будет пропущена.
 //
-// Запускается вручную после правки ракеты: `npm run icons`.
-// Требует питона с cairosvg — берётся из контейнера, ставить в систему нечего.
+// Запускается вручную после правки ракеты: `npm run icons`. Скрипт пишет только
+// векторы; растр из них делается отдельной командой — рисовалка живёт в чужом
+// образе, ставить её в систему и в образ проекта незачем:
+//
+//   docker run --rm -v "$PWD":/w -w /w alpine sh -c \
+//     'apk add --no-cache rsvg-convert >/dev/null &&
+//      rsvg-convert -w 512 -h 512 public/icons/icon.svg -o public/icons/icon-512.png &&
+//      rsvg-convert -w 120 -h 120 public/icons/icon.svg -o public/icons/logo-120.png'
+//
+// logo-120.png — знак для чужих экранов согласия: Google просит квадрат 120
+// точек и файл легче мегабайта.
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { rocket } from '../src/views/rocket.js';
 
