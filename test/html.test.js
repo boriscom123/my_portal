@@ -360,3 +360,19 @@ test('карточка молчит про площадку, пока ролик
   assert.doesNotMatch(html, /private-1/, 'приватный ролик показывать нельзя');
   assert.match(html, /public-1/, 'а публичный — нужно');
 });
+
+test('поля ввода оформлены одним правилом на весь портал', async () => {
+  // Оформление полей было написано шесть раз, под каждую форму по её
+  // идентификатору, и седьмая форма — ключи площадки в настройках — осталась
+  // голой: правило под неё забыли. Тест держит общее правило на месте, чтобы
+  // следующая форма не повторила эту историю.
+  const styles = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
+  const shared = styles.slice(styles.indexOf("input:not([type]),"));
+  assert.match(shared.slice(0, 400), /select,\s*\ntextarea \{/, 'списки и многострочные поля — в том же правиле');
+  assert.match(shared.slice(0, 400), /border: 1px solid var\(--line\)/);
+  assert.match(shared.slice(0, 400), /min-height: var\(--tap-target\)/);
+
+  // Подпись над полем: без этого правила подписи встают в строку со всеми
+  // соседями — так голая форма настроек и выглядела.
+  assert.match(styles, /form label \{\s*\n\s*display: flex;\s*\n\s*flex-direction: column;/);
+});

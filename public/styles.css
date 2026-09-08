@@ -474,6 +474,74 @@ footer {
   color: var(--muted);
 }
 
+/* Поля ввода, списки и многострочные поля — одним правилом на весь портал.
+   
+   До этого оформление полей было написано шесть раз, отдельно под каждую форму
+   и по её идентификатору: #comment-form, #idea-form, #upload-form, #review-form,
+   #search-form, .segment. Правила были почти одинаковые, и седьмая форма —
+   ключи площадки в настройках — просто осталась голой: под неё правило забыли
+   написать. Заказчик увидел это первым.
+
+   Общее правило слабее по весу, чем правила по классу и идентификатору,
+   поэтому особенное остаётся особенным: поле поиска тянется в строке, строки
+   титров сидят плотно, галочки стоят рядом с подписью. */
+input[type='text'],
+input[type='password'],
+input[type='email'],
+input[type='url'],
+input[type='search'],
+input[type='number'],
+input:not([type]),
+select,
+textarea {
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  /* Сорок четыре точки — минимальная цель нажатия: ниже на телефоне
+     промахиваются. */
+  min-height: var(--tap-target);
+  box-sizing: border-box;
+}
+
+textarea {
+  resize: vertical;
+  min-height: calc(var(--tap-target) * 2);
+}
+
+/* Обводка при фокусе — focus-visible, а не focus: мышью её показывать незачем,
+   а с клавиатуры без неё не видно, где ты находишься. */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--brand-2);
+  outline-offset: 1px;
+}
+
+/* Подпись над полем, а не рядом. Рядом она становится в строку со всеми
+   соседями — так голая форма настроек и выглядела: три поля и три подписи в
+   одну линию. */
+form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+/* Поле занимает ширину формы. Исключения — те, кому она мешает: поле поиска
+   тянется по своим правилам, галочка остаётся размером с галочку. */
+form label > input,
+form label > select,
+form label > textarea,
+form > input,
+form > select,
+form > textarea {
+  width: 100%;
+}
+
 /* --- Страница входа ------------------------------------------------------ */
 
 .login {
@@ -745,20 +813,6 @@ footer {
   padding: 3px 8px;
 }
 
-#comment-form textarea {
-  width: 100%;
-  font: inherit;
-  color: var(--fg);
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 12px;
-  resize: vertical;
-}
-#comment-form textarea:focus {
-  outline: 2px solid var(--brand-2);
-  outline-offset: 1px;
-}
 #comment-form .form-row {
   display: flex;
   align-items: center;
@@ -846,27 +900,6 @@ footer {
   gap: 10px;
   margin-bottom: 24px;
 }
-#idea-form input,
-#idea-form textarea {
-  width: 100%;
-  font: inherit;
-  color: var(--fg);
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 12px;
-}
-#idea-form input {
-  min-height: var(--tap-target);
-}
-#idea-form textarea {
-  resize: vertical;
-}
-#idea-form input:focus,
-#idea-form textarea:focus {
-  outline: 2px solid var(--brand-2);
-  outline-offset: 1px;
-}
 #idea-form .form-row {
   display: flex;
   align-items: center;
@@ -947,16 +980,9 @@ footer {
   gap: 14px;
   max-width: 38rem;
 }
-#upload-form label {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 14px;
-  color: var(--muted);
-}
-#upload-form select,
-#upload-form input[type='file'],
-#disk-code-form input {
+/* Выбор файла — единственное поле, которое общее правило не трогает: у него
+   своя внутренняя кнопка, и типовые отступы её ломают. */
+#upload-form input[type='file'] {
   font: inherit;
   color: var(--fg);
   background: var(--bg);
@@ -1080,25 +1106,10 @@ footer {
   margin-bottom: var(--gap);
 }
 
+/* Поля на экране проверки стоят подряд и длинным столбцом — им нужен воздух
+   между собой, которого прочим формам хватает и так. */
 #review-form label {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 14px;
-  color: var(--muted);
   margin-bottom: 14px;
-}
-#review-form input,
-#review-form textarea {
-  font: inherit;
-  color: var(--fg);
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 10px;
-  min-height: var(--tap-target);
-  width: 100%;
-  box-sizing: border-box;
 }
 
 /* Расшифровка длинная: даём ей прокрутку, иначе она вытеснит со страницы всё
@@ -1156,15 +1167,9 @@ main > .card + .card {
   font-weight: 600;
   box-shadow: inset 0 -0.5em 0 color-mix(in srgb, var(--flame) 30%, transparent);
 }
+/* Поле поиска стоит в строке с кнопкой и тянется, а не занимает ширину. */
 #search-form input,
 form[action='/search'] input {
-  font: inherit;
-  color: var(--fg);
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 10px;
-  min-height: var(--tap-target);
   flex: 1 1 200px;
 }
 
@@ -1187,14 +1192,16 @@ form[action='/search'] input {
 
 /* Строка с галочкой: подпись рядом, а не над полем, иначе она читается как
    заголовок отдельного раздела. */
+/* Галочка стоит рядом с подписью, а не над ней. !important здесь больше не
+   нужен: общее правило написано по имени тега и слабее правила по классу. */
 .checkbox-row {
-  flex-direction: row !important;
+  flex-direction: row;
   align-items: center;
-  gap: 10px !important;
+  gap: 10px;
 }
 .checkbox-row input {
-  width: auto !important;
-  min-height: 0 !important;
+  width: auto;
+  min-height: 0;
 }
 
 /* --- Правка титров ------------------------------------------------------- */
@@ -1216,15 +1223,11 @@ form[action='/search'] input {
   align-items: center;
   gap: 10px;
 }
+/* Строк титров у часового урока под тысячу. Общая высота в сорок четыре точки
+   превратила бы расшифровку в бесконечную ленту, поэтому здесь плотнее. */
 .segment input {
-  font: inherit;
-  color: var(--fg);
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
   padding: 8px 10px;
-  width: 100%;
-  box-sizing: border-box;
+  min-height: 0;
 }
 .segment input:focus {
   border-color: var(--flame);
