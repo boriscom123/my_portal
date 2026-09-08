@@ -71,6 +71,18 @@ export function ffmpegArgsForThumbnail({ input, output }) {
   ];
 }
 
+/**
+ * Пережимает обложку под предел площадки и отдаёт путь к пережатой.
+ * Кладёт рядом, а не поверх: обложка принадлежит уроку и порталу, и портить её
+ * ради чужого предела нельзя — на витрине она нужна крупной.
+ * Вызывается из src/worker.js при выкладке на площадку.
+ */
+export async function shrinkThumbnail(input) {
+  const output = `${input.replace(/\.[^.]+$/, '')}-platform.jpg`;
+  await runFfmpeg(ffmpegArgsForThumbnail({ input, output }));
+  return output;
+}
+
 /** Аргументы для кадра на обложку. */
 export function ffmpegArgsForCover({ input, atSeconds, output }) {
   return [
