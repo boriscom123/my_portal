@@ -14,6 +14,10 @@ import { Router } from 'express';
 import { requireAdmin } from '../middleware/guards.js';
 import { PublicError } from '../middleware/errors.js';
 import { saveIntegration, loadIntegration, listDiskFiles } from '../services/disk.js';
+import {
+  youtubeConsentUrl,
+  exchangeYoutubeCode
+} from '../services/platforms/youtube-auth.js';
 
 const AUTHORIZE_URL = 'https://oauth.yandex.ru/authorize';
 const TOKEN_URL = 'https://oauth.yandex.ru/token';
@@ -65,6 +69,27 @@ export function integrationRoutes(config, pool, fetchImpl = fetch) {
       expiresAt: body.expires_in ? new Date(Date.now() + body.expires_in * 1000) : null
     });
     res.json({ ok: true });
+  });
+
+  // Канал YouTube подключается возвратом на наш адрес, а не копированием кода:
+  // здесь приложение наше, и адрес возврата задаём мы сами.
+  router.get('/youtube/connect', (req, res) => {
+    if (!config.youtube.clientId) {
+      throw new PublicError('Приложение YouTube не настроено: нет YOUTUBE_CLIENT_ID', 503);
+    }
+    res.redirect(youtubeConsentUrl(config));
+  });
+
+  // Возврат с экрана согласия. Сюда человека приводит браузер, поэтому в ответ
+  // перенаправление на страницу загрузки, а не json.
+  router.get('/youtube/callback', async (req, res) => {
+    if (req.query.error) throw new PublicError(`Google отказал: ${req.query.error}`, 400);
+    const code = String(req.query.code ?? '');
+    if (!code) throw new PublicError('Google не прислал код', 400);
+
+    const tokens = await exchangeYoutubeCode(config, code, fetchImpl);
+    await saveIntegration(pool, config, { name: 'youtube', ...tokens });
+    res.redirect('/admin/upload?youtube=connected');
   });
 
   /** Список видео в папке Диска. */

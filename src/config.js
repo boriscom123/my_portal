@@ -121,6 +121,19 @@ export function loadConfig(env = process.env) {
         env.GEMINI_IMAGE_MODEL ??
         'gemini-3-pro-image,gemini-3.1-flash-image,gemini-2.5-flash-image'
     },
+    // Площадка YouTube. Без ключей портал работает: кнопка подключения не
+    // показывается, выкладка не предлагается.
+    //
+    // mode — зрелость адаптера. semi: ролик уезжает приватным, публикует
+    // человек. Это не наш выбор — ролики от приложения, не прошедшего аудит
+    // Google, принудительно остаются приватными. После аудита сюда ставится
+    // auto, и это единственное, что меняется.
+    youtube: {
+      clientId: env.YOUTUBE_CLIENT_ID ?? '',
+      clientSecret: env.YOUTUBE_CLIENT_SECRET ?? '',
+      redirectUri: env.YOUTUBE_REDIRECT_URI ?? '',
+      mode: env.YOUTUBE_MODE === 'auto' ? 'auto' : 'semi'
+    },
     // Распознавание речи считается на самом сервере. Пути задаются
     // окружением, потому что в образе бинарник и модель лежат в разных местах:
     // бинарник в образе, модель — в томе, чтобы не качать её каждой сборкой.

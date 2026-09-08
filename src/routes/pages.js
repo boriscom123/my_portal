@@ -124,6 +124,17 @@ export function pageRoutes(config, pool) {
     return rows.length > 0;
   };
 
+  /**
+   * Подключён ли канал YouTube. По строке в таблице подключений, а не вопросом
+   * самой площадке: спрашивать её на каждой загрузке страницы незачем, а токен
+   * всё равно обновляется перед выкладкой.
+   * Вызывается из обработчика /admin/upload.
+   */
+  const youtubeConnected = async () => {
+    const { rows } = await pool.query(`SELECT 1 FROM integrations WHERE name = 'youtube'`);
+    return rows.length > 0;
+  };
+
   // Кабинет как отдельная страница больше ничего не даёт: список уроков живёт
   // в «Уроках», подключения — в «Настройках». Оставляем перенаправление, а не
   // убираем адрес совсем: он мог остаться в закладках и в истории браузера.
@@ -178,7 +189,8 @@ export function pageRoutes(config, pool) {
           Boolean(chosen) &&
           !chosen.sourceAssetId &&
           ['uploading', 'processing'].includes(chosen.pipelineState),
-        diskConnected: await diskConnected()
+        diskConnected: await diskConnected(),
+        youtubeConnected: await youtubeConnected()
       })
     );
   });

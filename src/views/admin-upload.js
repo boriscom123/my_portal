@@ -20,6 +20,7 @@ export function adminUploadPage({
   user,
   lessons,
   diskConnected = false,
+  youtubeConnected = false,
   lesson = null,
   copying = false,
   source = null
@@ -130,6 +131,26 @@ ${
            </li>
          </ol>
          <p class="hint">Код живёт несколько минут: если не успели — возьмите новый.</p>`
+  }
+</section>
+
+<section class="card">
+  <h2>YouTube</h2>
+  ${
+    !config.youtube?.clientId
+      ? `<p class="hint">Площадка не настроена: в окружении нет ключей приложения
+           Google. Как их завести — в docs/youtube-setup.md.</p>`
+      : youtubeConnected
+        ? `<p class="hint">Канал подключён. Отправить урок можно с его экрана
+             проверки — кнопкой «Отправить на YouTube».</p>`
+        : `<p class="hint">Портал зальёт запись, субтитры и обложку сам. Открыть
+             ролик придётся вам: до проверки приложения в Google ролики,
+             загруженные через API, принудительно остаются приватными.</p>
+           <p class="form-row">
+             <a class="button-brand" href="/api/integrations/youtube/connect">
+               Подключить YouTube
+             </a>
+           </p>`
   }
 </section>
 
