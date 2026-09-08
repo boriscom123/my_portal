@@ -271,7 +271,10 @@ ${
 <section class="card">
   <h2>Площадки</h2>
   ${
-    youtube
+    !config.youtube?.clientId
+      ? `<p class="hint">YouTube не настроен: в окружении нет ключей приложения
+           Google. Как их завести — в docs/youtube-setup.md.</p>`
+      : youtube
       ? `<p>YouTube: ${escapeHtml(PUBLICATION_STATES[youtube.state] ?? youtube.state)}${
           youtube.url && youtube.state !== 'failed'
             ? ` — <a href="${escapeHtml(youtube.url)}" rel="noopener" target="_blank">открыть ролик</a>`
@@ -291,7 +294,9 @@ ${
          }`
       : '<p class="hint">На YouTube ещё не отправляли.</p>'
   }
-  <div class="form-row">
+  ${
+    config.youtube?.clientId
+      ? `<div class="form-row">
     <button class="button-brand" type="button" data-youtube="${escapeHtml(lesson.slug)}"
       ${
         hasSource
@@ -306,7 +311,9 @@ ${
   <p class="hint">
     Уезжает смонтированная запись, если вы её собрали, иначе исходник. Субтитры
     идут отдельным треком — зритель их выключает, а площадка по ним переводит.
-  </p>
+  </p>`
+      : ''
+  }
 </section>
 
 <section class="card">
