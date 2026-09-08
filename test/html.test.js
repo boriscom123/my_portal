@@ -321,8 +321,14 @@ test('меню закрывается при переходе без перез�
 
 test('поля ввода не мельче шестнадцати точек на телефоне', async () => {
   const styles = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
-  // Safari на iPhone САМ увеличивает страницу, когда поле мельче, и обратно
+  // Браузер на телефоне САМ увеличивает страницу, когда поле мельче, и обратно
   // уже не отдаляет. Половина полей наследовала кегль подписи в четырнадцать.
   const block = styles.slice(styles.indexOf('@media (max-width: 900px)'));
   assert.match(block, /input,\s*select,\s*textarea \{\s*font-size: max\(16px, 1em\)/);
+
+  // Одного объявления мало, и этот тест уже однажды был зелёным при живой
+  // поломке. Поля оформлены правилами вида «#review-form input { font:
+  // inherit }» — вес идентификатора против веса имени тега, — и порог молча
+  // проигрывал им на заголовке, описании и тегах. Держим important.
+  assert.match(block, /font-size: max\(16px, 1em\) !important/);
 });
