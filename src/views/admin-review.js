@@ -56,6 +56,7 @@ export function adminReviewPage({
   covers = [],
   sideError = null,
   publications = [],
+  youtubeConfigured = false,
   links
 }) {
   const state = stateLabel(lesson);
@@ -271,7 +272,7 @@ ${
 <section class="card">
   <h2>Площадки</h2>
   ${
-    !config.youtube?.clientId
+    !youtubeConfigured
       ? `<p class="hint">YouTube не настроен: в окружении нет ключей приложения
            Google. Как их завести — в docs/youtube-setup.md.</p>`
       : youtube
@@ -295,7 +296,7 @@ ${
       : '<p class="hint">На YouTube ещё не отправляли.</p>'
   }
   ${
-    config.youtube?.clientId
+    youtubeConfigured
       ? `<div class="form-row">
     <button class="button-brand" type="button" data-youtube="${escapeHtml(lesson.slug)}"
       ${

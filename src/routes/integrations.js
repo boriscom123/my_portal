@@ -18,6 +18,7 @@ import {
   youtubeConsentUrl,
   exchangeYoutubeCode
 } from '../services/platforms/youtube-auth.js';
+import { youtubeApp, savePlatformApp } from '../services/platform-apps.js';
 
 const AUTHORIZE_URL = 'https://oauth.yandex.ru/authorize';
 const TOKEN_URL = 'https://oauth.yandex.ru/token';
@@ -73,11 +74,12 @@ export function integrationRoutes(config, pool, fetchImpl = fetch) {
 
   // Канал YouTube подключается возвратом на наш адрес, а не копированием кода:
   // здесь приложение наше, и адрес возврата задаём мы сами.
-  router.get('/youtube/connect', (req, res) => {
-    if (!config.youtube.clientId) {
-      throw new PublicError('Приложение YouTube не настроено: нет YOUTUBE_CLIENT_ID', 503);
+  router.get('/youtube/connect', async (req, res) => {
+    const app = await youtubeApp(pool, config);
+    if (!app.configured) {
+      throw new PublicError('Приложение YouTube не настроено — заполните его в настройках', 503);
     }
-    res.redirect(youtubeConsentUrl(config));
+    res.redirect(youtubeConsentUrl(app));
   });
 
   // Возврат с экрана согласия. Сюда человека приводит браузер, поэтому в ответ
@@ -87,9 +89,36 @@ export function integrationRoutes(config, pool, fetchImpl = fetch) {
     const code = String(req.query.code ?? '');
     if (!code) throw new PublicError('Google не прислал код', 400);
 
-    const tokens = await exchangeYoutubeCode(config, code, fetchImpl);
+    const tokens = await exchangeYoutubeCode(await youtubeApp(pool, config), code, fetchImpl);
     await saveIntegration(pool, config, { name: 'youtube', ...tokens });
     res.redirect('/admin/upload?youtube=connected');
+  });
+
+  // Ключи приложения площадки: автор переносит их из чужой консоли, и место им
+  // в кабинете, а не в файле на сервере. Секрет обратно не отдаём никогда —
+  // страница показывает лишь то, что он сохранён.
+  router.post('/youtube/app', async (req, res) => {
+    const clientId = String(req.body?.clientId ?? '').trim();
+    if (!clientId) throw new PublicError('Номер приложения пустой', 400);
+
+    await savePlatformApp(pool, config, {
+      name: 'youtube',
+      clientId,
+      // Пустое поле означает «не менять»: показать сохранённый секрет нельзя,
+      // и правка одного номера приложения не должна стирать его молча.
+      clientSecret: String(req.body?.clientSecret ?? ''),
+      mode: req.body?.mode === 'auto' ? 'auto' : 'semi'
+    });
+
+    const app = await youtubeApp(pool, config);
+    res.json({ clientId: app.clientId, mode: app.mode, configured: app.configured });
+  });
+
+  // Отключить канал: токены забываем, ключи приложения оставляем — заводить их
+  // заново ради смены аккаунта незачем.
+  router.post('/youtube/disconnect', async (req, res) => {
+    await pool.query(`DELETE FROM integrations WHERE name = 'youtube'`);
+    res.json({ ok: true });
   });
 
   /** Список видео в папке Диска. */

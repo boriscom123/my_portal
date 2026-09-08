@@ -10,7 +10,7 @@
 import { assetsOfLesson, mediaPath } from '../services/media.js';
 import { getLessonById } from '../services/lessons.js';
 import { readSettings } from '../lib/settings.js';
-import { markPublicationState } from '../services/publications.js';
+import { markPublicationState, publicationById } from '../services/publications.js';
 import {
   pickVideoAsset,
   pickSubtitlesAsset,
@@ -36,6 +36,12 @@ export function makePublishYoutube(config, pool, platform) {
     const video = pickVideoAsset(assets);
     if (!video) throw new Error('Записи нет в буфере — загрузите её заново');
 
+    // Режим записан в строке публикации в момент нажатия кнопки. Спрашивать
+    // его у настроек сейчас — значит поймать чужое решение: настройку могли
+    // поменять, пока задача стояла в очереди.
+    const publication = await publicationById(pool, publicationId);
+    const mode = publication?.mode ?? 'semi';
+
     const settings = readSettings(lesson.settings);
     const subtitles = pickSubtitlesAsset(assets, video, settings);
 
@@ -43,7 +49,7 @@ export function makePublishYoutube(config, pool, platform) {
 
     // Приватность решает режим: до аудита Google публичным ролик не сделать, и
     // просить об этом бессмысленно — площадка молча оставит приватным.
-    const privacy = config.youtube.mode === 'auto' ? 'public' : 'private';
+    const privacy = mode === 'auto' ? 'public' : 'private';
     const body = buildVideoBody({ lesson, publicBaseUrl: config.publicBaseUrl, privacy });
 
     let videoId;
@@ -99,7 +105,7 @@ export function makePublishYoutube(config, pool, platform) {
     await markPublicationState(pool, publicationId, {
       // auto ставится только после аудита Google; до него ролик приватный, и
       // published означало бы ссылку в никуда на карточке урока.
-      state: config.youtube.mode === 'auto' ? 'published' : 'ready',
+      state: mode === 'auto' ? 'published' : 'ready',
       externalId: videoId,
       url: `https://youtu.be/${videoId}`,
       error: complaints.length ? complaints.join('; ').slice(0, 500) : null

@@ -372,6 +372,53 @@ function initPage() {
     });
   }
 
+  /* --- Ключи приложения площадки ------------------------------------------- */
+
+  // Форма отправляется через API, а не сама собой: без перехвата браузер уйдёт
+  // GET-ом и увезёт секрет в адресную строку — то есть в историю браузера и в
+  // журнал сервера.
+  const youtubeAppForm = document.querySelector('[data-youtube-app]');
+  youtubeAppForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const fields = new FormData(youtubeAppForm);
+    const button = youtubeAppForm.querySelector('button[type=submit]');
+    button.disabled = true;
+
+    try {
+      const answer = await request('/api/integrations/youtube/app', {
+        method: 'POST',
+        body: JSON.stringify({
+          clientId: fields.get('clientId'),
+          clientSecret: fields.get('clientSecret'),
+          mode: fields.get('mode')
+        })
+      });
+      if (!answer) return;
+      toast('Ключи сохранены.');
+      // Кнопка подключения появляется только у настроенной площадки, поэтому
+      // страницу перечитываем: иначе автор не увидит, что делать дальше.
+      setTimeout(() => location.reload(), 1200);
+    } catch (error) {
+      toast(`Не сохранилось: ${error.message}`, true);
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  const youtubeDisconnect = document.querySelector('[data-youtube-disconnect]');
+  youtubeDisconnect?.addEventListener('click', async () => {
+    youtubeDisconnect.disabled = true;
+    try {
+      const answer = await request('/api/integrations/youtube/disconnect', { method: 'POST' });
+      if (!answer) return;
+      toast('Канал отключён. Ключи приложения остались.');
+      setTimeout(() => location.reload(), 1200);
+    } catch (error) {
+      toast(`Не отключилось: ${error.message}`, true);
+      youtubeDisconnect.disabled = false;
+    }
+  });
+
   const ideaForm = document.querySelector('#idea-form');
   ideaForm?.addEventListener('submit', async (event) => {
     event.preventDefault();

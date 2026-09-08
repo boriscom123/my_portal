@@ -9,6 +9,7 @@
 // рассматривает человек, и лишние права в ней объясняются отдельно.
 // Вызывается из src/routes/integrations.js и src/jobs/publish-youtube.js.
 import { saveIntegration, loadIntegration } from '../disk.js';
+import { youtubeApp } from '../platform-apps.js';
 
 const CONSENT_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -18,11 +19,15 @@ const SCOPE = 'https://www.googleapis.com/auth/youtube.force-ssl';
 // заранее дешевле, чем ловить отказ в середине файла.
 const EXPIRY_MARGIN_MS = 60_000;
 
-/** Адрес экрана согласия. */
-export function youtubeConsentUrl(config) {
+/**
+ * Адрес экрана согласия.
+ * Приложение приходит доводом, а не берётся из настроек сервера: ключи автор
+ * вводит в кабинете, и читать их надо в момент работы, а не при старте.
+ */
+export function youtubeConsentUrl(app) {
   const url = new URL(CONSENT_URL);
-  url.searchParams.set('client_id', config.youtube.clientId);
-  url.searchParams.set('redirect_uri', config.youtube.redirectUri);
+  url.searchParams.set('client_id', app.clientId);
+  url.searchParams.set('redirect_uri', app.redirectUri);
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('scope', SCOPE);
   // Без offline и consent Google не выдаёт refresh-токен: подключение выглядит
@@ -37,7 +42,7 @@ function hideSecret(text, secret) {
   return secret ? String(text).replaceAll(secret, '…') : String(text);
 }
 
-async function askForTokens(config, params, fetchImpl) {
+async function askForTokens(app, params, fetchImpl) {
   const response = await fetchImpl(TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -46,21 +51,21 @@ async function askForTokens(config, params, fetchImpl) {
   if (!response.ok) {
     const text = await response.text().catch(() => '');
     throw new Error(
-      `Google отказал (${response.status}): ${hideSecret(text, config.youtube.clientSecret)}`
+      `Google отказал (${response.status}): ${hideSecret(text, app.clientSecret)}`
     );
   }
   return response.json();
 }
 
 /** Меняет код с экрана согласия на пару токенов. */
-export async function exchangeYoutubeCode(config, code, fetchImpl = fetch) {
+export async function exchangeYoutubeCode(app, code, fetchImpl = fetch) {
   const body = await askForTokens(
-    config,
+    app,
     {
       code,
-      client_id: config.youtube.clientId,
-      client_secret: config.youtube.clientSecret,
-      redirect_uri: config.youtube.redirectUri,
+      client_id: app.clientId,
+      client_secret: app.clientSecret,
+      redirect_uri: app.redirectUri,
       grant_type: 'authorization_code'
     },
     fetchImpl
@@ -81,16 +86,22 @@ export async function youtubeAccessToken(pool, config, fetchImpl = fetch) {
   const stored = await loadIntegration(pool, config, 'youtube');
   if (!stored) return null;
 
+  // Ключи приложения читаются здесь, а не приходят доводом: обновление токена
+  // случается посреди выкладки, и тащить их через три слоя было бы нечестно —
+  // забыть передать проще, чем заметить.
+  const app = await youtubeApp(pool, config);
+  if (!app.configured) return null;
+
   const alive = stored.expiresAt && stored.expiresAt.getTime() - EXPIRY_MARGIN_MS > Date.now();
   if (alive) return stored.token;
   if (!stored.refreshToken) return null;
 
   const body = await askForTokens(
-    config,
+    app,
     {
       refresh_token: stored.refreshToken,
-      client_id: config.youtube.clientId,
-      client_secret: config.youtube.clientSecret,
+      client_id: app.clientId,
+      client_secret: app.clientSecret,
       grant_type: 'refresh_token'
     },
     fetchImpl

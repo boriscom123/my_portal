@@ -12,6 +12,7 @@ import { settingsPage } from '../views/settings.js';
 import { adminReviewPage } from '../views/admin-review.js';
 import { adminPreviewPage } from '../views/admin-preview.js';
 import { publicationsFor } from '../services/publications.js';
+import { youtubeApp } from '../services/platform-apps.js';
 import { mediaLink } from '../lib/media-token.js';
 import { probeDuration } from '../lib/ffmpeg.js';
 import { mediaPath } from '../services/media.js';
@@ -191,7 +192,8 @@ export function pageRoutes(config, pool) {
           !chosen.sourceAssetId &&
           ['uploading', 'processing'].includes(chosen.pipelineState),
         diskConnected: await diskConnected(),
-        youtubeConnected: await youtubeConnected()
+        youtubeConnected: await youtubeConnected(),
+        youtubeConfigured: (await youtubeApp(pool, config)).configured
       })
     );
   });
@@ -258,6 +260,9 @@ export function pageRoutes(config, pool) {
         // Публикации целиком, с причиной отказа: карточке урока хватает ссылки
         // и состояния, а кабинету нужно ещё и объяснение.
         publications: await publicationsFor(pool, lesson.id),
+        // Настроена ли площадка: без ключей кнопка выкладки была бы кнопкой,
+        // которая всегда отвечает отказом.
+        youtubeConfigured: (await youtubeApp(pool, config)).configured,
         segments: segmentRows.map((row) => ({
           id: Number(row.id),
           startedMs: Number(row.started_ms),
@@ -347,7 +352,24 @@ export function pageRoutes(config, pool) {
   // устройства, а не свойства учётной записи.
   router.get('/settings', async (req, res) => {
     const user = await currentUser(pool, req);
-    res.type('html').send(settingsPage({ config, user }));
+    // Состояние площадки нужно только автору: остальным этот раздел не
+    // показывается вовсе, и лишние запросы к базе им ни к чему.
+    const youtube =
+      user?.role === 'admin'
+        ? await (async () => {
+            const app = await youtubeApp(pool, config);
+            return {
+              clientId: app.clientId,
+              // Сам секрет наружу не отдаём никогда — только то, что он есть.
+              hasSecret: Boolean(app.clientSecret),
+              mode: app.mode,
+              redirectUri: app.redirectUri,
+              configured: app.configured,
+              connected: await youtubeConnected()
+            };
+          })()
+        : null;
+    res.type('html').send(settingsPage({ config, user, youtube }));
   });
 
   router.get('/ideas', async (req, res) => {

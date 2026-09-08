@@ -21,6 +21,7 @@ export function adminUploadPage({
   lessons,
   diskConnected = false,
   youtubeConnected = false,
+  youtubeConfigured = false,
   lesson = null,
   copying = false,
   source = null
@@ -137,7 +138,7 @@ ${
 <section class="card">
   <h2>YouTube</h2>
   ${
-    !config.youtube?.clientId
+    !youtubeConfigured
       ? `<p class="hint">Площадка не настроена: в окружении нет ключей приложения
            Google. Как их завести — в docs/youtube-setup.md.</p>`
       : youtubeConnected

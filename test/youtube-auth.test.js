@@ -16,16 +16,27 @@ import { withTestDb, skipWithoutDb } from './helpers/db.js';
 
 const config = {
   tokenEncryptionKey: 'a'.repeat(64),
+  publicBaseUrl: 'https://portal.example',
   youtube: {
     clientId: 'client-id',
     clientSecret: 'secret-value',
-    redirectUri: 'https://portal.example/api/integrations/youtube/callback',
+    redirectUri: '',
     mode: 'semi'
   }
 };
 
+// Приложение площадки: то, что автор ввёл в кабинете. Ключи из окружения тут
+// запасной путь, и он же проверяется тестом про обновление токена.
+const app = {
+  clientId: 'client-id',
+  clientSecret: 'secret-value',
+  redirectUri: 'https://portal.example/api/integrations/youtube/callback',
+  mode: 'semi',
+  configured: true
+};
+
 test('адрес согласия просит offline-доступ и одну область', () => {
-  const url = new URL(youtubeConsentUrl(config));
+  const url = new URL(youtubeConsentUrl(app));
   assert.equal(url.searchParams.get('access_type'), 'offline');
   // Без prompt=consent Google не выдаёт refresh-токен на повторном
   // подключении — молча, и подключение живёт ровно час.
@@ -34,7 +45,7 @@ test('адрес согласия просит offline-доступ и одну 
     url.searchParams.get('scope'),
     'https://www.googleapis.com/auth/youtube.force-ssl'
   );
-  assert.equal(url.searchParams.get('redirect_uri'), config.youtube.redirectUri);
+  assert.equal(url.searchParams.get('redirect_uri'), app.redirectUri);
 });
 
 test('код меняется на пару токенов', async () => {
@@ -47,7 +58,7 @@ test('код меняется на пару токенов', async () => {
     };
   };
 
-  const result = await exchangeYoutubeCode(config, 'code-from-google', fetchStub);
+  const result = await exchangeYoutubeCode(app, 'code-from-google', fetchStub);
   assert.equal(result.token, 'access-1');
   assert.equal(result.refreshToken, 'refresh-1');
   assert.ok(result.expiresAt > new Date(), 'срок годности должен быть в будущем');
@@ -60,7 +71,7 @@ test('секрет не попадает в текст ошибки', async () =
     text: async () => 'invalid_grant, client_secret=secret-value'
   });
 
-  await assert.rejects(exchangeYoutubeCode(config, 'stale', fetchStub), (error) => {
+  await assert.rejects(exchangeYoutubeCode(app, 'stale', fetchStub), (error) => {
     assert.doesNotMatch(error.message, /secret-value/);
     assert.match(error.message, /invalid_grant/);
     return true;

@@ -18,6 +18,7 @@ import { startPublication, publicationsFor, markPublicationState } from '../serv
 import { assetsOfLesson } from '../services/media.js';
 import { pickVideoAsset } from '../services/platforms/youtube-fields.js';
 import { youtubeAccessToken } from '../services/platforms/youtube-auth.js';
+import { youtubeApp } from '../services/platform-apps.js';
 import { readVideoPrivacy } from '../services/platforms/youtube.js';
 
 import { rebuildSubtitles } from '../services/transcript.js';
@@ -87,7 +88,10 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
       lessonId: lesson.id,
       platform: 'youtube',
       assetId: video.id,
-      mode: config.youtube.mode
+      // Режим берём в момент нажатия и записываем в строку публикации: шаг
+      // очереди потом идёт по ней, а не по настройке, которая к его началу
+      // могла и поменяться.
+      mode: (await youtubeApp(pool, config)).mode
     });
     await addJob(req.app.locals.queue, JOBS.publishYoutube, {
       lessonId: lesson.id,

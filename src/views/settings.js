@@ -8,9 +8,10 @@
 // зрителя. Подключения площадок живут отдельно, в кабинете, и ссылка туда
 // показывается только автору.
 // Вызывается из src/routes/pages.js по адресу /settings.
+import { escapeHtml } from '../lib/html.js';
 import { layout } from './layout.js';
 
-export function settingsPage({ config, user }) {
+export function settingsPage({ config, user, youtube = null }) {
   return layout({
     config,
     user,
@@ -57,10 +58,59 @@ ${
     <a class="button" href="/admin/lessons">Уроки</a>
     <a class="button" href="/admin/upload">Загрузка и Яндекс Диск</a>
   </p>
+</section>
+
+<section class="card">
+  <h2>Площадки</h2>
+  <h3>YouTube</h3>
   <p class="hint">
-    Подключения площадок появятся здесь на этапе публикации: сейчас такой
-    страницы нет, и ссылка на неё вела бы в пустоту.
+    Ключи берутся в консоли Google Cloud — отдельным проектом, не тем, где живёт
+    вход на портал. Порядок расписан в docs/youtube-setup.md.
   </p>
+  <form id="youtube-app-form" data-youtube-app>
+    <label>Client ID
+      <input name="clientId" value="${escapeHtml(youtube?.clientId ?? '')}"
+             autocomplete="off" maxlength="200" required>
+    </label>
+    <label>Client secret
+      <input name="clientSecret" type="password" autocomplete="off" maxlength="200"
+             placeholder="${youtube?.hasSecret ? 'сохранён — оставьте пустым, чтобы не менять' : 'вставьте секрет'}"
+             ${youtube?.hasSecret ? '' : 'required'}>
+    </label>
+    <label>Что делать с роликом
+      <select name="mode">
+        <option value="semi" ${youtube?.mode === 'auto' ? '' : 'selected'}>
+          оставлять приватным — открываю сам
+        </option>
+        <option value="auto" ${youtube?.mode === 'auto' ? 'selected' : ''}>
+          публиковать сразу — приложение прошло проверку Google
+        </option>
+      </select>
+    </label>
+    <div class="form-row">
+      <button class="button-brand" type="submit">Сохранить</button>
+    </div>
+  </form>
+  <p class="hint">
+    Адрес возврата для Google Cloud — скопируйте его туда до последнего знака:<br>
+    <code>${escapeHtml(youtube?.redirectUri ?? '')}</code>
+  </p>
+  <p class="hint">
+    Пока приложение не прошло проверку Google, ролики, залитые через API,
+    принудительно остаются приватными: второй вариант заработает только после неё.
+  </p>
+  ${
+    youtube?.configured
+      ? youtube.connected
+        ? `<p class="form-row">
+             <span class="hint">Канал подключён.</span>
+             <button class="button" type="button" data-youtube-disconnect>Отключить канал</button>
+           </p>`
+        : `<p class="form-row">
+             <a class="button-brand" href="/api/integrations/youtube/connect">Подключить канал</a>
+           </p>`
+      : '<p class="hint">Сохраните ключи — после этого появится кнопка подключения канала.</p>'
+  }
 </section>`
     : ''
 }`

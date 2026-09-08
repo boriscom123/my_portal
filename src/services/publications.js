@@ -48,6 +48,26 @@ export async function markPublicationState(
   );
 }
 
+/** Одна публикация по номеру: шаг очереди знает только его. */
+export async function publicationById(pool, id) {
+  const { rows } = await pool.query(
+    `SELECT id, platform, asset_id, state, mode, external_id, url, error
+       FROM publications WHERE id = $1`,
+    [id]
+  );
+  if (!rows.length) return null;
+  return {
+    id: Number(rows[0].id),
+    platform: rows[0].platform,
+    assetId: rows[0].asset_id === null ? null : Number(rows[0].asset_id),
+    state: rows[0].state,
+    mode: rows[0].mode,
+    externalId: rows[0].external_id,
+    url: rows[0].url,
+    error: rows[0].error
+  };
+}
+
 /** Публикации урока — для кабинета и для карточки. */
 export async function publicationsFor(pool, lessonId) {
   const { rows } = await pool.query(

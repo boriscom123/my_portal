@@ -152,6 +152,11 @@ test('без записи в буфере шаг не выдумывает фа�
 test('в режиме auto ролик уезжает публичным и публикацией', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
     const { lesson, publicationId } = await seed(pool);
+    // Режим записан в строке публикации в момент нажатия кнопки — шаг идёт по
+    // ней, а не по настройке, которую могли поменять, пока задача стояла в
+    // очереди. Auto ставится после проверки приложения в Google.
+    await pool.query(`UPDATE publications SET mode = 'auto' WHERE id = $1`, [publicationId]);
+
     let sentPrivacy = null;
     const platform = platformStub({
       startUploadSession: async ({ body }) => {
@@ -160,9 +165,7 @@ test('в режиме auto ролик уезжает публичным и пу�
       }
     });
 
-    // Режим auto ставится после аудита Google — и меняет ровно это.
-    const autoConfig = { ...config, youtube: { mode: 'auto' } };
-    await makePublishYoutube(autoConfig, pool, platform)({ lessonId: lesson.id, publicationId });
+    await makePublishYoutube(config, pool, platform)({ lessonId: lesson.id, publicationId });
 
     assert.equal(sentPrivacy, 'public');
     const [publication] = await publicationsFor(pool, lesson.id);
