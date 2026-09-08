@@ -105,6 +105,10 @@ ${
 <footer>
   <span>soloaijourney.online</span>
   <span class="tagline">от идеи до продукта</span>
+  <span class="footer-links">
+    <a href="/privacy">Конфиденциальность</a>
+    <a href="/terms">Условия</a>
+  </span>
 </footer>
 <script src="${assetUrl('/app.js')}" type="module"></script>
 </body>

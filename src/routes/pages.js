@@ -9,6 +9,7 @@ import { telegramReturnPage } from '../views/telegram-return.js';
 import { adminUploadPage } from '../views/admin-upload.js';
 import { adminLessonsPage } from '../views/admin-lessons.js';
 import { settingsPage } from '../views/settings.js';
+import { privacyPage, termsPage } from '../views/legal.js';
 import { adminReviewPage } from '../views/admin-review.js';
 import { adminPreviewPage } from '../views/admin-preview.js';
 import { publicationsFor } from '../services/publications.js';
@@ -350,6 +351,17 @@ export function pageRoutes(config, pool) {
 
   // Настройки зрителя: тема и уведомления. Открыты всем — это настройки
   // устройства, а не свойства учётной записи.
+  // Политика и условия открыты всем и не требуют входа: по этим ссылкам ходит
+  // проверяющий робот Google — приложение, просящее доступ к чужому каналу,
+  // обязано их показать, — и вход он не пройдёт.
+  router.get('/privacy', async (req, res) => {
+    res.type('html').send(privacyPage({ config, user: await currentUser(pool, req) }));
+  });
+
+  router.get('/terms', async (req, res) => {
+    res.type('html').send(termsPage({ config, user: await currentUser(pool, req) }));
+  });
+
   router.get('/settings', async (req, res) => {
     const user = await currentUser(pool, req);
     // Состояние площадки нужно только автору: остальным этот раздел не

@@ -50,9 +50,16 @@ async function askForTokens(app, params, fetchImpl) {
   });
   if (!response.ok) {
     const text = await response.text().catch(() => '');
-    throw new Error(
-      `Google отказал (${response.status}): ${hideSecret(text, app.clientSecret)}`
-    );
+    // invalid_grant — самый частый отказ и самый непонятный на вид. Он означает
+    // ровно одно: доступ больше не действует. Пока приложение в Google числится
+    // тестовым, это случается каждые семь дней само собой, и человек у экрана
+    // должен прочитать, что делать, а не гадать над английским словом.
+    if (text.includes('invalid_grant')) {
+      throw new Error(
+        'Подключение к YouTube истекло или отозвано — подключите канал заново в настройках'
+      );
+    }
+    throw new Error(`Google отказал (${response.status}): ${hideSecret(text, app.clientSecret)}`);
   }
   return response.json();
 }

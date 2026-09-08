@@ -6,6 +6,7 @@ import { readFile } from 'node:fs/promises';
 import { escapeHtml } from '../src/lib/html.js';
 import { layout } from '../src/views/layout.js';
 import { lessonPage } from '../src/views/lesson.js';
+import { privacyPage, termsPage } from '../src/views/legal.js';
 
 const config = { publicBaseUrl: 'https://soloaijourney.online' };
 
@@ -375,4 +376,28 @@ test('поля ввода оформлены одним правилом на в
   // Подпись над полем: без этого правила подписи встают в строку со всеми
   // соседями — так голая форма настроек и выглядела.
   assert.match(styles, /form label \{\s*\n\s*display: flex;\s*\n\s*flex-direction: column;/);
+});
+
+test('политика и условия открываются и говорят по существу', () => {
+  // По этим ссылкам ходит проверяющий робот Google: приложение, просящее доступ
+  // к чужому каналу YouTube, обязано их показать. Пустая или недоступная
+  // страница означает отказ в переводе приложения в рабочий режим.
+  const privacy = privacyPage({ config, user: null });
+  assert.match(privacy, /Политика конфиденциальности/);
+  // Три обещания, которые портал правда выполняет: почты в базе нет, следящих
+  // счётчиков нет, доступ к каналу — только на загрузку своего.
+  assert.match(privacy, /Почтового адреса портал не хранит/);
+  assert.match(privacy, /счётчиков на страницах нет/);
+  assert.match(privacy, /не удаляет и не меняет уже опубликованное/);
+
+  const terms = termsPage({ config, user: null });
+  assert.match(terms, /Условия использования/);
+  assert.match(terms, /как есть/);
+});
+
+test('правовые ссылки стоят в подвале каждой страницы', () => {
+  // Google требует их и проверяет, а посетитель ищет их именно в подвале.
+  const html = layout({ config, path: '/', title: 'Портал', description: '', body: '<p>тело</p>' });
+  assert.match(html, /href="\/privacy"/);
+  assert.match(html, /href="\/terms"/);
 });

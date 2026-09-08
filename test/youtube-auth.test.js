@@ -68,12 +68,30 @@ test('секрет не попадает в текст ошибки', async () =
   const fetchStub = async () => ({
     ok: false,
     status: 400,
-    text: async () => 'invalid_grant, client_secret=secret-value'
+    // Не invalid_grant: у него свой понятный текст, а здесь проверяется, что
+    // незнакомый отказ показывается человеку без секрета внутри.
+    text: async () => 'invalid_client, client_secret=secret-value'
+  });
+
+  await assert.rejects(exchangeYoutubeCode(app, 'bad-client', fetchStub), (error) => {
+    assert.doesNotMatch(error.message, /secret-value/);
+    assert.match(error.message, /invalid_client/);
+    return true;
+  });
+});
+
+test('истёкший доступ объясняется словами, а не английским кодом', async () => {
+  // Пока приложение в Google числится тестовым, доступ протухает каждые семь
+  // дней сам собой. Человек у экрана должен прочитать, что делать.
+  const fetchStub = async () => ({
+    ok: false,
+    status: 400,
+    text: async () => '{"error": "invalid_grant", "error_description": "Token has been expired"}'
   });
 
   await assert.rejects(exchangeYoutubeCode(app, 'stale', fetchStub), (error) => {
-    assert.doesNotMatch(error.message, /secret-value/);
-    assert.match(error.message, /invalid_grant/);
+    assert.match(error.message, /подключите канал заново/i);
+    assert.doesNotMatch(error.message, /invalid_grant/);
     return true;
   });
 });
