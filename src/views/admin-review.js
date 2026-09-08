@@ -36,6 +36,16 @@ function assetRow(asset) {
 </li>`;
 }
 
+// Состояние публикации человеку. «ready» на экране не объясняет ничего, а
+// «опубликован» на приватном ролике — прямая ложь.
+const PUBLICATION_STATES = {
+  queued: 'в очереди',
+  uploading: 'заливается',
+  ready: 'лежит приватным, ждёт вашего нажатия',
+  published: 'опубликован',
+  failed: 'не уехал'
+};
+
 export function adminReviewPage({
   config,
   user,
@@ -45,9 +55,13 @@ export function adminReviewPage({
   segments = [],
   covers = [],
   sideError = null,
+  publications = [],
   links
 }) {
   const state = stateLabel(lesson);
+  // Площадка пока одна, но строк публикаций у урока будет много: у каждого
+  // вертикального ролика своя. Берём ту, что про горизонтальную запись.
+  const youtube = publications.find((item) => item.platform === 'youtube') ?? null;
   const failed = lesson.pipelineState === 'failed';
   const settings = readSettings(lesson.settings);
   // Пока записи нет, главное действие — загрузить её. Когда есть, предлагать
@@ -251,6 +265,47 @@ ${
     <a class="button" href="/lesson/${encodeURIComponent(lesson.slug)}">
       Открыть страницу урока
     </a>
+  </p>
+</section>
+
+<section class="card">
+  <h2>Площадки</h2>
+  ${
+    youtube
+      ? `<p>YouTube: ${escapeHtml(PUBLICATION_STATES[youtube.state] ?? youtube.state)}${
+          youtube.url && youtube.state !== 'failed'
+            ? ` — <a href="${escapeHtml(youtube.url)}" rel="noopener" target="_blank">открыть ролик</a>`
+            : ''
+        }</p>
+         ${youtube.error ? `<p class="hint danger">${escapeHtml(youtube.error)}</p>` : ''}
+         ${
+           youtube.state === 'ready'
+             ? `<p class="hint">Ролик лежит на канале приватным — таковы правила Google,
+                  пока приложение не прошло проверку. Откройте его в студии и нажмите
+                  «Проверить»: тогда ссылка появится на странице урока.</p>
+                <p class="form-row">
+                  <button class="button" type="button"
+                    data-youtube-check="${escapeHtml(lesson.slug)}">Проверить</button>
+                </p>`
+             : ''
+         }`
+      : '<p class="hint">На YouTube ещё не отправляли.</p>'
+  }
+  <div class="form-row">
+    <button class="button-brand" type="button" data-youtube="${escapeHtml(lesson.slug)}"
+      ${
+        hasSource
+          ? busy
+            ? 'disabled title="Идёт обработка — дождитесь её конца"'
+            : ''
+          : 'disabled title="Сначала загрузите запись"'
+      }>
+      Отправить на YouTube
+    </button>
+  </div>
+  <p class="hint">
+    Уезжает смонтированная запись, если вы её собрали, иначе исходник. Субтитры
+    идут отдельным треком — зритель их выключает, а площадка по ним переводит.
   </p>
 </section>
 

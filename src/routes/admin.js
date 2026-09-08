@@ -14,9 +14,14 @@ import { notifyAboutLesson } from '../services/notify/lesson.js';
 import { rm } from 'node:fs/promises';
 import { mediaPath, forgetAsset } from '../services/media.js';
 import { readSettings } from '../lib/settings.js';
+import { startPublication, publicationsFor, markPublicationState } from '../services/publications.js';
+import { assetsOfLesson } from '../services/media.js';
+import { pickVideoAsset } from '../services/platforms/youtube-fields.js';
+import { youtubeAccessToken } from '../services/platforms/youtube-auth.js';
+import { readVideoPrivacy } from '../services/platforms/youtube.js';
 
 import { rebuildSubtitles } from '../services/transcript.js';
-import { addJob } from '../queue.js';
+import { addJob, JOBS } from '../queue.js';
 
 /** Теги строкой из формы — в список: «docker, vps» → ['docker', 'vps']. */
 export function parseTags(value) {
@@ -26,7 +31,7 @@ export function parseTags(value) {
     .filter(Boolean);
 }
 
-export function adminRoutes(config, pool) {
+export function adminRoutes(config, pool, fetchImpl = fetch) {
   const router = Router();
   router.use(requireAdmin);
 
@@ -65,6 +70,55 @@ export function adminRoutes(config, pool) {
 
     if (publish) await notifyAboutLesson(pool, req.app.locals.channels, lesson);
     res.json({ lesson, published: publish });
+  });
+
+  // Выкладка на YouTube отдельной кнопкой, а не вместе с публикацией на
+  // портале: витрина и площадка живут своей жизнью, и отказ площадки не должен
+  // мешать уроку появиться на сайте.
+  router.post('/lessons/:slug/publish/youtube', async (req, res) => {
+    const lesson = await getLessonBySlug(pool, req.params.slug, { includeDrafts: true });
+    if (!lesson) throw new PublicError('Урок не найден', 404);
+
+    const assets = await assetsOfLesson(pool, lesson.id);
+    const video = pickVideoAsset(assets);
+    if (!video) throw new PublicError('Записи нет в буфере — загрузите её заново', 400);
+
+    const publication = await startPublication(pool, {
+      lessonId: lesson.id,
+      platform: 'youtube',
+      assetId: video.id,
+      mode: config.youtube.mode
+    });
+    await addJob(req.app.locals.queue, JOBS.publishYoutube, {
+      lessonId: lesson.id,
+      publicationId: publication.id
+    });
+    res.json({ publicationId: publication.id, state: 'queued' });
+  });
+
+  // «Проверить»: автор открыл ролик в студии — спрашиваем площадку и снимаем
+  // замок с ссылки в карточке. Опрашивать по расписанию незачем: это работа
+  // ради одного нажатия раз в неделю.
+  router.post('/lessons/:slug/publish/youtube/check', async (req, res) => {
+    const lesson = await getLessonBySlug(pool, req.params.slug, { includeDrafts: true });
+    if (!lesson) throw new PublicError('Урок не найден', 404);
+
+    const publication = (await publicationsFor(pool, lesson.id)).find(
+      (item) => item.platform === 'youtube'
+    );
+    if (!publication?.externalId) throw new PublicError('Ролик ещё не уехал на площадку', 400);
+
+    const token = await youtubeAccessToken(pool, config, fetchImpl);
+    if (!token) throw new PublicError('Канал YouTube не подключён', 400);
+
+    const privacy = await readVideoPrivacy({
+      token,
+      videoId: publication.externalId,
+      fetchImpl
+    });
+    const state = privacy === 'public' ? 'published' : publication.state;
+    if (state !== publication.state) await markPublicationState(pool, publication.id, { state });
+    res.json({ state, privacy });
   });
 
   // Настройки подготовки урока: вид подписей и монтаж. Значения приходят от

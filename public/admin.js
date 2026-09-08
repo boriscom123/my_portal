@@ -463,6 +463,50 @@ export function initPage() {
     }
   });
 
+  /* --- Выкладка на площадки ------------------------------------------------ */
+
+  // Заливка идёт минутами, поэтому кнопка только ставит задачу: состояние ведёт
+  // воркер, а страница показывает его после перечитывания.
+  const youtubeButton = document.querySelector('[data-youtube]');
+  youtubeButton?.addEventListener('click', async () => {
+    try {
+      await withButtonState(youtubeButton, 'Отправляю…', 'Отправлено', async () => {
+        const answer = await request(
+          `/api/admin/lessons/${youtubeButton.dataset.youtube}/publish/youtube`,
+          { method: 'POST' }
+        );
+        if (!answer) return;
+        toast('Ролик поехал на YouTube. Уведомление придёт, когда закончится.');
+        setTimeout(() => location.reload(), 1500);
+      });
+    } catch (error) {
+      toast(`Не отправилось: ${error.message}`, true);
+    }
+  });
+
+  // «Проверить»: автор открыл ролик в студии. Спрашиваем площадку, а не верим
+  // на слово, — иначе на карточке урока появится ссылка на приватный ролик.
+  const youtubeCheckButton = document.querySelector('[data-youtube-check]');
+  youtubeCheckButton?.addEventListener('click', async () => {
+    try {
+      await withButtonState(youtubeCheckButton, 'Спрашиваю…', 'Готово', async () => {
+        const answer = await request(
+          `/api/admin/lessons/${youtubeCheckButton.dataset.youtubeCheck}/publish/youtube/check`,
+          { method: 'POST' }
+        );
+        if (!answer) return;
+        if (answer.state === 'published') {
+          toast('Ролик публичный — ссылка встала в карточку урока.');
+          setTimeout(() => location.reload(), 1500);
+        } else {
+          toast('YouTube всё ещё считает ролик приватным. Откройте его в студии.', true);
+        }
+      });
+    } catch (error) {
+      toast(`Не спросилось: ${error.message}`, true);
+    }
+  });
+
   /* --- Обложка ------------------------------------------------------------- */
 
   // Рисование идёт минуту с лишним, поэтому кнопка только ставит задачу, а

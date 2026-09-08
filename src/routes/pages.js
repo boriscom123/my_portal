@@ -11,6 +11,7 @@ import { adminLessonsPage } from '../views/admin-lessons.js';
 import { settingsPage } from '../views/settings.js';
 import { adminReviewPage } from '../views/admin-review.js';
 import { adminPreviewPage } from '../views/admin-preview.js';
+import { publicationsFor } from '../services/publications.js';
 import { mediaLink } from '../lib/media-token.js';
 import { probeDuration } from '../lib/ffmpeg.js';
 import { mediaPath } from '../services/media.js';
@@ -254,6 +255,9 @@ export function pageRoutes(config, pool) {
         // Отказ необязательного шага: показывается рядом с его кнопкой, а не
         // как «обработка упала» на весь урок.
         sideError: lesson.sideError,
+        // Публикации целиком, с причиной отказа: карточке урока хватает ссылки
+        // и состояния, а кабинету нужно ещё и объяснение.
+        publications: await publicationsFor(pool, lesson.id),
         segments: segmentRows.map((row) => ({
           id: Number(row.id),
           startedMs: Number(row.started_ms),
