@@ -368,6 +368,48 @@ export function initPage() {
     });
   }
 
+  /* --- Сохранение и публикация урока --------------------------------------- */
+
+  // Отправку перехватываем обязательно: у формы нет ни action, ни method, и
+  // без перехвата браузер уходит GET-ом на тот же адрес. Поля уезжают в строку
+  // запроса, страница перечитывается из базы — и только что заполненные
+  // заголовок с описанием выглядят стёртыми, хотя стирать их никто не просил.
+  // Заказчик так и потерял заготовку, полученную из расшифровки.
+  const reviewForm = document.querySelector('[data-approve]');
+  reviewForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const fields = new FormData(reviewForm);
+    // Какая из двух кнопок нажата, знает только submitter. Не знаем — считаем
+    // это черновиком: нечаянная публикация дороже лишнего нажатия.
+    const publish = event.submitter?.value === 'yes';
+    const button = event.submitter ?? reviewForm.querySelector('button[type=submit]');
+
+    try {
+      await withButtonState(button, 'Сохраняю…', 'Сохранено', async () => {
+        const answer = await request(`/api/admin/lessons/${reviewForm.dataset.approve}/approve`, {
+          method: 'POST',
+          body: JSON.stringify({
+            title: fields.get('title'),
+            description: fields.get('description'),
+            tags: fields.get('tags'),
+            publish
+          })
+        });
+        if (!answer) return;
+        if (publish) {
+          toast('Урок на витрине.');
+          // Состояние урока на странице написано словом «черновик»: после
+          // публикации оно врёт, пока страницу не перечитать.
+          setTimeout(() => location.reload(), 1500);
+        } else {
+          toast('Черновик сохранён.');
+        }
+      });
+    } catch (error) {
+      toast(`Не сохранилось: ${error.message}`, true);
+    }
+  });
+
   /* --- Заполнение полей из расшифровки ------------------------------------- */
 
   // Заготовка, а не готовый текст: модели у портала нет, поэтому поля

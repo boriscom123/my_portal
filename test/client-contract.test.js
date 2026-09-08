@@ -65,6 +65,49 @@ test('у каждой зацепки в разметке есть обработ
   }
 });
 
+test('форма на экране либо шлёт себя сама, либо её отправку перехватывает клиент', async () => {
+  // Форма без action уходит GET-ом на тот же адрес: поля уезжают в строку
+  // запроса, страница перечитывается из базы и заполненные поля выглядят
+  // стёртыми. Так пропали заголовок с описанием, только что заполненные из
+  // расшифровки, — заказчик нашёл это первым. Кнопку видно, разметка цела,
+  // ошибок нет: заметить такое можно только по пропавшему тексту.
+  const views = await readdir(new URL('../src/views/', import.meta.url));
+  const forms = [];
+  for (const name of views) {
+    const source = await readFile(new URL(`../src/views/${name}`, import.meta.url), 'utf8');
+    for (const match of source.matchAll(/<form\b([^>]*)>/g)) {
+      const attributes = match[1];
+      // С action форма отправляется сама и попадает куда надо — перехват ей не
+      // нужен: так сделан поиск.
+      if (/\saction=/.test(attributes)) continue;
+      forms.push({
+        view: name,
+        id: attributes.match(/id="([a-z-]+)"/)?.[1],
+        // Зацепка может стоять и без значения — `data-new-lesson`, — поэтому
+        // конца атрибута не ждём.
+        hook: attributes.match(/\sdata-([a-z-]+)/)?.[1]
+      });
+    }
+  }
+  assert.ok(forms.length, 'формы на экранах перестали находиться — сломан разбор, а не код');
+
+  const client = (
+    await Promise.all(['app.js', 'admin.js'].map(readPublic))
+  ).join('\n');
+
+  for (const form of forms) {
+    const selectors = [form.id && `#${form.id}`, form.hook && `[data-${form.hook}]`].filter(Boolean);
+    const intercepted = selectors.some((selector) => {
+      const quoted = selector.replace(/[[\]]/g, '\\$&');
+      return new RegExp(`${quoted}'\\)[\\s\\S]{0,400}addEventListener\\('submit'`).test(client);
+    });
+    assert.ok(
+      intercepted,
+      `форма ${selectors.join(' / ')} из ${form.view} уходит GET-ом: клиент не перехватывает submit`
+    );
+  }
+});
+
 test('worker не кеширует ответы API', async () => {
   const sw = await readPublic('sw.js');
   // Ответ /api/ зависит от того, кто спрашивает: закешированный отдал бы
