@@ -65,3 +65,29 @@ export function buildAnnouncement({
 
   return `${head}${description ? `${description}\n\n` : ''}${tail}`;
 }
+
+/**
+ * Приводит адрес канала к тому виду, который понимает площадка.
+ * null — адрес не годится, и сказать об этом надо сразу: ссылка-приглашение
+ * выглядит как адрес, но постить по ней нельзя.
+ *
+ * Зачем вообще: человек копирует ссылку на канал — она у него под рукой, — а
+ * Telegram по ссылке канал не ищет и отвечает «chat not found» уже при отправке.
+ * Вызывается из src/routes/integrations.js.
+ */
+export function normalizeChannel(platform, value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return null;
+  if (platform !== 'telegram') return raw;
+
+  // Закрытый канал адресуется числом: имени у него нет, и собака его сломает.
+  if (/^-?\d+$/.test(raw)) return raw;
+
+  const withoutHost = raw.replace(/^https?:\/\//i, '').replace(/^t\.me\//i, '');
+  const name = withoutHost.replace(/^@/, '').replace(/\/+$/, '');
+
+  // Приглашение, а не адрес: t.me/+AbC и старое t.me/joinchat/AbC.
+  if (!name || name.startsWith('+') || /^joinchat\//i.test(name)) return null;
+  // Ссылка на отдельный пост — берём из неё канал, а не номер сообщения.
+  return `@${name.split('/')[0]}`;
+}

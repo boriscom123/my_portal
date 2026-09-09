@@ -19,6 +19,7 @@ import {
   exchangeYoutubeCode
 } from '../services/platforms/youtube-auth.js';
 import { youtubeApp, savePlatformApp, channelApp } from '../services/platform-apps.js';
+import { normalizeChannel } from '../services/platforms/announcement.js';
 import { signShortLived, verifyShortLived } from '../lib/jwt.js';
 
 // Куда возвращать, если страница отправления неизвестна.
@@ -163,8 +164,15 @@ export function integrationRoutes(config, pool, fetchImpl = fetch) {
       throw new PublicError('Неизвестная площадка', 400);
     }
 
-    const channel = String(req.body?.channel ?? '').trim();
-    if (!channel) throw new PublicError('Адрес канала пустой', 400);
+    const channel = normalizeChannel(platform, req.body?.channel);
+    if (!channel) {
+      throw new PublicError(
+        'Адрес канала не годится. Подойдёт имя вида @moy-kanal, ссылка на канал ' +
+          'или числовой идентификатор закрытого канала. Ссылка-приглашение не подойдёт: ' +
+          'постить по ней нельзя.',
+        400
+      );
+    }
 
     await savePlatformApp(pool, config, {
       name: platform,
