@@ -33,6 +33,10 @@ const TRANSCRIPT_LIMIT = 60_000;
 // вынесен в очередь.
 const TIMEOUT_MS = 180_000;
 
+// Срок для синхронного запроса о новости. Сорок секунд: nginx рвёт соединение
+// на шестидесяти, и отказ должен быть наш, а не оборванная страница.
+const NEWS_TIMEOUT_MS = 40_000;
+
 /**
  * Что просим у модели.
  * Требования к длине здесь не украшение: заголовок длиннее строки площадка
@@ -220,7 +224,7 @@ export function createTexts(config, fetchImpl = fetch) {
    * то, чего в ней нет, модель не вернёт. Главы однажды уже не приходили
    * именно поэтому — в запросе их просили словами, а схема их не допускала.
    */
-  async function ask(prompt, schema) {
+  async function ask(prompt, schema, timeoutMs = TIMEOUT_MS) {
     let lastError = null;
 
     for (const name of models) {
@@ -232,7 +236,7 @@ export function createTexts(config, fetchImpl = fetch) {
           // посредников целиком, а заголовки — нет.
           'x-goog-api-key': apiKey
         },
-        signal: AbortSignal.timeout(TIMEOUT_MS),
+        signal: AbortSignal.timeout(timeoutMs),
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
@@ -293,11 +297,20 @@ export function createTexts(config, fetchImpl = fetch) {
      * выдуманное.
      */
     async suggestNews(title) {
-      const { body, model: name } = await ask(buildNewsPrompt(title), {
-        type: 'object',
-        properties: { body: { type: 'string' } },
-        required: ['body']
-      });
+      // Свой срок, короче общего: этот запрос идёт синхронно, а nginx рвёт
+      // соединение на шестидесяти секундах. Лучше отказать самим на сороковой и
+      // сказать словами, чем оставить человека смотреть на «Пишу…» до обрыва,
+      // который он не поймёт. Измерено: первая модель отвечает секунд за
+      // тридцать.
+      const { body, model: name } = await ask(
+        buildNewsPrompt(title),
+        {
+          type: 'object',
+          properties: { body: { type: 'string' } },
+          required: ['body']
+        },
+        NEWS_TIMEOUT_MS
+      );
       return { body: parseNewsResponse(body), model: name };
     }
   };
