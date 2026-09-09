@@ -195,3 +195,24 @@ test('ожидание копирования смотрит на появлен
     'ожидание снова завязано на имя промежуточного состояния'
   );
 });
+
+test('переход без перезагрузки замечает, что код портала обновился', async () => {
+  // Общий скрипт подключён вне подменяемой части страницы, поэтому при
+  // переходах в памяти остаётся тот, что загрузился первым. После выкатки это
+  // означает свежую разметку со старыми обработчиками: кнопки на странице
+  // мёртвые, и понять почему невозможно. Заказчик так и нажимал кнопку, которой
+  // в его браузере ещё не существовало.
+  const { appScriptChanged } = await import('../public/navigation.js');
+
+  assert.ok(appScriptChanged('/app.js?v=aaa', '/app.js?v=bbb'), 'другой отпечаток — другой код');
+  assert.ok(!appScriptChanged('/app.js?v=aaa', '/app.js?v=aaa'), 'тот же код — перезагружать незачем');
+  // Неизвестность не повод перезагружать: на странице без скрипта сравнивать
+  // нечего, и лишняя загрузка только моргнёт экраном.
+  assert.ok(!appScriptChanged(null, '/app.js?v=bbb'));
+  assert.ok(!appScriptChanged('/app.js?v=aaa', null));
+
+  // И сам разбор обязан этот адрес доставать: без него сравнивать будет нечего.
+  const navigation = await readPublic('navigation.js');
+  assert.match(navigation, /appScript: document_\.querySelector\('script\[src\*="\/app\.js"\]'\)/);
+  assert.match(navigation, /location\.href = url;/);
+});

@@ -61,8 +61,24 @@ export function extractPage(html, parser = new DOMParser()) {
   return {
     main,
     title: document_.title,
-    refreshSeconds: refresh ? Number(refresh.getAttribute('content')) : null
+    refreshSeconds: refresh ? Number(refresh.getAttribute('content')) : null,
+    // Адрес общего скрипта на полученной странице. Он подключён ВНЕ подменяемой
+    // части, поэтому при переходах без перезагрузки в памяти остаётся тот, что
+    // загрузился первым, — и свежий код не приезжает никогда.
+    appScript: document_.querySelector('script[src*="/app.js"]')?.getAttribute('src') ?? null
   };
+}
+
+/**
+ * Сменился ли общий скрипт портала.
+ *
+ * В адресе скрипта стоит отпечаток содержимого: другой отпечаток — другой код.
+ * Продолжать переходы старым кодом нельзя: страница будет новая, а обработчики
+ * старые, и кнопки на ней окажутся мёртвыми. Именно так и вышло — заказчик
+ * полдня нажимал кнопку, которой в его памяти браузера ещё не существовало.
+ */
+export function appScriptChanged(current, next) {
+  return Boolean(current && next && current !== next);
 }
 
 /**
@@ -96,6 +112,8 @@ async function runPageModules(root) {
 
 export function startNavigation({ onNavigated } = {}) {
   const main = () => document.querySelector('main');
+  const currentAppScript = () =>
+    document.querySelector('script[src*="/app.js"]')?.getAttribute('src') ?? null;
   if (!main() || !window.history?.pushState) return;
 
   let refreshTimer = null;
@@ -136,6 +154,14 @@ export function startNavigation({ onNavigated } = {}) {
     // Меню на телефоне закрываем: раньше его закрывала перезагрузка, а теперь
     // её нет, и список разделов оставался висеть поверх новой страницы.
     document.querySelector('[data-nav-menu]')?.removeAttribute('open');
+
+    // Код портала обновился — дальше идём обычной загрузкой: подменять
+    // страницу свежей разметкой, оставляя в памяти старые обработчики, значит
+    // показать человеку кнопки, которые ничего не делают.
+    if (appScriptChanged(currentAppScript(), page.appScript)) {
+      location.href = url;
+      return;
+    }
 
     if (push) history.pushState({}, '', url);
     document.title = page.title;

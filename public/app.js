@@ -457,6 +457,10 @@ function initPage() {
     const wasText = announcementsButton.textContent;
     announcementsButton.disabled = true;
     announcementsButton.textContent = 'Смотрю…';
+    // Отклик сразу, до ответа лент: сбор идёт секунды, и всё это время человек
+    // должен видеть, что нажатие услышано, а не гадать, попал ли он по кнопке.
+    announcementsList.innerHTML = '<p class="hint">Спрашиваю источники…</p>';
+    announcementsList.hidden = false;
 
     try {
       const answer = await request('/api/admin/news/announcements');
@@ -504,6 +508,9 @@ function initPage() {
         });
       }
     } catch (error) {
+      // Причина остаётся на экране, а не только во всплывающем сообщении: оно
+      // уходит через несколько секунд, а разбираться человек будет дольше.
+      announcementsList.innerHTML = `<p class="hint danger">Анонсы не пришли: ${error.message}</p>`;
       toast(`Анонсы не пришли: ${error.message}`, true);
     } finally {
       announcementsButton.disabled = false;
