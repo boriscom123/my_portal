@@ -115,3 +115,61 @@ test('теги не длиннее пятисот знаков суммарно'
   assert.ok(total <= 500, `суммарная длина тегов ${total}`);
   assert.ok(body.snippet.tags.length > 0, 'хоть сколько-то тегов должно остаться');
 });
+
+test('главы уходят в описание отдельным блоком', () => {
+  const body = buildVideoBody({
+    lesson: {
+      title: 'Урок',
+      description: 'Про портал',
+      tags: [],
+      slug: 'urok',
+      durationSeconds: 3600,
+      chapters: [
+        { atMs: 0, title: 'Что делаем' },
+        { atMs: 120_000, title: 'Ставим окружение' },
+        { atMs: 600_000, title: 'Первый запуск' }
+      ]
+    },
+    publicBaseUrl: 'https://portal.example',
+    privacy: 'private'
+  });
+
+  assert.match(body.snippet.description, /Про портал/);
+  assert.match(body.snippet.description, /^0:00 Что делаем$/m);
+  assert.match(body.snippet.description, /^10:00 Первый запуск$/m);
+  // Ссылка на урок остаётся последней: её ищут внизу описания.
+  assert.match(body.snippet.description, /Урок на портале: https:\/\/portal\.example\/lesson\/urok$/);
+});
+
+test('негодные главы в описание не попадают вовсе', () => {
+  // YouTube в таком случае молча не показывает НИ ОДНОЙ главы, и строки в
+  // описании остались бы мусором, который автор увидит на вышедшем ролике.
+  const body = buildVideoBody({
+    lesson: {
+      title: 'Урок',
+      description: 'Про портал',
+      tags: [],
+      slug: 'urok',
+      durationSeconds: 3600,
+      chapters: [
+        { atMs: 30_000, title: 'Не с нуля' },
+        { atMs: 120_000, title: 'Вторая' },
+        { atMs: 600_000, title: 'Третья' }
+      ]
+    },
+    publicBaseUrl: 'https://portal.example',
+    privacy: 'private'
+  });
+
+  assert.doesNotMatch(body.snippet.description, /Не с нуля/);
+  assert.match(body.snippet.description, /Про портал/, 'описание при этом цело');
+});
+
+test('урок без глав описывается как прежде', () => {
+  const body = buildVideoBody({
+    lesson: { title: 'Урок', description: 'Про портал', tags: [], slug: 'urok' },
+    publicBaseUrl: 'https://portal.example',
+    privacy: 'private'
+  });
+  assert.match(body.snippet.description, /Про портал\n\nУрок на портале/);
+});

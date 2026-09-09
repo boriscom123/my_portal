@@ -11,6 +11,7 @@ import { assetUrl } from '../lib/assets.js';
 import { layout } from './layout.js';
 import { stateLabel } from './lesson-state.js';
 import { readSettings } from '../lib/settings.js';
+import { chaptersBlock, validChapters } from '../lib/chapters.js';
 import { timeLabel } from './search.js';
 
 /** Байты человеку. Гигабайты для исходника, мегабайты для остального. */
@@ -60,6 +61,7 @@ export function adminReviewPage({
   links
 }) {
   const state = stateLabel(lesson);
+  const durationMs = (lesson.durationSeconds ?? 0) * 1000 || Infinity;
   const failed = lesson.pipelineState === 'failed';
   const settings = readSettings(lesson.settings);
   // Пока записи нет, главное действие — загрузить её. Когда есть, предлагать
@@ -238,6 +240,17 @@ ${
     <label>Описание
       <textarea name="description" rows="4" maxlength="2000">${escapeHtml(lesson.description ?? '')}</textarea>
     </label>
+    <label>Главы — по строке, «0:00 Название»
+      <textarea name="chapters" rows="6">${escapeHtml(chaptersBlock(lesson.chapters ?? []))}</textarea>
+    </label>
+    ${
+      (lesson.chapters ?? []).length && !validChapters(lesson.chapters, durationMs).length
+        ? `<p class="hint danger">Площадка такие главы не покажет — ни одной.
+             Первая обязана начинаться с 0:00, глав нужно не меньше трёх, между
+             соседними не меньше десяти секунд.</p>`
+        : `<p class="hint">Первая глава — 0:00, дальше по смене темы. Меньше трёх
+             глав YouTube не показывает вовсе.</p>`
+    }
     <label>Теги через запятую
       <input name="tags" value="${escapeHtml(lesson.tags.join(', '))}" maxlength="200">
     </label>

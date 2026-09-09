@@ -392,6 +392,7 @@ export function initPage() {
             title: fields.get('title'),
             description: fields.get('description'),
             tags: fields.get('tags'),
+            chapters: fields.get('chapters') ?? '',
             publish
           })
         });
@@ -449,6 +450,10 @@ export function initPage() {
         form.querySelector('[name=title]').value = answer.title;
         form.querySelector('[name=description]').value = answer.description;
         form.querySelector('[name=tags]').value = answer.tags.join(', ');
+        // Главы приходят готовой строкой: время форматирует сервер, чтобы два
+        // вида одного времени не разошлись между ним и страницей.
+        const chapters = form.querySelector('[name=chapters]');
+        if (chapters && answer.chaptersText) chapters.value = answer.chaptersText;
         if (answer.warning) toast(answer.warning, true);
         else {
           toast(

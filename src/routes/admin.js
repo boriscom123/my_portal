@@ -17,6 +17,7 @@ import { readSettings } from '../lib/settings.js';
 import { startPublication, publicationsFor, markPublicationState } from '../services/publications.js';
 import { assetsOfLesson } from '../services/media.js';
 import { pickVideoAsset } from '../services/platforms/youtube-fields.js';
+import { parseChaptersText } from '../lib/chapters.js';
 import { youtubeAccessToken } from '../services/platforms/youtube-auth.js';
 import { youtubeApp, channelApp } from '../services/platform-apps.js';
 import { readVideoPrivacy } from '../services/platforms/youtube.js';
@@ -55,6 +56,17 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
       // поднимать урок наверх ленты как новый.
       publishedAt: publish ? (current.publishedAt ?? new Date()) : null
     });
+
+    // Главы приходят текстом, по строке на главу: автор правит ровно то, что
+    // увидит зритель в описании ролика. Строки без времени — не главы, и
+    // молча делать их главами нельзя.
+    if (typeof req.body.chapters === 'string') {
+      await pool.query(
+        `UPDATE lessons SET generated = jsonb_set(generated, '{chapters}', $1::jsonb) WHERE id = $2`,
+        [JSON.stringify(parseChaptersText(req.body.chapters)), lesson.id]
+      );
+      lesson.chapters = parseChaptersText(req.body.chapters);
+    }
 
     if (Array.isArray(req.body.tags) || typeof req.body.tags === 'string') {
       const tags = Array.isArray(req.body.tags) ? req.body.tags : parseTags(req.body.tags);

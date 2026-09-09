@@ -643,3 +643,55 @@ test('кнопка отправки исчезает, когда ролик уж
   assert.match(failed, /data-publish="youtube"/);
   assert.match(failed, /Отправить заново/);
 });
+
+test('главы показываются и предупреждают, когда площадка их не покажет', () => {
+  const base = {
+    config: { youtube: { clientId: 'id' } },
+    user: { role: 'admin' },
+    assets: [{ kind: 'source', path: 'lesson-1/urok.mp4', bytes: 10, expiresLabel: '15.09.2026' }],
+    transcript: null,
+    links: { subtitles: [], clips: [] },
+    platforms: [],
+    publications: []
+  };
+
+  const good = adminReviewPage({
+    ...base,
+    lesson: {
+      slug: 'urok',
+      title: 'Урок',
+      description: '',
+      tags: [],
+      settings: {},
+      durationSeconds: 3600,
+      chapters: [
+        { atMs: 0, title: 'Что делаем' },
+        { atMs: 120_000, title: 'Ставим' },
+        { atMs: 600_000, title: 'Запуск' }
+      ]
+    }
+  });
+  assert.match(good, /name="chapters"/);
+  assert.match(good, /0:00 Что делаем/);
+  assert.doesNotMatch(good, /не покажет — ни одной/);
+
+  // Главы есть, но по правилам площадки негодны — молчать об этом нельзя:
+  // автор узнал бы об этом по вышедшему ролику, где глав просто нет.
+  const bad = adminReviewPage({
+    ...base,
+    lesson: {
+      slug: 'urok',
+      title: 'Урок',
+      description: '',
+      tags: [],
+      settings: {},
+      durationSeconds: 3600,
+      chapters: [
+        { atMs: 30_000, title: 'Не с нуля' },
+        { atMs: 120_000, title: 'Вторая' },
+        { atMs: 600_000, title: 'Третья' }
+      ]
+    }
+  });
+  assert.match(bad, /не покажет — ни одной/);
+});

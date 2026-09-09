@@ -204,3 +204,62 @@ test('из отказа поставщика берётся человеческ
   // Не JSON отдаём как есть, только приводим пробелы.
   assert.equal(readErrorMessage('  простой\n  текст '), 'простой текст');
 });
+
+test('главы разбираются вместе с остальными полями', () => {
+  // Время у модели в человеческом виде, а по порталу оно везде в миллисекундах:
+  // «5:30» в одном месте однажды сравнят с числом в другом.
+  const parsed = parseTextsResponse({
+    candidates: [
+      {
+        content: {
+          parts: [
+            {
+              text: JSON.stringify({
+                title: 'Урок',
+                description: 'Описание',
+                tags: ['docker'],
+                chapters: [
+                  { at: '0:00', title: 'Что делаем' },
+                  { at: '2:00', title: 'Ставим окружение' },
+                  { at: '1:05:30', title: 'Итоги' },
+                  { at: 'непонятно', title: 'Мусор' },
+                  { at: '9:00', title: '  ' }
+                ]
+              })
+            }
+          ]
+        }
+      }
+    ]
+  });
+
+  assert.deepEqual(
+    parsed.chapters.map((chapter) => chapter.atMs),
+    [0, 120_000, 3_930_000],
+    'неразобранное время и пустое название отбрасываются'
+  );
+  assert.equal(parsed.chapters[0].title, 'Что делаем');
+});
+
+test('ответ без глав не ломает разбор', () => {
+  // Модель их иногда просто не возвращает — заголовок с описанием от этого не
+  // должны пропасть.
+  const parsed = parseTextsResponse({
+    candidates: [
+      { content: { parts: [{ text: JSON.stringify({ title: 'Урок', description: 'Есть' }) }] } }
+    ]
+  });
+  assert.deepEqual(parsed.chapters, []);
+  assert.equal(parsed.title, 'Урок');
+});
+
+test('в запрос попадают реплики с временами, когда они есть', () => {
+  const withTimeline = buildPrompt('расшифровка', '0:00 первая реплика\n0:12 вторая');
+  assert.match(withTimeline, /chapters/);
+  assert.match(withTimeline, /0:12 вторая/);
+  assert.match(withTimeline, /ПЕРВАЯ глава обязана начинаться с 0:00/);
+
+  // Без времён просить главы бессмысленно: модель выдумает их из воздуха.
+  const without = buildPrompt('расшифровка');
+  assert.doesNotMatch(without, /chapters/);
+});

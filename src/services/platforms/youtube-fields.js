@@ -5,6 +5,7 @@
 // стоит дорого — заметить перепутанные субтитры можно только на готовом ролике,
 // ближе к концу, и уже после выкладки.
 // Вызывается из src/jobs/publish-youtube.js и src/routes/admin.js.
+import { validChapters, chaptersBlock } from '../../lib/chapters.js';
 
 // Пределы площадки. Проверено по документации 2026-09-08.
 const TITLE_LIMIT = 100;
@@ -72,8 +73,20 @@ function fitTags(tags, limit) {
 /** Тело запроса на создание ролика. */
 export function buildVideoBody({ lesson, publicBaseUrl, privacy }) {
   const link = `${publicBaseUrl}/lesson/${lesson.slug}`;
+
+  // Главы отдельным блоком после текста автора, а не внутри него: иначе правка
+  // описания однажды сломает главы, и понять это можно будет только по ролику.
+  // Негодный по правилам площадки список отбрасывается целиком — YouTube в
+  // таком случае молча не покажет ни одной главы, и лучше их не обещать.
+  const chapters = chaptersBlock(
+    validChapters(lesson.chapters, (lesson.durationSeconds ?? 0) * 1000 || Infinity)
+  );
+
   const description = trimWords(
-    `${lesson.description ?? ''}\n\nУрок на портале: ${link}`.trim(),
+    [lesson.description ?? '', chapters, `Урок на портале: ${link}`]
+      .filter(Boolean)
+      .join('\n\n')
+      .trim(),
     DESCRIPTION_LIMIT
   );
 

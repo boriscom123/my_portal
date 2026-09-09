@@ -16,6 +16,8 @@
 // Портал обязан работать без модели.
 // Вызывается из src/routes/admin.js.
 
+import { parseTimecode } from '../lib/chapters.js';
+
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 // Сколько расшифровки отдаём модели. Часовой урок — это тысяч двадцать знаков,
@@ -36,7 +38,7 @@ const TIMEOUT_MS = 180_000;
  * Требования к длине здесь не украшение: заголовок длиннее строки площадка
  * обрежет сама, и обрежет в неудачном месте.
  */
-export function buildPrompt(transcript) {
+export function buildPrompt(transcript, timeline = '') {
   const text = String(transcript).slice(0, TRANSCRIPT_LIMIT);
   return `Ты помогаешь автору видеоуроков по разработке. Ниже расшифровка урока,
 сделанная распознаванием речи: в ней есть ошибки в терминах и именах.
@@ -47,12 +49,28 @@ export function buildPrompt(transcript) {
 2. description — описание, 2–4 предложения, до 400 знаков, по-русски. О чём
    урок и что зритель после него сможет сделать.
 3. tags — от четырёх до восьми тегов, по-русски или латиницей, строчными
-   буквами, без решётки. Названия технологий оставляй как есть: docker, nginx.
+   буквами, без решётки. Названия технологий оставляй как есть: docker, nginx.${
+     timeline
+       ? `
+4. chapters — главы урока: от трёх до восьми. Каждая — объект с полями at
+   (время начала в виде 0:00, 5:30 или 1:05:30) и title (название до 50 знаков,
+   по-русски, без точки в конце). ПЕРВАЯ глава обязана начинаться с 0:00.
+   Между соседними главами не меньше минуты. Главу ставь туда, где меняется
+   тема, а не там, где автор сделал паузу.`
+       : ''
+   }
 
 Пиши как автор о своей работе: без рекламных оборотов, без «в этом видео мы
 рассмотрим», без восклицательных знаков.
 
-Расшифровка:
+${
+    timeline
+      ? `Реплики с временами — по ним определяй, где начинается глава:
+${timeline}
+
+`
+      : ''
+  }Расшифровка:
 ${text}`;
 }
 
@@ -73,6 +91,7 @@ export function parseTextsResponse(body) {
   }
 
   const tags = Array.isArray(parsed.tags) ? parsed.tags : [];
+  const chapters = Array.isArray(parsed.chapters) ? parsed.chapters : [];
   return {
     title: String(parsed.title ?? '').trim(),
     description: String(parsed.description ?? '').trim(),
@@ -81,6 +100,15 @@ export function parseTextsResponse(body) {
     tags: tags
       .map((tag) => String(tag).trim().toLowerCase().replace(/^#/, ''))
       .filter(Boolean)
+      .slice(0, 8),
+    // Время приводим к миллисекундам сразу: дальше по порталу время везде в
+    // них, и «5:30» в одном месте однажды сравнят с числом в другом.
+    chapters: chapters
+      .map((chapter) => ({
+        atMs: parseTimecode(chapter?.at ?? chapter?.atMs),
+        title: String(chapter?.title ?? '').trim()
+      }))
+      .filter((chapter) => Number.isFinite(chapter.atMs) && chapter.title)
       .slice(0, 8)
   };
 }
@@ -145,8 +173,8 @@ export function createTexts(config, fetchImpl = fetch) {
   if (!apiKey || !models.length) return null;
 
   return {
-    async suggest(transcript) {
-      const prompt = buildPrompt(transcript);
+    async suggest(transcript, timeline = '') {
+      const prompt = buildPrompt(transcript, timeline);
       let lastError = null;
 
       for (const name of models) {
