@@ -7,6 +7,7 @@
 // Запуск при этом у каждой площадки свой: своя кнопка и своё имя задачи.
 // Вызывается воркером по именам JOBS.publishTelegram и JOBS.publishMax.
 import { getLessonById } from '../services/lessons.js';
+import { assetsOfLesson, mediaPath } from '../services/media.js';
 import { markPublicationState, publicationsFor } from '../services/publications.js';
 import { buildAnnouncement } from '../services/platforms/announcement.js';
 
@@ -31,6 +32,12 @@ export function makePublishChannel(config, pool, platform, adapter) {
       throw new Error('У урока нет обложки — возьмите кадр из записи или нарисуйте её');
     }
 
+    // Обложка нужна дважды: ссылкой — Telegram забирает её сам; файлом — MAX,
+    // он ссылку принимает на словах, а на деле отказывает.
+    const assets = await assetsOfLesson(pool, lessonId);
+    const cover = assets.find((asset) => `/media/asset/${asset.id}` === lesson.coverUrl);
+    if (!cover) throw new Error('Обложка урока не найдена в буфере — выберите её заново');
+
     await markPublicationState(pool, publicationId, { state: 'uploading' });
 
     const caption = buildAnnouncement({
@@ -45,6 +52,7 @@ export function makePublishChannel(config, pool, platform, adapter) {
         token: app.token,
         channel: app.channel,
         photoUrl: `${config.publicBaseUrl}${lesson.coverUrl}`,
+        filePath: mediaPath(config, cover.path),
         caption
       });
       await markPublicationState(pool, publicationId, {
@@ -77,6 +85,10 @@ export function makeRefreshChannels(config, pool, adapters) {
     const lesson = await getLessonById(pool, lessonId);
     if (!lesson?.coverUrl) return { updated: 0 };
 
+    const assets = await assetsOfLesson(pool, lessonId);
+    const cover = assets.find((asset) => `/media/asset/${asset.id}` === lesson.coverUrl);
+    if (!cover) return { updated: 0 };
+
     const publications = await publicationsFor(pool, lessonId);
     let updated = 0;
 
@@ -100,6 +112,7 @@ export function makeRefreshChannels(config, pool, adapters) {
           channel: app.channel,
           messageId: publication.externalId,
           photoUrl: `${config.publicBaseUrl}${lesson.coverUrl}`,
+          filePath: mediaPath(config, cover.path),
           caption
         });
         updated += 1;

@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { makePublishChannel, makeRefreshChannels } from '../src/jobs/publish-channel.js';
 import { saveLesson } from '../src/services/lessons.js';
 import { startPublication, publicationsFor } from '../src/services/publications.js';
+import { registerAsset } from '../src/services/media.js';
 import { withTestDb, skipWithoutDb } from './helpers/db.js';
 
 const config = { publicBaseUrl: 'https://portal.example', media: { dir: '/tmp', ttlHours: 168 } };
@@ -27,7 +28,18 @@ async function seed(pool, { cover = true, platform = 'telegram' } = {}) {
     description: 'Короткое описание'
   });
   if (cover) {
-    await pool.query("UPDATE lessons SET cover_url = '/media/asset/9' WHERE id = $1", [lesson.id]);
+    // Обложка нужна не только ссылкой в карточке, но и файлом: MAX кладёт её на
+    // свой узел, а не забирает по ссылке.
+    const asset = await registerAsset(pool, config, {
+      lessonId: lesson.id,
+      kind: 'cover',
+      relativePath: 'lesson-1/cover.jpg',
+      bytes: 100
+    });
+    await pool.query('UPDATE lessons SET cover_url = $2 WHERE id = $1', [
+      lesson.id,
+      `/media/asset/${asset.id}`
+    ]);
   }
   const { id } = await startPublication(pool, {
     lessonId: lesson.id,
@@ -54,7 +66,8 @@ test('анонс уходит в канал и запоминается', skipWi
     assert.equal(publication.url, 'https://t.me/kanal/42');
 
     const sent = adapter.calls[0].post;
-    assert.equal(sent.photoUrl, 'https://portal.example/media/asset/9');
+    assert.match(sent.photoUrl, /^https:\/\/portal\.example\/media\/asset\/\d+$/);
+    assert.match(sent.filePath, /lesson-1\/cover\.jpg$/, 'MAX нужен сам файл, а не ссылка');
     assert.match(sent.caption, /Урок про портал/);
     assert.match(sent.caption, /portal\.example\/lesson\/urok/);
   });

@@ -7,6 +7,7 @@
 // Токен здесь свой: бота MAX портал не имеет, автор заводит его отдельно и
 // вводит в кабинете.
 // Вызывается из src/jobs/publish-max.js.
+import { readFile } from 'node:fs/promises';
 import { maxFetch } from '../../lib/max-fetch.js';
 
 const API = 'https://platform-api2.max.ru';
@@ -38,15 +39,59 @@ function readMessageId(body) {
   );
 }
 
-export async function postToMax({ token, channel, photoUrl, caption, fetchImpl = maxFetch }) {
+/**
+ * Кладёт картинку на площадку и отдаёт её токен.
+ *
+ * Двумя шагами, а не ссылкой. Ссылку MAX принимает на словах, но на деле
+ * отвечает «Failed to upload image»: он её честно скачивает — это видно в
+ * журнале сервера, — и всё равно отказывает. Двухшаговый путь описан в их
+ * документации и работает.
+ *
+ * Узел загрузки — чужой (iu.oneme.ru) и с обычным сертификатом, поэтому туда
+ * идём простым fetch: особое доверие к корню Минцифры на него не
+ * распространяется и не должно.
+ */
+async function uploadImage({ token, filePath, fetchImpl, uploadFetch }) {
+  const asked = await fetchImpl(`${API}/uploads?type=image`, {
+    method: 'POST',
+    headers: { Authorization: token, 'Content-Type': 'application/json' },
+    body: '{}'
+  });
+  if (!asked.ok) await failure(asked, token);
+
+  const { url } = await asked.json();
+  if (!url) throw new Error('MAX не дал адрес для загрузки картинки');
+
+  const form = new FormData();
+  form.append('data', new Blob([await readFile(filePath)], { type: 'image/jpeg' }), 'cover.jpg');
+
+  const sent = await uploadFetch(url, { method: 'POST', body: form });
+  if (!sent.ok) throw new Error(`MAX не принял картинку (${sent.status})`);
+
+  const body = await sent.json();
+  const photo = Object.values(body.photos ?? {})[0];
+  if (!photo?.token) {
+    throw new Error(`MAX принял картинку, но не дал её токен: ${JSON.stringify(body).slice(0, 200)}`);
+  }
+  return photo.token;
+}
+
+export async function postToMax({
+  token,
+  channel,
+  filePath,
+  caption,
+  fetchImpl = maxFetch,
+  uploadFetch = fetch
+}) {
+  const photoToken = await uploadImage({ token, filePath, fetchImpl, uploadFetch });
+
   const response = await fetchImpl(`${API}/messages?chat_id=${encodeURIComponent(channel)}`, {
     method: 'POST',
     headers: { Authorization: token, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       text: caption,
-      // Картинка ссылкой: выгружать файл ради обложки незачем, площадка
-      // забирает её сама.
-      attachments: [{ type: 'image', payload: { url: photoUrl } }]
+      attachments: [{ type: 'image', payload: { token: photoToken } }]
     })
   });
   if (!response.ok) await failure(response, token);
@@ -54,19 +99,29 @@ export async function postToMax({ token, channel, photoUrl, caption, fetchImpl =
   return { messageId: readMessageId(await response.json()), url: null };
 }
 
-/** Переписывает пост. Вложение шлём заново: без него площадка снимет картинку. */
-export async function editMaxPost({ token, messageId, caption, photoUrl, fetchImpl = maxFetch }) {
-  const response = await fetchImpl(
-    `${API}/messages?message_id=${encodeURIComponent(messageId)}`,
-    {
-      method: 'PUT',
-      headers: { Authorization: token, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text: caption,
-        attachments: [{ type: 'image', payload: { url: photoUrl } }]
-      })
-    }
-  );
+/**
+ * Переписывает пост. Картинку кладём заново: без вложения площадка снимет её с
+ * поста, а токен прошлой загрузки живёт не вечно. Правки редки — раз на выход
+ * ролика, — и лишняя загрузка ста килобайт того стоит.
+ */
+export async function editMaxPost({
+  token,
+  messageId,
+  caption,
+  filePath,
+  fetchImpl = maxFetch,
+  uploadFetch = fetch
+}) {
+  const photoToken = await uploadImage({ token, filePath, fetchImpl, uploadFetch });
+
+  const response = await fetchImpl(`${API}/messages?message_id=${encodeURIComponent(messageId)}`, {
+    method: 'PUT',
+    headers: { Authorization: token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      text: caption,
+      attachments: [{ type: 'image', payload: { token: photoToken } }]
+    })
+  });
   if (!response.ok) await failure(response, token);
 }
 

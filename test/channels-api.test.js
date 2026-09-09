@@ -64,32 +64,50 @@ test('правка поста в Telegram идёт по номеру сообщ�
   assert.match(sent.body.caption, /youtu\.be/);
 });
 
-test('в MAX уходит тот же пост, а токен — заголовком', async () => {
-  let sent = null;
+test('в MAX картинка кладётся двумя шагами и прикладывается токеном', async () => {
+  // Ссылку MAX принимает на словах, а на деле отвечает «Failed to upload image»:
+  // он её честно скачивает и всё равно отказывает. Поэтому файл грузится на их
+  // узел, а в пост идёт полученный токен.
+  const calls = [];
   const fetchStub = async (url, options) => {
-    sent = { url: String(url), options, body: JSON.parse(options.body) };
+    calls.push(String(url));
+    if (String(url).includes('/uploads')) {
+      return { ok: true, json: async () => ({ url: 'https://iu.oneme.ru/uploadImage?a=1' }) };
+    }
+    const body = JSON.parse(options.body);
+    assert.equal(options.headers.Authorization, 'max-token');
+    assert.equal(body.attachments[0].type, 'image');
+    // Токен из загрузки, а не ссылка.
+    assert.equal(body.attachments[0].payload.token, 'photo-token');
+    assert.match(String(url), /chat_id=-1001/);
     return { ok: true, json: async () => ({ message: { body: { mid: 'mid-7' } } }) };
+  };
+
+  const uploadFetch = async (url, options) => {
+    assert.equal(String(url), 'https://iu.oneme.ru/uploadImage?a=1');
+    assert.equal(options.method, 'POST');
+    return { ok: true, json: async () => ({ photos: { id1: { token: 'photo-token' } } }) };
   };
 
   const result = await postToMax({
     token: 'max-token',
     channel: '-1001',
-    photoUrl: 'https://portal.example/media/asset/9',
+    filePath: new URL('./fixtures/cover.jpg', import.meta.url).pathname,
     caption: 'Заголовок',
-    fetchImpl: fetchStub
+    fetchImpl: fetchStub,
+    uploadFetch
   });
 
-  assert.match(sent.url, /platform-api2\.max\.ru\/messages/);
-  assert.match(sent.url, /chat_id=-1001/);
-  // Токен MAX передаётся заголовком, а не в адресе: адреса попадают в журналы.
-  assert.equal(sent.options.headers.Authorization, 'max-token');
-  assert.equal(sent.body.attachments[0].type, 'image');
   assert.equal(result.messageId, 'mid-7');
+  assert.match(calls[0], /\/uploads\?type=image/);
 });
 
 test('правка поста в MAX идёт тем же путём, но методом PUT', async () => {
   let sent = null;
   const fetchStub = async (url, options) => {
+    if (String(url).includes('/uploads')) {
+      return { ok: true, json: async () => ({ url: 'https://iu.oneme.ru/uploadImage' }) };
+    }
     sent = { url: String(url), method: options.method };
     return { ok: true, json: async () => ({}) };
   };
@@ -98,8 +116,9 @@ test('правка поста в MAX идёт тем же путём, но ме�
     token: 'max-token',
     messageId: 'mid-7',
     caption: 'Заголовок с ссылками',
-    photoUrl: 'https://portal.example/media/asset/9',
-    fetchImpl: fetchStub
+    filePath: new URL('./fixtures/cover.jpg', import.meta.url).pathname,
+    fetchImpl: fetchStub,
+    uploadFetch: async () => ({ ok: true, json: async () => ({ photos: { a: { token: 'tk' } } }) })
   });
 
   assert.equal(sent.method, 'PUT');
@@ -113,7 +132,14 @@ test('отказ MAX не выдаёт токен наружу', async () => {
     text: async () => 'invalid token max-token'
   });
   await assert.rejects(
-    postToMax({ token: 'max-token', channel: '-1', photoUrl: 'u', caption: 'c', fetchImpl: fetchStub }),
+    postToMax({
+      token: 'max-token',
+      channel: '-1',
+      filePath: new URL('./fixtures/cover.jpg', import.meta.url).pathname,
+      caption: 'c',
+      fetchImpl: fetchStub,
+      uploadFetch: async () => ({ ok: true, json: async () => ({ photos: { a: { token: 't' } } }) })
+    }),
     (error) => {
       assert.doesNotMatch(error.message, /max-token/);
       return true;
@@ -133,9 +159,13 @@ test('номер поста MAX ищется в нескольких места�
     const result = await postToMax({
       token: 't',
       channel: '-1',
-      photoUrl: 'u',
+      filePath: new URL('./fixtures/cover.jpg', import.meta.url).pathname,
       caption: 'c',
-      fetchImpl: async () => ({ ok: true, json: async () => body })
+      fetchImpl: async (url) =>
+        String(url).includes('/uploads')
+          ? { ok: true, json: async () => ({ url: 'https://iu.oneme.ru/u' }) }
+          : { ok: true, json: async () => body },
+      uploadFetch: async () => ({ ok: true, json: async () => ({ photos: { a: { token: 't' } } }) })
     });
     assert.equal(result.messageId, 'mid-1');
   }
@@ -146,9 +176,13 @@ test('ответ без номера поста — не молчаливая у
     postToMax({
       token: 't',
       channel: '-1',
-      photoUrl: 'u',
+      filePath: new URL('./fixtures/cover.jpg', import.meta.url).pathname,
       caption: 'c',
-      fetchImpl: async () => ({ ok: true, json: async () => ({ ok: true }) })
+      fetchImpl: async (url) =>
+        String(url).includes('/uploads')
+          ? { ok: true, json: async () => ({ url: 'https://iu.oneme.ru/u' }) }
+          : { ok: true, json: async () => ({ ok: true }) },
+      uploadFetch: async () => ({ ok: true, json: async () => ({ photos: { a: { token: 't' } } }) })
     }),
     /не сказал его номер/
   );
