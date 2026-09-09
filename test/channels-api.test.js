@@ -6,7 +6,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { postToTelegram, editTelegramPost } from '../src/services/platforms/telegram-channel.js';
-import { postToMax, editMaxPost } from '../src/services/platforms/max-channel.js';
+import { postToMax, editMaxPost, findMaxChat } from '../src/services/platforms/max-channel.js';
 
 test('в Telegram уходит картинка ссылкой и подпись', async () => {
   let sent = null;
@@ -151,5 +151,31 @@ test('ответ без номера поста — не молчаливая у
       fetchImpl: async () => ({ ok: true, json: async () => ({ ok: true }) })
     }),
     /не сказал его номер/
+  );
+});
+
+test('номер канала MAX находится по ссылке и по названию', async () => {
+  // Под рукой у человека ссылка вида https://max.ru/id…_biz2 — её он и вставит.
+  // Площадка сама отдаёт её в списке чатов бота, так что сопоставить их — наша
+  // работа, а не его.
+  const chats = {
+    chats: [
+      { chat_id: -78307129940137, title: 'Solo AI Journey', link: 'https://max.ru/id253_biz2' },
+      { chat_id: -11, title: 'Другой', link: 'https://max.ru/drugoy' }
+    ]
+  };
+  const fetchStub = async () => ({ ok: true, json: async () => chats });
+
+  assert.equal(
+    await findMaxChat({ token: 't', needle: 'https://max.ru/id253_biz2', fetchImpl: fetchStub }),
+    '-78307129940137'
+  );
+  assert.equal(
+    await findMaxChat({ token: 't', needle: 'Solo AI Journey', fetchImpl: fetchStub }),
+    '-78307129940137'
+  );
+  assert.equal(
+    await findMaxChat({ token: 't', needle: 'https://max.ru/chuzhoy', fetchImpl: fetchStub }),
+    null
   );
 });

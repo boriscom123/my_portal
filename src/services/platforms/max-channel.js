@@ -7,6 +7,8 @@
 // Токен здесь свой: бота MAX портал не имеет, автор заводит его отдельно и
 // вводит в кабинете.
 // Вызывается из src/jobs/publish-max.js.
+import { maxFetch } from '../../lib/max-fetch.js';
+
 const API = 'https://platform-api2.max.ru';
 
 /** Прячет токен: он уходит и в журнал, и на экран человеку. */
@@ -36,7 +38,7 @@ function readMessageId(body) {
   );
 }
 
-export async function postToMax({ token, channel, photoUrl, caption, fetchImpl = fetch }) {
+export async function postToMax({ token, channel, photoUrl, caption, fetchImpl = maxFetch }) {
   const response = await fetchImpl(`${API}/messages?chat_id=${encodeURIComponent(channel)}`, {
     method: 'POST',
     headers: { Authorization: token, 'Content-Type': 'application/json' },
@@ -53,7 +55,7 @@ export async function postToMax({ token, channel, photoUrl, caption, fetchImpl =
 }
 
 /** Переписывает пост. Вложение шлём заново: без него площадка снимет картинку. */
-export async function editMaxPost({ token, messageId, caption, photoUrl, fetchImpl = fetch }) {
+export async function editMaxPost({ token, messageId, caption, photoUrl, fetchImpl = maxFetch }) {
   const response = await fetchImpl(
     `${API}/messages?message_id=${encodeURIComponent(messageId)}`,
     {
@@ -66,4 +68,34 @@ export async function editMaxPost({ token, messageId, caption, photoUrl, fetchIm
     }
   );
   if (!response.ok) await failure(response, token);
+}
+
+/**
+ * Ищет номер канала по тому, что вставил человек.
+ *
+ * MAX адресует канал числом, а под рукой у человека ссылка вида
+ * https://max.ru/id…_biz2 — именно её он и вставит. Площадка сама отдаёт эту
+ * ссылку в списке чатов бота, так что сопоставить их — наша работа, а не его.
+ * null — не нашли; тогда честнее попросить номер, чем гадать.
+ * Вызывается из src/routes/integrations.js при сохранении настроек.
+ */
+export async function findMaxChat({ token, needle, fetchImpl = maxFetch }) {
+  const response = await fetchImpl(`${API}/chats`, { headers: { Authorization: token } });
+  if (!response.ok) await failure(response, token);
+
+  const wanted = String(needle ?? '')
+    .trim()
+    .replace(/\/+$/, '')
+    .toLowerCase();
+  if (!wanted) return null;
+
+  const { chats = [] } = await response.json();
+  const found = chats.find(
+    (chat) =>
+      String(chat.link ?? '')
+        .replace(/\/+$/, '')
+        .toLowerCase() === wanted ||
+      String(chat.title ?? '').trim().toLowerCase() === wanted
+  );
+  return found ? String(found.chat_id) : null;
 }

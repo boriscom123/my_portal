@@ -20,6 +20,7 @@ import {
 } from '../services/platforms/youtube-auth.js';
 import { youtubeApp, savePlatformApp, channelApp } from '../services/platform-apps.js';
 import { normalizeChannel } from '../services/platforms/announcement.js';
+import { findMaxChat } from '../services/platforms/max-channel.js';
 import { signShortLived, verifyShortLived } from '../lib/jwt.js';
 
 // Куда возвращать, если страница отправления неизвестна.
@@ -183,7 +184,31 @@ export function integrationRoutes(config, pool, fetchImpl = fetch) {
       settings: { channel }
     });
 
-    const app = await channelApp(pool, config, platform);
+    let app = await channelApp(pool, config, platform);
+
+    // MAX адресует канал числом, а вставляют в поле ссылку — она под рукой.
+    // Спрашиваем у площадки список каналов бота и находим номер сами: просить
+    // человека выяснять его вручную значит отправлять его читать чужую
+    // документацию из-за нашей лени.
+    if (platform === 'max' && app.token && !/^-?\d+$/.test(app.channel)) {
+      const found = await findMaxChat({ token: app.token, needle: app.channel });
+      if (!found) {
+        throw new PublicError(
+          'Канал не найден среди каналов этого бота. Проверьте, что бот добавлен в канал, ' +
+            'и вставьте ссылку на канал или его числовой идентификатор.',
+          400
+        );
+      }
+      await savePlatformApp(pool, config, {
+        name: platform,
+        clientId: '',
+        clientSecret: '',
+        mode: 'auto',
+        settings: { channel: found }
+      });
+      app = await channelApp(pool, config, platform);
+    }
+
     res.json({ channel: app.channel, configured: app.configured });
   });
 
