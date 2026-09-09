@@ -1,67 +1,18 @@
-// Заглавная надпись портала и сменяющиеся уроки под ней.
+// Заглавная надпись портала.
 //
-// Задача — назвать портал и сразу показать, что в нём есть. Раньше под именем
-// стоял рассказ о том, из чего портал сделан: верный текст, но не про то, зачем
-// человек сюда пришёл.
-//
-// Уроки сменяют друг друга, и каждый ведёт на себя. Без скрипта видно первый:
-// он помечен в разметке, а не выбирается на месте — иначе у пришедшего без
-// скрипта заглавный блок оказался бы пустым.
+// Задача — назвать портал и не спорить с лентой за внимание. Раньше здесь
+// сменялись уроки, но они же шли карточками ниже: один урок выводился дважды —
+// сперва текстом, потом обложкой. Заказчик выбрал оставить карточки, а из
+// заголовка уроки убрать: лента по дате читается как одна история, а не как
+// витрина, повторяющая саму себя.
 // Вызывается из src/views/feed.js и src/views/stub.js.
-import { escapeHtml } from '../lib/html.js';
 
-// Сколько уроков крутим. Больше пяти человек не дождётся, а разметки прибавляет.
-const MAX_ITEMS = 5;
-
-/** Первое предложение описания: в заглавный блок абзац целиком не влезает. */
-function firstSentence(text) {
-  const clean = String(text ?? '').trim();
-  if (!clean) return '';
-  const end = clean.search(/[.!?](\s|$)/);
-  return end > 0 ? clean.slice(0, end + 1) : clean;
-}
-
-function item(lesson, index) {
-  return `<li class="hero-item${index === 0 ? ' current' : ''}">
-  <a href="/lesson/${encodeURIComponent(lesson.slug)}">
-    <span class="hero-item-title">${escapeHtml(lesson.title)}</span>
-    ${
-      lesson.description
-        ? `<span class="hero-item-text">${escapeHtml(firstSentence(lesson.description))}</span>`
-        : ''
-    }
-  </a>
-</li>`;
-}
-
-/**
- * Уроки, которые показывает заглавный блок.
- * Отдельной функцией, чтобы лента внизу знала, что не повторять: иначе один и
- * тот же урок выводится дважды — сперва текстом наверху, потом карточкой.
- * Заказчик увидел это первым.
- */
-export function heroLessons(lessons = []) {
-  return lessons.filter((lesson) => lesson.status === 'published').slice(0, MAX_ITEMS);
-}
-
-export function hero({ lessons = [] } = {}) {
-  // Черновики сюда не попадают, даже автору: заглавный блок — это витрина, а
-  // не рабочий стол.
-  const published = heroLessons(lessons);
-
+export function hero() {
   return `<div class="hero">
   <h1 class="hero-name">
     <span class="hero-brand brand-mark">SOLO AI</span>
     <span class="hero-journey">JOURNEY</span>
   </h1>
   <p class="hero-tagline">от идеи до продукта · шаг за шагом</p>
-  ${
-    published.length
-      ? `<ul class="hero-rotator" data-rotator>${published.map(item).join('')}</ul>`
-      : `<p class="hero-empty">
-           Первый урок уже собирается. Внутри — Claude Code, свой VPS и
-           Telegram-бот: каждый выпуск оставляет работающий кусок системы.
-         </p>`
-  }
 </div>`;
 }
