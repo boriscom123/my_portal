@@ -91,15 +91,20 @@ export async function youtubeApp(pool, config) {
 /**
  * Канал-площадка: куда постим и чем.
  *
- * У Telegram бот у портала уже есть — тот же, которым работают вход и
- * уведомления, — поэтому оттуда нужен только адрес канала. У MAX своего бота
- * нет вовсе, и токен для него автор заводит в кабинете.
+ * Токен бота у обеих площадок задаётся одинаково — в кабинете. У Telegram он
+ * необязателен: пусто — портал возьмёт своего бота, того же, которым работают
+ * вход и уведомления. У MAX своего бота у портала нет вовсе.
  * Вызывается из шагов выкладки в каналы и из кабинета.
  */
 export async function channelApp(pool, config, name) {
   const stored = await loadPlatformApp(pool, config, name);
   const channel = String(stored?.settings?.channel ?? '').trim();
-  const token = name === 'telegram' ? (config.telegram?.botToken ?? '') : (stored?.clientSecret ?? '');
+  // Свой токен канала важнее общего: у канала может быть отдельный бот — тот, у
+  // кого имя и картинка под канал, а не под вход на сайт. Пусто — берём бота
+  // портала, если он есть: так настройка, сделанная до этой возможности,
+  // продолжает работать.
+  const token =
+    stored?.clientSecret || (name === 'telegram' ? (config.telegram?.botToken ?? '') : '');
 
   return {
     name,

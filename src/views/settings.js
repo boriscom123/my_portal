@@ -127,8 +127,14 @@ ${channels
       channel.needsToken
         ? `<label>Токен бота
       <input name="token" type="password" autocomplete="off" maxlength="200"
-             placeholder="${channel.hasToken ? 'сохранён — оставьте пустым, чтобы не менять' : 'вставьте токен бота'}"
-             ${channel.hasToken ? '' : 'required'}>
+             placeholder="${
+               channel.hasToken
+                 ? 'сохранён — оставьте пустым, чтобы не менять'
+                 : channel.tokenOptional
+                   ? 'пусто — постит бот портала'
+                   : 'вставьте токен бота'
+             }"
+             ${channel.hasToken || channel.tokenOptional ? '' : 'required'}>
     </label>`
         : ''
     }

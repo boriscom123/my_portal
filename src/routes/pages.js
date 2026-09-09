@@ -413,16 +413,21 @@ export function pageRoutes(config, pool) {
               {
                 name: 'telegram',
                 title: 'Канал Telegram',
-                hint: 'Бот портала уже есть — сделайте его администратором канала и укажите адрес.',
+                hint:
+                  'Бот должен быть администратором канала с правом менять сообщения. ' +
+                  'Токен можно оставить пустым — тогда постить будет бот портала, тот же, ' +
+                  'что для входа и уведомлений.',
                 placeholder: '@moy-kanal',
-                needsToken: false
+                needsToken: true,
+                tokenOptional: true
               },
               {
                 name: 'max',
                 title: 'Канал MAX',
                 hint: 'Своего бота у портала здесь нет: заведите его в MAX и вставьте токен.',
                 placeholder: 'номер или адрес канала',
-                needsToken: true
+                needsToken: true,
+                tokenOptional: false
               }
             ].map(async (item) => {
               const app = await channelApp(pool, config, item.name);

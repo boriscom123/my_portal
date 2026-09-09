@@ -5,7 +5,12 @@
 // ни ответ API его не показывают.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { savePlatformApp, loadPlatformApp, youtubeApp } from '../src/services/platform-apps.js';
+import {
+  savePlatformApp,
+  loadPlatformApp,
+  youtubeApp,
+  channelApp
+} from '../src/services/platform-apps.js';
 import { withTestDb, skipWithoutDb } from './helpers/db.js';
 
 const config = {
@@ -116,6 +121,51 @@ test('ключей нет вовсе — площадка не настроен�
   await withTestDb(async (pool) => {
     const app = await youtubeApp(pool, config);
     assert.equal(app.clientId, '');
+    assert.equal(app.configured, false);
+  });
+});
+
+test('у канала может быть свой бот, а может общий', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const withBot = { ...config, telegram: { botToken: 'bot-portala' } };
+
+    // Токен не задан — постит бот портала: так настройка, сделанная до
+    // появления этого поля, продолжает работать.
+    await savePlatformApp(pool, withBot, {
+      name: 'telegram',
+      clientId: '',
+      clientSecret: '',
+      mode: 'auto',
+      settings: { channel: '@kanal' }
+    });
+    const shared = await channelApp(pool, withBot, 'telegram');
+    assert.equal(shared.token, 'bot-portala');
+    assert.equal(shared.configured, true);
+
+    // Задан свой — он и важнее: у канала бывает отдельный бот, с именем и
+    // картинкой под канал, а не под вход на сайт.
+    await savePlatformApp(pool, withBot, {
+      name: 'telegram',
+      clientId: '',
+      clientSecret: 'bot-kanala',
+      mode: 'auto',
+      settings: { channel: '@kanal' }
+    });
+    assert.equal((await channelApp(pool, withBot, 'telegram')).token, 'bot-kanala');
+  });
+});
+
+test('у MAX без своего токена канал не настроен', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    // Общего бота для MAX у портала нет, и подставить нечего.
+    await savePlatformApp(pool, config, {
+      name: 'max',
+      clientId: '',
+      clientSecret: '',
+      mode: 'auto',
+      settings: { channel: '-100' }
+    });
+    const app = await channelApp(pool, config, 'max');
     assert.equal(app.configured, false);
   });
 });
