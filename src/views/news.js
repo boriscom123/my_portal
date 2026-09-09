@@ -49,7 +49,11 @@ function newsForm(item = null) {
     Ссылки пишите прямо в тексте — портал сделает их кликабельными. Картинки
     добавляются после сохранения, на странице самой новости.
   </p>
+  <!-- Сюда скрипт кладёт список свежих анонсов. Пустой и скрытый: пока автор
+       не попросил, чужие ленты никто не спрашивает. -->
+  <div class="announcements" data-announcements-list hidden></div>
   <div class="form-row">
+    <button class="button" type="button" data-announcements>Свежие анонсы</button>
     <button class="button" type="button" data-news-suggest>Написать по заголовку</button>
     <button class="button-brand" type="submit">${item ? 'Сохранить' : 'Завести новость'}</button>
     ${

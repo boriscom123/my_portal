@@ -393,6 +393,73 @@ function initPage() {
     }
   });
 
+  /**
+   * Свежие анонсы официальных источников.
+   * Список приходит с сервера: чужие ленты из браузера не читаются. Нажатие на
+   * строку кладёт заголовок анонса в поле заголовка, а ссылку — в текст, чтобы
+   * новость всегда вела к первоисточнику.
+   */
+  const announcementsButton = document.querySelector('[data-announcements]');
+  const announcementsList = document.querySelector('[data-announcements-list]');
+
+  announcementsButton?.addEventListener('click', async () => {
+    const wasText = announcementsButton.textContent;
+    announcementsButton.disabled = true;
+    announcementsButton.textContent = 'Смотрю…';
+
+    try {
+      const answer = await request('/api/admin/news/announcements');
+      if (!answer) return;
+
+      const when = (value) =>
+        value
+          ? new Date(value).toLocaleString('ru-RU', {
+              day: 'numeric',
+              month: 'short',
+              hour: '2-digit',
+              minute: '2-digit'
+            })
+          : 'без даты';
+
+      announcementsList.innerHTML = answer.items.length
+        ? `<ul>${answer.items
+            .map(
+              (item, index) =>
+                `<li><button type="button" class="announcement" data-pick="${index}">
+                   <span class="meta">${item.source} · ${when(item.publishedAt)}</span>
+                   <span>${item.title}</span>
+                 </button></li>`
+            )
+            .join('')}</ul>${
+            answer.failed.length
+              ? `<p class="hint danger">Не ответили: ${answer.failed.join('; ')}</p>`
+              : ''
+          }`
+        : '<p class="hint">Свежих анонсов не нашлось.</p>';
+      announcementsList.hidden = false;
+
+      // Выбор анонса: заголовок — в заголовок, ссылка — в текст.
+      for (const pick of announcementsList.querySelectorAll('[data-pick]')) {
+        pick.addEventListener('click', () => {
+          const item = answer.items[Number(pick.dataset.pick)];
+          const form = document.querySelector('[data-news-form]');
+          form.querySelector('[name=title]').value = item.title;
+          const body = form.querySelector('[name=body]');
+          if (!body.value.includes(item.url)) {
+            body.value = `${body.value ? `${body.value}\n\n` : ''}Источник: ${item.url}`;
+          }
+          announcementsList.hidden = true;
+          toast('Заголовок взят. Нажмите «Написать по заголовку» или напишите сами.');
+        });
+      }
+    } catch (error) {
+      toast(`Анонсы не пришли: ${error.message}`, true);
+    } finally {
+      announcementsButton.disabled = false;
+      announcementsButton.textContent = wasText;
+    }
+  });
+
   // Текст по заголовку. Заготовка, а не готовая новость: модель знает только
   // заголовок, и подписывать её работу своим именем не глядя не стоит.
   const newsSuggest = document.querySelector('[data-news-suggest]');

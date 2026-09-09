@@ -20,6 +20,8 @@ import { pickVideoAsset } from '../services/platforms/youtube-fields.js';
 import { parseChaptersText } from '../lib/chapters.js';
 import { saveNews, deleteNews } from '../services/news.js';
 import { createTexts } from '../services/texts.js';
+import { collectAnnouncements, forgetAnnouncements } from '../services/announcements.js';
+import { listSources, addSource, removeSource, toggleSource } from '../services/news-sources.js';
 import { youtubeAccessToken } from '../services/platforms/youtube-auth.js';
 import { youtubeApp, channelApp } from '../services/platform-apps.js';
 import { readVideoPrivacy } from '../services/platforms/youtube.js';
@@ -186,6 +188,54 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
     });
     if (!item) throw new PublicError('Новость не найдена', 404);
     res.json({ slug: item.slug, title: item.title });
+  });
+
+  // Свежие анонсы официальных источников: автор выбирает подходящий и пишет о
+  // нём новость. Сбор идёт на сервере — чужие ленты из браузера не читаются.
+  router.get('/news/announcements', async (req, res) => {
+    const { items, failed, cached } = await collectAnnouncements(pool, { fetchImpl });
+    res.json({
+      items: items.map((item) => ({
+        source: item.source,
+        title: item.title,
+        url: item.url,
+        publishedAt: item.publishedAt
+      })),
+      // Источники, которые не ответили, называем поимённо: неполный список
+      // молча — это враньё, будто у них нет новостей.
+      failed,
+      cached
+    });
+  });
+
+  // Список источников правит автор: сегодня их девять, завтра появится NVIDIA.
+  router.get('/news/sources', async (req, res) => {
+    res.json({ sources: await listSources(pool) });
+  });
+
+  router.post('/news/sources', async (req, res) => {
+    try {
+      const source = await addSource(pool, { title: req.body?.title, url: req.body?.url });
+      // Список поменялся — запомненные анонсы устарели.
+      forgetAnnouncements();
+      res.json({ source });
+    } catch (error) {
+      throw new PublicError(error.message, 400);
+    }
+  });
+
+  router.post('/news/sources/:id/toggle', async (req, res) => {
+    await toggleSource(pool, req.params.id, req.body?.enabled !== false);
+    forgetAnnouncements();
+    res.json({ ok: true });
+  });
+
+  router.delete('/news/sources/:id', async (req, res) => {
+    if (!(await removeSource(pool, req.params.id))) {
+      throw new PublicError('Источник не найден', 404);
+    }
+    forgetAnnouncements();
+    res.json({ ok: true });
   });
 
   // Текст новости по её заголовку. Синхронно, в отличие от текстов урока: там
