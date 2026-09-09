@@ -55,7 +55,7 @@ ${
     ? `<section class="card">
   <h2>Для автора</h2>
   <p class="form-row">
-    <a class="button" href="/admin/lessons">Уроки</a>
+    <a class="button" href="/lessons">Уроки</a>
     <a class="button" href="/admin/upload">Загрузка и Яндекс Диск</a>
   </p>
 </section>

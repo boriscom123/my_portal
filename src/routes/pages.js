@@ -7,7 +7,7 @@ import { stubPage } from '../views/stub.js';
 import { offlinePage } from '../views/offline.js';
 import { telegramReturnPage } from '../views/telegram-return.js';
 import { adminUploadPage } from '../views/admin-upload.js';
-import { adminLessonsPage } from '../views/admin-lessons.js';
+import { lessonsPage } from '../views/lessons-page.js';
 import { settingsPage } from '../views/settings.js';
 import { newsListPage, newsPage } from '../views/news.js';
 import { listNews, getNewsBySlug } from '../services/news.js';
@@ -24,7 +24,7 @@ import { humanBytes } from '../views/admin-review.js';
 import { requireAdmin } from '../middleware/guards.js';
 import { feedPage } from '../views/feed.js';
 import { lessonPage } from '../views/lesson.js';
-import { ideasPage } from '../views/ideas.js';
+import { feedbackPage } from '../views/feedback.js';
 import { searchPage } from '../views/search.js';
 import { searchSegments } from '../services/search.js';
 import { listIdeas } from '../services/ideas.js';
@@ -145,19 +145,23 @@ export function pageRoutes(config, pool) {
   // убираем адрес совсем: он мог остаться в закладках и в истории браузера.
   router.get('/admin', requireAdmin, (req, res) => res.redirect(302, '/admin/lessons'));
 
-  // Уроки: завести, открыть, убрать. Отдельной страницей от кабинета: кабинет
-  // — это обзор, а здесь распоряжаются самим существованием урока.
-  router.get('/admin/lessons', requireAdmin, async (req, res) => {
+  // Уроки: список для всех, управление для автора. Одна страница на обоих —
+  // раньше их было две, и публичной среди них не было вовсе.
+  router.get('/lessons', async (req, res) => {
     const user = await currentUser(pool, req);
+    const isAdmin = user?.role === 'admin';
     res.type('html').send(
-      adminLessonsPage({
+      lessonsPage({
         config,
         user,
-        lessons: await listLessons(pool, { includeDrafts: true }),
-        diskConnected: await diskConnected()
+        lessons: await listLessons(pool, { includeDrafts: isAdmin }),
+        diskConnected: isAdmin ? await diskConnected() : false
       })
     );
   });
+
+  // Старый адрес кабинета: он был у автора в закладках и в ссылках уведомлений.
+  router.get('/admin/lessons', (req, res) => res.redirect(301, '/lessons'));
 
   // Кабинет автора: загрузка исходника. Под requireAdmin — исходники грузит
   // один человек, и посторонним тут нечего смотреть.
@@ -462,11 +466,19 @@ export function pageRoutes(config, pool) {
     res.type('html').send(settingsPage({ config, user, youtube, channels }));
   });
 
-  router.get('/ideas', async (req, res) => {
+  // Обратная связь: идеи с голосованием и свои обращения любого вида.
+  router.get('/feedback', async (req, res) => {
     const user = await currentUser(pool, req);
     const ideas = await listIdeas(pool, { viewerId: req.user?.id ?? null });
-    res.type('html').send(ideasPage({ config, ideas, user }));
+    // Свои — это всё, что человек написал сам: и идеи, и пожелания, и отзывы.
+    // Чужие пожелания и отзывы в списке не показываются: они адресованы автору
+    // портала, а не соседям.
+    const mine = user ? ideas.filter((idea) => idea.authorId === user.id) : [];
+    res.type('html').send(feedbackPage({ config, ideas, mine, user }));
   });
+
+  // Старый адрес: он в закладках и в ссылках уведомлений о статусе идеи.
+  router.get('/ideas', (req, res) => res.redirect(301, '/feedback'));
 
   // Telegram возвращает человека сюда после подтверждения входа.
   router.get('/auth/telegram/return', (req, res) => {

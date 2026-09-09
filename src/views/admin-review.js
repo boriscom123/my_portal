@@ -82,7 +82,7 @@ export function adminReviewPage({
     description: 'Экран проверки урока перед публикацией.',
     body: `
 <nav class="admin-nav">
-  <a class="button" href="/admin/lessons">← Уроки</a>
+  <a class="button" href="/lessons">← Уроки</a>
 </nav>
 
 <h1>${escapeHtml(lesson.title)}</h1>

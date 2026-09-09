@@ -32,7 +32,9 @@ export function ideaRoutes(config, pool) {
     const idea = await createIdea(pool, {
       userId: req.user.id,
       title: req.body?.title,
-      body: req.body?.body
+      body: req.body?.body,
+      // Вид приходит из формы обратной связи: идея, пожелание или отзыв.
+      kind: req.body?.kind
     });
     res.status(201).json({ idea });
   });

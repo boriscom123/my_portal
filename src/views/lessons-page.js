@@ -1,42 +1,54 @@
-// Раздел кабинета: уроки.
+// Раздел «Уроки».
 //
-// Задача — одно место, где автор заводит урок, видит все заведённые и убирает
-// лишние. Раньше урок заводился запросом к API вручную, а убрать его было
-// нельзя вовсе: неудачный черновик оставался в списке навсегда вместе с
-// полугигабайтом исходника в буфере.
-// Вызывается из src/routes/pages.js по адресу /admin/lessons.
+// Задача — одно место, где зритель видит все уроки, а автор их заводит и
+// убирает. Одна страница на обоих намеренно: раньше их было две — публичной не
+// было вовсе, а кабинетная жила по своему адресу, — и они неизбежно разошлись
+// бы в мелочах.
+// Вызывается из src/routes/pages.js по адресу /lessons.
 import { escapeHtml } from '../lib/html.js';
 import { layout } from './layout.js';
 import { stateLabel } from './lesson-state.js';
 import { formatDate } from './feed.js';
 import { assetUrl } from '../lib/assets.js';
 
-function lessonRow(lesson) {
+function lessonRow(lesson, isAdmin) {
   const state = stateLabel(lesson);
   const published = lesson.status === 'published';
 
   return `<li class="admin-lesson">
   <div class="grow">
-    <h3><a href="/admin/lesson/${encodeURIComponent(lesson.slug)}">${escapeHtml(lesson.title)}</a></h3>
+    <h3><a href="/lesson/${encodeURIComponent(lesson.slug)}">${escapeHtml(lesson.title)}</a></h3>
     <p class="meta">
       ${published ? escapeHtml(formatDate(lesson.publishedAt)) : 'черновик'}
-      · <span class="meta">/${escapeHtml(lesson.slug)}</span>
-      ${state ? ` · <span class="badge${lesson.pipelineState === 'failed' ? ' danger' : ''}">${escapeHtml(state)}</span>` : ''}
+      ${
+        isAdmin
+          ? ` · <span class="meta">/${escapeHtml(lesson.slug)}</span>${
+              state
+                ? ` · <span class="badge${lesson.pipelineState === 'failed' ? ' danger' : ''}">${escapeHtml(state)}</span>`
+                : ''
+            }`
+          : ''
+      }
     </p>
   </div>
-  <div class="actions">
-    <a class="button" href="/admin/lesson/${encodeURIComponent(lesson.slug)}">Открыть</a>
+  ${
+    isAdmin
+      ? `<div class="actions">
+    <a class="button" href="/admin/lesson/${encodeURIComponent(lesson.slug)}">Обработка</a>
     ${
       published
         ? '<span class="badge" title="Опубликованный урок сначала снимают с витрины">на витрине</span>'
         : `<button class="button" type="button"
              data-lesson-delete="${escapeHtml(lesson.slug)}">Удалить</button>`
     }
-  </div>
+  </div>`
+      : ''
+  }
 </li>`;
 }
 
-export function adminLessonsPage({ config, user, lessons, diskConnected = false }) {
+export function lessonsPage({ config, user, lessons, diskConnected = false }) {
+  const isAdmin = user?.role === 'admin';
   // Пока что-то считается, страница перечитывается сама: иначе автор смотрит
   // на «обрабатывается» и жмёт перезагрузку вручную каждые полминуты. Форма
   // заведения урока при этом пустая — стирать нечего.
@@ -48,21 +60,26 @@ export function adminLessonsPage({ config, user, lessons, diskConnected = false 
     refreshSeconds: busy ? 20 : null,
     config,
     user,
-    path: '/admin/lessons',
+    path: '/lessons',
     title: 'Уроки — Solo AI Journey',
-    description: 'Список уроков: завести новый, открыть или убрать черновик.',
+    description: 'Все видеоуроки портала: от идеи до продукта, шаг за шагом.',
     body: `
 <h1>Уроки</h1>
-
-<p class="hint">
+${
+  isAdmin
+    ? `<p class="hint">
   Яндекс Диск: ${
     diskConnected
       ? 'подключён — записи можно брать оттуда'
       : '<a href="/admin/upload">не подключён</a>'
   }
-</p>
+</p>`
+    : ''
+}
 
-<section class="card">
+${
+  isAdmin
+    ? `<section class="card">
   <h2>Завести урок</h2>
   <form id="new-lesson-form" data-new-lesson>
     <div class="form-row">
@@ -74,14 +91,18 @@ export function adminLessonsPage({ config, user, lessons, diskConnected = false 
     временное имя с датой, а настоящее предложит модель по расшифровке — и вы
     его поправите. Дальше: загрузить запись, потом нажать «Обработать».
   </p>
-</section>
+</section>`
+    : ''
+}
 
 ${
   lessons.length
-    ? `<ul class="admin-lessons">${lessons.map(lessonRow).join('')}</ul>`
-    : '<p class="hint">Уроков пока нет. Заведите первый — форма выше.</p>'
+    ? `<ul class="admin-lessons">${lessons.map((lesson) => lessonRow(lesson, isAdmin)).join('')}</ul>`
+    : `<p class="hint">${
+        isAdmin ? 'Уроков пока нет. Заведите первый — форма выше.' : 'Уроков пока нет.'
+      }</p>`
 }
 
-<script src="${assetUrl('/admin.js')}" type="module"></script>`
+${isAdmin ? `<script src="${assetUrl('/admin.js')}" type="module"></script>` : ''}`
   });
 }

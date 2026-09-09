@@ -113,7 +113,7 @@ test('разделы в шапке лежат в меню, работающем 
 
   const nav = html.slice(html.indexOf('<nav class="nav">'), html.indexOf('</nav>'));
   assert.match(nav, /href="\/search"/);
-  assert.match(nav, /href="\/ideas"/);
+  assert.match(nav, /href="\/feedback"/);
   // Тема и уведомления уехали в раздел настроек: в шапке они были двумя
   // значками без подписей, и на телефоне их принимали за украшение.
   assert.match(nav, /href="\/settings"/);
@@ -157,7 +157,7 @@ test('настройки открыты и гостю, но уведомлени
   assert.match(author, /data-notifications/);
   // Раздел для автора: уроки и загрузка. Подключений площадок пока нет — их
   // страница в плане этапа публикации, и ссылка на неё вела бы в пустоту.
-  assert.match(author, /href="\/admin\/lessons"/);
+  assert.match(author, /href="\/lessons"/);
   assert.match(author, /href="\/admin\/upload"/);
 
   const viewer = settingsPage({ config, user: { displayName: 'Зритель', role: 'user' } });
@@ -506,4 +506,42 @@ test('полоска про куки прижата к краям, а не уж�
   assert.match(block, /right: 12px;/);
   assert.match(block, /margin: 0 auto;/);
   assert.doesNotMatch(block, /transform: translateX/);
+});
+
+test('на главной уроки и новости идут одной лентой по дате', async () => {
+  const { feedPage } = await import('../src/views/feed.js');
+  const html = feedPage({
+    config,
+    user: null,
+    lessons: [
+      {
+        id: 1,
+        slug: 'staryi',
+        title: 'Старый урок',
+        description: '',
+        tags: [],
+        coverUrl: null,
+        publishedAt: new Date('2026-09-01'),
+        publications: []
+      }
+    ],
+    news: [
+      {
+        id: 1,
+        slug: 'svezhaya',
+        title: 'Свежая новость',
+        body: 'Коротко о деле',
+        images: [],
+        publishedAt: new Date('2026-09-08')
+      }
+    ]
+  });
+
+  // Свежая новость должна стоять выше старого урока: лента одна и общая, иначе
+  // уроки, которые снимаются неделями, вытеснили бы всё остальное вниз.
+  assert.ok(html.indexOf('Свежая новость') < html.indexOf('Старый урок'));
+  // И новость обязана отличаться от урока: без пометки лента читается как
+  // сломанная — часть карточек открывает видео, часть текст.
+  assert.match(html, /badge">новость</);
+  assert.match(html, /href="\/news\/svezhaya"/);
 });

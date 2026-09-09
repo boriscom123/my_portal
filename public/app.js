@@ -552,13 +552,19 @@ function initPage() {
     }
   });
 
-  const ideaForm = document.querySelector('#idea-form');
+  const ideaForm = document.querySelector('[data-feedback-form]');
   ideaForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
     const data = new FormData(ideaForm);
     const answer = await request('/api/ideas', {
       method: 'POST',
-      body: JSON.stringify({ title: data.get('title'), body: data.get('body') })
+      body: JSON.stringify({
+        title: data.get('title'),
+        body: data.get('body'),
+        // Вид выбирает человек: идея, пожелание или отзыв. Подделанное значение
+        // сервер превратит в идею, а не в ошибку.
+        kind: data.get('kind') ?? 'idea'
+      })
     });
     // Здесь перезагрузка уместна: идея видна сразу, и человек должен увидеть её
     // в списке на своём месте — по числу голосов, а не там, где он ожидал.

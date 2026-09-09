@@ -405,7 +405,7 @@ test('когда запись есть, загрузка перестаёт бы
       // меню в шапке, и срез вышел бы пустым.
       const from = html.indexOf('<nav class="admin-nav">');
       const nav = html.slice(from, html.indexOf('</nav>', from));
-      assert.match(nav, /href="\/admin\/lessons">← Уроки/);
+      assert.match(nav, /href="\/lessons">← Уроки/);
       assert.ok(!nav.includes('preview'), 'проверка записи снова в навигации');
       assert.ok(!nav.includes('/admin/upload'), 'загрузка снова в навигации');
       assert.ok(!/href="\/lesson\//.test(nav), 'страница урока снова в навигации');

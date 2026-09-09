@@ -56,7 +56,41 @@ function lessonCard(lesson, isAdmin) {
 </article>`;
 }
 
-export function feedPage({ config, lessons, news, user, tag = null }) {
+/**
+ * Карточка новости в общей ленте.
+ *
+ * Отличается от урока намеренно: у новости нет обложки на всю карточку и есть
+ * пометка. Вперемешку без различий лента читалась бы как сломанная — человек не
+ * понимал бы, почему одни карточки открывают видео, а другие текст.
+ */
+function newsCard(item) {
+  return `<article class="lesson-card news-in-feed">
+  ${
+    item.images.length
+      ? `<a href="/news/${encodeURIComponent(item.slug)}"><img class="cover" src="${escapeHtml(
+          item.images[0].url
+        )}" alt="" loading="lazy"></a>`
+      : ''
+  }
+  <div class="card-body">
+    <p class="meta">${escapeHtml(formatDate(item.publishedAt))} · <span class="badge">новость</span></p>
+    <h3><a href="/news/${encodeURIComponent(item.slug)}">${escapeHtml(item.title)}</a></h3>
+    <p class="card-text">${escapeHtml(item.body).slice(0, 220)}</p>
+  </div>
+</article>`;
+}
+
+export function feedPage({ config, lessons, news = [], user, tag = null }) {
+  // Одна лента по дате: уроки снимаются долго, а новости выходят часто, и
+  // разложенные по разным разделам они читались бы как два несвязанных сайта.
+  const feed = [
+    ...lessons.map((lesson) => ({
+      at: lesson.publishedAt ?? lesson.createdAt ?? new Date(0),
+      html: lessonCard(lesson, user?.role === 'admin')
+    })),
+    ...news.map((item) => ({ at: item.publishedAt, html: newsCard(item) }))
+  ].sort((first, second) => new Date(second.at) - new Date(first.at));
+
   const heading = tag ? `Уроки по теме «${tag}»` : 'Solo AI Journey';
 
   return layout({
@@ -74,31 +108,11 @@ ${
 }
 
 <section>
-  <h2>Уроки</h2>
   ${
-    lessons.length
-      ? `<div class="lessons-grid">${lessons
-          .map((lesson) => lessonCard(lesson, user?.role === 'admin'))
-          .join('')}</div>`
+    feed.length
+      ? `<div class="lessons-grid">${feed.map((item) => item.html).join('')}</div>`
       : '<p class="hint">Пока ни одного урока. Первый уже собирается.</p>'
   }
-</section>
-
-${
-  news.length
-    ? `<section class="news">
-  <h2>Новости</h2>
-  ${news
-    .map(
-      (n) => `<article class="card">
-    <p class="meta">${escapeHtml(formatDate(n.publishedAt))}</p>
-    <h3>${escapeHtml(n.title)}</h3>
-    <p>${escapeHtml(n.body)}</p>
-  </article>`
-    )
-    .join('')}
 </section>`
-    : ''
-}`
   });
 }

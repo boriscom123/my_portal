@@ -18,8 +18,11 @@ function toIdea(row) {
     id: Number(row.id),
     title: row.title,
     body: row.body,
+    // Вид обращения: идея, пожелание, отзыв. Голосуют только за идеи.
+    kind: row.kind ?? 'idea',
     status: row.status,
     createdAt: row.created_at,
+    authorId: row.author_id ? Number(row.author_id) : null,
     votes: Number(row.votes ?? 0),
     votedByViewer: Boolean(row.voted_by_viewer),
     lessonSlug: row.lesson_slug ?? null,
@@ -28,15 +31,15 @@ function toIdea(row) {
 }
 
 /** Принимает идею от вошедшего человека. */
-export async function createIdea(pool, { userId, title, body }) {
+export async function createIdea(pool, { userId, title, body, kind = 'idea' }) {
   const theme = String(title ?? '').trim();
   if (!theme) throw new PublicError('У идеи должна быть тема');
   if (theme.length > MAX_TITLE) throw new PublicError('Тема слишком длинная');
 
   const { rows } = await pool.query(
-    `INSERT INTO ideas (author_id, title, body) VALUES ($1, $2, COALESCE($3, ''))
-     RETURNING id, title, body, status, created_at, author_id`,
-    [userId, theme, String(body ?? '').trim()]
+    `INSERT INTO ideas (author_id, title, body, kind) VALUES ($1, $2, COALESCE($3, ''), $4)
+     RETURNING id, title, body, kind, status, created_at, author_id`,
+    [userId, theme, String(body ?? '').trim(), ['idea', 'wish', 'review'].includes(kind) ? kind : 'idea']
   );
   return toIdea({ ...rows[0], display_name: null });
 }
@@ -44,7 +47,7 @@ export async function createIdea(pool, { userId, title, body }) {
 /** Борд целиком: желанные сверху, при равенстве голосов — свежие. */
 export async function listIdeas(pool, { status = null, viewerId = null } = {}) {
   const { rows } = await pool.query(
-    `SELECT i.id, i.title, i.body, i.status, i.created_at, i.author_id,
+    `SELECT i.id, i.title, i.body, i.kind, i.status, i.created_at, i.author_id,
             u.display_name, l.slug AS lesson_slug,
             count(v.user_id)::int AS votes,
             COALESCE(bool_or(v.user_id = $2::bigint), false) AS voted_by_viewer
@@ -62,6 +65,12 @@ export async function listIdeas(pool, { status = null, viewerId = null } = {}) {
 
 /** Голос за идею. Повтор безвреден: пара уже есть, вставка ничего не меняет. */
 export async function voteIdea(pool, { ideaId, userId }) {
+  // Голосуют за будущий урок, а не за чужой отзыв: у отзыва и пожелания
+  // голосование бессмысленно, и запрещаем мы его здесь, а не в разметке —
+  // кнопку легко подделать, запрос труднее.
+  const { rows: kinds } = await pool.query('SELECT kind FROM ideas WHERE id = $1', [ideaId]);
+  if (kinds[0]?.kind !== 'idea') throw new PublicError('Голосовать можно только за идеи', 400);
+
   await pool.query(
     'INSERT INTO idea_votes (idea_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
     [ideaId, userId]

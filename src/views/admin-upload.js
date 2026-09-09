@@ -41,7 +41,7 @@ export function adminUploadPage({
   ${
     lesson
       ? `<a class="button" href="/admin/lesson/${encodeURIComponent(lesson.slug)}">← К уроку</a>`
-      : '<a class="button" href="/admin/lessons">← Уроки</a>'
+      : '<a class="button" href="/lessons">← Уроки</a>'
   }
 </nav>
 

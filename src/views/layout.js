@@ -81,8 +81,9 @@ ${
   </details>
   <nav class="nav">
     <a href="/search">Поиск</a>
-    <a href="/ideas">Идеи</a>
-    ${user?.role === 'admin' ? '<a href="/admin/lessons">Уроки</a>' : ''}
+    <a href="/news">Новости</a>
+    <a href="/lessons">Уроки</a>
+    <a href="/feedback">Обратная связь</a>
     <a href="/settings">Настройки</a>
     ${
       user

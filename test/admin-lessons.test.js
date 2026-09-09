@@ -182,7 +182,7 @@ test('на странице видны уроки, форма заведения
     const headers = await adminHeaders(pool, config);
     const app = finalize(createApp({ config, pool }));
     await withServer(app, async (base) => {
-      const html = await (await fetch(`${base}/admin/lessons`, { headers })).text();
+      const html = await (await fetch(`${base}/lessons`, { headers })).text();
       assert.match(html, /data-new-lesson/);
       assert.match(html, /data-lesson-delete="chernovik"/);
       assert.match(html, /Черновик/);
@@ -190,21 +190,36 @@ test('на странице видны уроки, форма заведения
   });
 });
 
-test('посторонний в раздел уроков не попадает', skipWithoutDb, async () => {
+test('посторонний видит уроки, но не управление ими', skipWithoutDb, async () => {
   const config = await makeConfig();
   await withTestDb(async (pool) => {
     const { rows } = await pool.query(
       `INSERT INTO users (display_name, role) VALUES ('Зритель', 'user') RETURNING id`
     );
+    // Опубликованному уроку база требует дату выхода — иначе он не урок на
+    // витрине, а черновик, притворяющийся вышедшим.
+    await saveLesson(pool, {
+      slug: 'urok',
+      title: 'Урок',
+      status: 'published',
+      publishedAt: new Date()
+    });
     const app = finalize(createApp({ config, pool }));
     await withServer(app, async (base) => {
-      const res = await fetch(`${base}/admin/lessons`, {
+      // Раздел стал публичным намеренно: раньше публичной страницы уроков не
+      // было вовсе, и «Уроки» в шапке видел только автор.
+      const res = await fetch(`${base}/lessons`, {
         headers: {
           Accept: 'text/html',
           Authorization: `Bearer ${signSession({ userId: Number(rows[0].id), role: 'user' }, config.jwtSecret)}`
         }
       });
-      assert.equal(res.status, 403);
+      assert.equal(res.status, 200);
+
+      const html = await res.text();
+      assert.match(html, /Урок/, 'список уроков виден');
+      assert.doesNotMatch(html, /data-new-lesson/, 'а формы заведения быть не должно');
+      assert.doesNotMatch(html, /data-lesson-delete/, 'и кнопки удаления тоже');
     });
   });
 });
@@ -216,11 +231,11 @@ test('на странице уроков нет ссылок, которые у�
     const headers = await adminHeaders(pool, config);
     const app = finalize(createApp({ config, pool }));
     await withServer(app, async (base) => {
-      const html = await (await fetch(`${base}/admin/lessons`, { headers })).text();
+      const html = await (await fetch(`${base}/lessons`, { headers })).text();
       const main = html.slice(html.indexOf('<main>'), html.indexOf('</main>'));
       // Настройки, идеи и витрина живут в меню шапки: повторять их на странице
       // значит показывать одно и то же дважды.
-      for (const link of ['/settings', '/ideas', '"/"']) {
+      for (const link of ['/settings', '/feedback', '"/"']) {
         assert.ok(!main.includes(`href="${link.replace(/"/g, '')}"`), `в теле осталась ссылка ${link}`);
       }
     });
