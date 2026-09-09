@@ -11,7 +11,7 @@
 import { escapeHtml } from '../lib/html.js';
 import { layout } from './layout.js';
 
-export function settingsPage({ config, user, youtube = null, channels = [] }) {
+export function settingsPage({ config, user, youtube = null, channels = [], sources = [] }) {
   return layout({
     config,
     user,
@@ -151,7 +151,40 @@ ${channels
   </p>
 </section>`
   )
-  .join('')}`
+  .join('')}
+
+<section class="card">
+  <h2>Источники анонсов</h2>
+  <p class="hint">
+    Их ленты портал показывает в форме новости — по кнопке «Свежие анонсы».
+    Выключенный источник остаётся в списке, но не спрашивается.
+  </p>
+  <ul class="sources">
+    ${sources
+      .map(
+        (source) => `<li>
+      <label class="checkbox-row">
+        <input type="checkbox" data-source-toggle="${source.id}" ${source.enabled ? 'checked' : ''}>
+        <span>${escapeHtml(source.title)}</span>
+      </label>
+      <span class="meta">${escapeHtml(source.url)}</span>
+      <button class="button" type="button" data-source-remove="${source.id}">Убрать</button>
+    </li>`
+      )
+      .join('')}
+  </ul>
+  <form data-source-form>
+    <label>Название
+      <input name="title" placeholder="NVIDIA" maxlength="100" required>
+    </label>
+    <label>Адрес ленты
+      <input name="url" placeholder="https://blogs.nvidia.com/feed/" maxlength="500" required>
+    </label>
+    <div class="form-row">
+      <button class="button-brand" type="submit">Добавить источник</button>
+    </div>
+  </form>
+</section>`
     : ''
 }`
   });

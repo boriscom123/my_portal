@@ -361,6 +361,57 @@ function initPage() {
     });
   }
 
+  /* --- Источники анонсов ---------------------------------------------------- */
+
+  const sourceForm = document.querySelector('[data-source-form]');
+  sourceForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const fields = new FormData(sourceForm);
+    try {
+      const answer = await request('/api/admin/news/sources', {
+        method: 'POST',
+        body: JSON.stringify({ title: fields.get('title'), url: fields.get('url') })
+      });
+      if (!answer) return;
+      toast('Источник добавлен.');
+      setTimeout(() => location.reload(), 900);
+    } catch (error) {
+      toast(`Не добавился: ${error.message}`, true);
+    }
+  });
+
+  for (const toggle of document.querySelectorAll('[data-source-toggle]')) {
+    toggle.addEventListener('change', async () => {
+      try {
+        await request(`/api/admin/news/sources/${toggle.dataset.sourceToggle}/toggle`, {
+          method: 'POST',
+          body: JSON.stringify({ enabled: toggle.checked })
+        });
+        toast(toggle.checked ? 'Источник включён.' : 'Источник выключен.');
+      } catch (error) {
+        // Возвращаем галку на место: показывать состояние, которого нет на
+        // сервере, — врать человеку.
+        toggle.checked = !toggle.checked;
+        toast(`Не вышло: ${error.message}`, true);
+      }
+    });
+  }
+
+  for (const remove of document.querySelectorAll('[data-source-remove]')) {
+    remove.addEventListener('click', async () => {
+      if (!confirm('Убрать источник из списка?')) return;
+      try {
+        const answer = await request(`/api/admin/news/sources/${remove.dataset.sourceRemove}`, {
+          method: 'DELETE'
+        });
+        if (!answer) return;
+        location.reload();
+      } catch (error) {
+        toast(`Не убрался: ${error.message}`, true);
+      }
+    });
+  }
+
   /* --- Новости ------------------------------------------------------------- */
 
   // Формы новостей живут на публичных страницах: автор пишет новость там же,

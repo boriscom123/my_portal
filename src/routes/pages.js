@@ -16,6 +16,7 @@ import { adminReviewPage } from '../views/admin-review.js';
 import { adminPreviewPage } from '../views/admin-preview.js';
 import { publicationsFor } from '../services/publications.js';
 import { youtubeApp, channelApp, loadPlatformApp } from '../services/platform-apps.js';
+import { listSources } from '../services/news-sources.js';
 import { mediaLink } from '../lib/media-token.js';
 import { probeDuration } from '../lib/ffmpeg.js';
 import { mediaPath } from '../services/media.js';
@@ -463,7 +464,17 @@ export function pageRoutes(config, pool) {
             })
           )
         : [];
-    res.type('html').send(settingsPage({ config, user, youtube, channels }));
+    res.type('html').send(
+      settingsPage({
+        config,
+        user,
+        youtube,
+        channels,
+        // Источники анонсов правит автор: сегодня их девять, завтра появится
+        // NVIDIA.
+        sources: user?.role === 'admin' ? await listSources(pool) : []
+      })
+    );
   });
 
   // Обратная связь: идеи с голосованием и свои обращения любого вида.
