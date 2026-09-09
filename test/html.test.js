@@ -486,3 +486,12 @@ test('полоска про файлы браузера есть, скрыта �
   assert.match(html, /Счётчиков и рекламных файлов здесь нет/);
   assert.match(html, /href="\/privacy"/);
 });
+
+test('атрибут hidden прячет, что бы ни говорило оформление', async () => {
+  // Полоска про файлы браузера висела постоянно: у неё display: flex, а он
+  // сильнее умолчания браузера для hidden. Кнопка «Понятно» при этом честно
+  // ставила hidden, который ничего не менял. Правило общее, потому что таких
+  // элементов на портале несколько: кнопка уведомлений, поле выбора файла.
+  const styles = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
+  assert.match(styles, /\[hidden\] \{\s*\n\s*display: none !important;\s*\n\}/);
+});
