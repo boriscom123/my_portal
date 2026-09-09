@@ -267,6 +267,23 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
     }
   });
 
+  // Запрос для рисовальщика: картинку автор рисует сам, в стороннем
+  // рисовальщике, и ему нужен готовый текст запроса, а не совет.
+  router.post('/news/image-prompt', async (req, res) => {
+    const title = String(req.body?.title ?? '').trim();
+    if (!title) throw new PublicError('Сначала напишите заголовок', 400);
+
+    const texts = createTexts(config, fetchImpl);
+    if (!texts) throw new PublicError('Модель не подключена: нет ключа в настройках сервера', 503);
+
+    try {
+      const { prompt } = await texts.suggestImagePrompt(title, String(req.body?.body ?? ''));
+      res.json({ prompt });
+    } catch (error) {
+      throw new PublicError(`Модель не ответила: ${error.message}`, 502);
+    }
+  });
+
   router.delete('/news/:slug', async (req, res) => {
     if (!(await deleteNews(pool, req.params.slug))) {
       throw new PublicError('Новость не найдена', 404);

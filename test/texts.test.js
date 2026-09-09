@@ -9,6 +9,8 @@ import {
   buildPrompt,
   buildNewsPrompt,
   parseNewsResponse,
+  buildImagePrompt,
+  parseImagePrompt,
   hideKey,
   shouldTryNext,
   parseModels,
@@ -278,8 +280,12 @@ test('запрос на текст новости просит не выдумы
   assert.match(prompt, /отвечает вдвое быстрее/, 'слова источника обязаны дойти до модели');
   assert.match(prompt, /https:\/\/example\.com\/a/);
   assert.match(prompt, /не выдумывай ЧИСЕЛ/);
-  assert.match(prompt, /⟨/, 'место под собственный результат помечается явно');
   assert.match(prompt, /от первого лица/);
+  // Пометок и заданий в тексте быть не должно: заказчик правит формулировки, а
+  // не дописывает заметку — времени на это в момент выпуска нет.
+  assert.match(prompt, /ГОТОВ К ПУБЛИКАЦИИ/);
+  assert.match(prompt, /не давай автору заданий/);
+  assert.doesNotMatch(prompt, /⟨/);
 });
 
 test('без описания запрос всё равно собирается', () => {
@@ -351,7 +357,7 @@ test('медленная модель уступает следующей, а н
   const tried = [];
   const texts = createTexts(
     { gemini: { apiKey: 'k', model: 'medlennaya,bystraya' } },
-    async (url, options) => {
+    async (url) => {
       const name = String(url).match(/models\/([^:]+):/)[1];
       tried.push(name);
       if (name === 'medlennaya') {
@@ -380,4 +386,31 @@ test('когда не ответила ни одна, причина назыв�
     throw error;
   });
   await assert.rejects(texts.suggestNews('Заголовок'), /не ответила вовремя/);
+});
+
+test('запрос для рисовальщика — на английском и без букв на картинке', () => {
+  // Рисовальщики понимают английский заметно лучше, а надписи на картинке они
+  // рисуют с ошибками — их проще запретить, чем потом вычитывать.
+  const prompt = buildImagePrompt('Вышла новая модель', 'Текст заметки про модель.');
+  assert.match(prompt, /на английском языке/);
+  assert.match(prompt, /букв и надписей на изображении\s*\n?\s*быть не должно/);
+  assert.match(prompt, /16:9/);
+  assert.match(prompt, /без логотипов/);
+  assert.match(prompt, /Текст заметки про модель/);
+});
+
+test('ответ рисовальщика разбирается, пустой — отказ', () => {
+  const parsed = parseImagePrompt({
+    candidates: [
+      { content: { parts: [{ text: JSON.stringify({ prompt: 'dark abstract server room' }) }] } }
+    ]
+  });
+  assert.equal(parsed, 'dark abstract server room');
+  assert.throws(
+    () =>
+      parseImagePrompt({
+        candidates: [{ content: { parts: [{ text: JSON.stringify({ prompt: ' ' }) }] } }]
+      }),
+    /не составила/
+  );
 });

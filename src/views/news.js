@@ -52,9 +52,15 @@ function newsForm(item = null) {
   <!-- Сюда скрипт кладёт список свежих анонсов. Пустой и скрытый: пока автор
        не попросил, чужие ленты никто не спрашивает. -->
   <div class="announcements" data-announcements-list hidden></div>
+  <!-- Готовый запрос для рисовальщика. Скрыт, пока не попросили: пустое поле
+       посреди формы отвлекает от того, ради чего человек сюда пришёл. -->
+  <label data-image-prompt-box hidden>Запрос для рисовальщика — скопируйте в свой рисовальщик
+    <textarea rows="4" data-image-prompt-text readonly></textarea>
+  </label>
   <div class="form-row">
     <button class="button" type="button" data-announcements>Свежие анонсы</button>
     <button class="button" type="button" data-news-suggest>Написать по заголовку</button>
+    <button class="button" type="button" data-image-prompt>Запрос для картинки</button>
     <button class="button-brand" type="submit">${item ? 'Сохранить' : 'Завести новость'}</button>
     ${
       item

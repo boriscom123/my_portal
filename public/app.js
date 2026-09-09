@@ -558,6 +558,52 @@ function initPage() {
     }
   });
 
+  /**
+   * Запрос для рисовальщика.
+   * Картинку автор рисует сам, поэтому портал отдаёт готовый текст запроса и
+   * сразу кладёт его в буфер обмена: переносить руками из поля в чужой
+   * рисовальщик — лишняя работа на ровном месте.
+   */
+  const imagePromptButton = document.querySelector('[data-image-prompt]');
+  imagePromptButton?.addEventListener('click', async () => {
+    const form = document.querySelector('[data-news-form]');
+    const title = form?.querySelector('[name=title]')?.value?.trim();
+    if (!title) {
+      toast('Сначала напишите заголовок — по нему и составляем.', true);
+      return;
+    }
+
+    const box = document.querySelector('[data-image-prompt-box]');
+    const field = document.querySelector('[data-image-prompt-text]');
+    const wasText = imagePromptButton.textContent;
+    imagePromptButton.disabled = true;
+    imagePromptButton.textContent = 'Составляю…';
+
+    try {
+      const answer = await request('/api/admin/news/image-prompt', {
+        method: 'POST',
+        body: JSON.stringify({ title, body: form.querySelector('[name=body]')?.value ?? '' })
+      });
+      if (!answer) return;
+
+      field.value = answer.prompt;
+      box.hidden = false;
+      try {
+        await navigator.clipboard.writeText(answer.prompt);
+        toast('Запрос готов и скопирован — вставьте в рисовальщик.');
+      } catch {
+        // Буфер обмена доступен не везде: на старом браузере и по http его нет.
+        // Тогда просто оставляем текст в поле — его можно выделить руками.
+        toast('Запрос готов — он в поле ниже.');
+      }
+    } catch (error) {
+      toast(`Не составилось: ${error.message}`, true);
+    } finally {
+      imagePromptButton.disabled = false;
+      imagePromptButton.textContent = wasText;
+    }
+  });
+
   const newsDelete = document.querySelector('[data-news-delete]');
   newsDelete?.addEventListener('click', async () => {
     // Спрашиваем: удаление новости необратимо, а кнопка стоит рядом с
