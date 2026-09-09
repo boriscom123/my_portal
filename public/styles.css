@@ -156,7 +156,8 @@ h3 {
  * ездит сдвигом фона: это рисует видеокарта, JS не участвует и телефон не
  * греется. */
 .brand-mark,
-.button-brand {
+.button-brand,
+.platform-link {
   background: linear-gradient(
     96deg,
     var(--brand-1) 0%,
@@ -172,6 +173,13 @@ h3 {
 .brand-mark {
   font-family: Unbounded, system-ui, sans-serif;
   font-weight: 800;
+}
+
+/* Градиент буквами. Общий с ссылками площадок намеренно: одна анимация на всю
+   страницу читается как одна вещь, а две с разной скоростью — как две
+   спорящие. */
+.brand-mark,
+.platform-link {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -221,6 +229,7 @@ h3 {
 @media (prefers-reduced-motion: reduce) {
   .brand-mark,
   .button-brand,
+  .platform-link,
   .flame,
   .flame-dot {
     animation: none;
@@ -708,13 +717,20 @@ form > textarea {
   gap: 10px;
   align-items: baseline;
 }
+
+/* Подчёркивания нет ни в покое, ни под курсором. Общее правило для ссылок
+   подчёркивает их при наведении, и вместе с собственной чертой выходило две
+   линии сразу. Буквы здесь и так живые — им подчёркивание не нужно, чтобы их
+   заметили. */
 .platform-link {
-  color: var(--brand-1);
+  font-weight: 600;
   text-decoration: none;
-  border-bottom: 1px solid color-mix(in srgb, var(--brand-1) 35%, transparent);
 }
-.platform-link:hover {
-  border-bottom-color: var(--brand-1);
+.platform-link:hover,
+.platform-link:focus-visible {
+  text-decoration: none;
+  /* Под курсором градиент замирает: движение под указателем мешает прицелиться. */
+  animation-play-state: paused;
 }
 
 /* --- Карточка урока ------------------------------------------------------ */

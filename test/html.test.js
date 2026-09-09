@@ -454,3 +454,21 @@ test('урок без публикаций в ленте не ломается',
   assert.match(html, /Урок/);
   assert.doesNotMatch(html, /Смотреть:/);
 });
+
+test('ссылки площадок переливаются тем же градиентом, что знак', async () => {
+  // Заказчик попросил живые буквы, как у заглавной надписи. Общий градиент —
+  // не лень, а решение: одна анимация на странице читается как одна вещь, а две
+  // с разной скоростью — как две спорящие.
+  const styles = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
+  assert.match(styles, /\.brand-mark,\s*\n\.button-brand,\s*\n\.platform-link \{/);
+  assert.match(styles, /\.brand-mark,\s*\n\.platform-link \{\s*\n\s*-webkit-background-clip: text;/);
+
+  // Отключённую анимацию уважаем тем же списком, что и остальные живые части.
+  const reduced = styles.slice(styles.indexOf('@media (prefers-reduced-motion: reduce)'));
+  assert.match(reduced.slice(0, 300), /\.platform-link,/);
+
+  // Подчёркивания нет: общее правило для ссылок подчёркивает их при наведении,
+  // и вместе с собственной чертой выходило две линии сразу.
+  assert.match(styles, /\.platform-link:hover,\s*\n\.platform-link:focus-visible \{\s*\n\s*text-decoration: none;/);
+  assert.doesNotMatch(styles, /\.platform-link \{[^}]*border-bottom/);
+});
