@@ -19,6 +19,27 @@ import {
   exchangeYoutubeCode
 } from '../services/platforms/youtube-auth.js';
 import { youtubeApp, savePlatformApp } from '../services/platform-apps.js';
+import { signShortLived, verifyShortLived } from '../lib/jwt.js';
+
+// Куда возвращать, если страница отправления неизвестна.
+const DEFAULT_RETURN = '/settings';
+// Сколько живёт state. Десять минут — с запасом на выбор аккаунта и чтение
+// предупреждения Google, но не сутки.
+const STATE_SECONDS = 600;
+
+/**
+ * Оставляет от адреса только путь внутри портала. null — чужое.
+ * Без этой проверки в state можно было бы положить чужой адрес и увести
+ * человека с портала его же кнопкой.
+ */
+function localPath(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return null;
+  // Свой же адрес приходит целиком в заголовке перехода — берём из него путь.
+  const path = raw.startsWith('http') ? new URL(raw).pathname : raw;
+  // Двойной слэш в начале браузер читает как чужой узел, а не как путь.
+  return path.startsWith('/') && !path.startsWith('//') ? path : null;
+}
 
 const AUTHORIZE_URL = 'https://oauth.yandex.ru/authorize';
 const TOKEN_URL = 'https://oauth.yandex.ru/token';
@@ -79,7 +100,15 @@ export function integrationRoutes(config, pool, fetchImpl = fetch) {
     if (!app.configured) {
       throw new PublicError('Приложение YouTube не настроено — заполните его в настройках', 503);
     }
-    res.redirect(youtubeConsentUrl(app));
+    // Куда вернуть человека: он приходит сюда и из настроек, и со страницы
+    // загрузки, а возвращался всегда на загрузку. Адрес переживает переход на
+    // Google в state — подписанным, иначе им можно было бы увести куда угодно.
+    const state = signShortLived(
+      { from: localPath(req.query.from) ?? localPath(req.get('referer')) ?? DEFAULT_RETURN },
+      config.jwtSecret,
+      STATE_SECONDS
+    );
+    res.redirect(youtubeConsentUrl(app, state));
   });
 
   // Возврат с экрана согласия. Сюда человека приводит браузер, поэтому в ответ
@@ -89,9 +118,14 @@ export function integrationRoutes(config, pool, fetchImpl = fetch) {
     const code = String(req.query.code ?? '');
     if (!code) throw new PublicError('Google не прислал код', 400);
 
+    // state вернулся от Google нетронутым — проверяем подпись. Чужой или
+    // протухший означает, что этот код возврата мы не запрашивали.
+    const state = verifyShortLived(String(req.query.state ?? ''), config.jwtSecret);
+    if (!state) throw new PublicError('Подключение устарело — начните заново', 400);
+
     const tokens = await exchangeYoutubeCode(await youtubeApp(pool, config), code, fetchImpl);
     await saveIntegration(pool, config, { name: 'youtube', ...tokens });
-    res.redirect('/admin/upload?youtube=connected');
+    res.redirect(`${localPath(state.from) ?? DEFAULT_RETURN}?youtube=connected`);
   });
 
   // Ключи приложения площадки: автор переносит их из чужой консоли, и место им

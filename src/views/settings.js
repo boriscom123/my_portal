@@ -107,7 +107,7 @@ ${
              <button class="button" type="button" data-youtube-disconnect>Отключить канал</button>
            </p>`
         : `<p class="form-row">
-             <a class="button-brand" href="/api/integrations/youtube/connect">Подключить канал</a>
+             <a class="button-brand" href="/api/integrations/youtube/connect?from=/settings">Подключить канал</a>
            </p>`
       : '<p class="hint">Сохраните ключи — после этого появится кнопка подключения канала.</p>'
   }

@@ -48,6 +48,17 @@ test('адрес согласия просит offline-доступ и одну 
   assert.equal(url.searchParams.get('redirect_uri'), app.redirectUri);
 });
 
+test('в адрес согласия кладётся state, а без него его там нет', () => {
+  // state — то, что переживает переход на Google и возвращается обратно. Он
+  // нужен для двух вещей сразу: вернуть человека на ту страницу, откуда он
+  // ушёл, и не принять чужой код возврата.
+  const withState = new URL(youtubeConsentUrl(app, 'podpisannaya-stroka'));
+  assert.equal(withState.searchParams.get('state'), 'podpisannaya-stroka');
+
+  const without = new URL(youtubeConsentUrl(app));
+  assert.equal(without.searchParams.get('state'), null);
+});
+
 test('код меняется на пару токенов', async () => {
   const fetchStub = async (url, options) => {
     assert.equal(String(url), 'https://oauth2.googleapis.com/token');

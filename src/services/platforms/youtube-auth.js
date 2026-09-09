@@ -23,8 +23,13 @@ const EXPIRY_MARGIN_MS = 60_000;
  * Адрес экрана согласия.
  * Приложение приходит доводом, а не берётся из настроек сервера: ключи автор
  * вводит в кабинете, и читать их надо в момент работы, а не при старте.
+ *
+ * state Google возвращает нетронутым. Мы кладём в него подписанный адрес
+ * страницы, с которой человек ушёл: без него возврат всегда вёл на загрузку, а
+ * начинал человек в настройках. Подпись здесь не формальность — она же не даёт
+ * принять код возврата, которого мы не запрашивали.
  */
-export function youtubeConsentUrl(app) {
+export function youtubeConsentUrl(app, state = '') {
   const url = new URL(CONSENT_URL);
   url.searchParams.set('client_id', app.clientId);
   url.searchParams.set('redirect_uri', app.redirectUri);
@@ -34,6 +39,7 @@ export function youtubeConsentUrl(app) {
   // удачным и перестаёт работать через час, когда истечёт первый access-токен.
   url.searchParams.set('access_type', 'offline');
   url.searchParams.set('prompt', 'consent');
+  if (state) url.searchParams.set('state', state);
   return url.toString();
 }
 

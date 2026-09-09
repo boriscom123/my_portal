@@ -148,7 +148,7 @@ ${
              ролик придётся вам: до проверки приложения в Google ролики,
              загруженные через API, принудительно остаются приватными.</p>
            <p class="form-row">
-             <a class="button-brand" href="/api/integrations/youtube/connect">
+             <a class="button-brand" href="/api/integrations/youtube/connect?from=/admin/upload">
                Подключить YouTube
              </a>
            </p>`

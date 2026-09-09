@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createApp, finalize } from '../src/app.js';
 import { signSession } from '../src/lib/jwt.js';
-import { loadPlatformApp } from '../src/services/platform-apps.js';
+import { loadPlatformApp, savePlatformApp } from '../src/services/platform-apps.js';
 import { withServer } from './helpers/http.js';
 import { withTestDb, skipWithoutDb } from './helpers/db.js';
 
@@ -151,5 +151,64 @@ test('отключение канала не трогает ключи прил�
     assert.equal(rows.length, 0, 'токены забываем');
     // Заводить ключи заново ради смены аккаунта незачем.
     assert.equal((await loadPlatformApp(pool, config, 'youtube')).clientId, 'client-1');
+  });
+});
+
+test('после подключения человек возвращается туда, откуда ушёл', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const adminId = await seedAdmin(pool);
+    // Без ключей приложения уход на согласие невозможен — сперва заводим их.
+    await savePlatformApp(pool, config, {
+      name: 'youtube',
+      clientId: 'client-1',
+      clientSecret: 'secret-1',
+      mode: 'semi'
+    });
+    const app = finalize(
+      createApp({
+        config,
+        pool,
+        fetchImpl: async () => ({
+          ok: true,
+          json: async () => ({ access_token: 'a', refresh_token: 'r', expires_in: 3599 })
+        })
+      })
+    );
+
+    await withServer(app, async (base) => {
+      // Сначала уходим на согласие из настроек: сервер кладёт страницу
+      // отправления в state.
+      const away = await fetch(
+        `${base}/api/integrations/youtube/connect?from=/settings`,
+        { headers: asUser(adminId, 'admin'), redirect: 'manual' }
+      );
+      assert.equal(away.status, 302);
+      const state = new URL(away.headers.get('location')).searchParams.get('state');
+      assert.ok(state, 'state обязан уйти на Google');
+
+      // Google возвращает его нетронутым.
+      const back = await fetch(
+        `${base}/api/integrations/youtube/callback?code=kod&state=${encodeURIComponent(state)}`,
+        { headers: asUser(adminId, 'admin'), redirect: 'manual' }
+      );
+      assert.equal(back.status, 302);
+      assert.match(back.headers.get('location'), /^\/settings\?youtube=connected/);
+    });
+  });
+});
+
+test('код возврата без подписанного state не принимается', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const adminId = await seedAdmin(pool);
+    const app = finalize(createApp({ config, pool }));
+
+    await withServer(app, async (base) => {
+      // Чужой код возврата мы не запрашивали — принимать его нельзя.
+      const response = await fetch(`${base}/api/integrations/youtube/callback?code=chuzhoy`, {
+        headers: asUser(adminId, 'admin'),
+        redirect: 'manual'
+      });
+      assert.equal(response.status, 400);
+    });
   });
 });
