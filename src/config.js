@@ -153,7 +153,12 @@ export function loadConfig(env = process.env) {
         'https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v5.1.2.bin',
       // Два потока — все ядра машины. Приоритет при этом понижен, иначе портал
       // перестаёт открываться на всё время счёта.
-      threads: Number(env.WHISPER_THREADS ?? 2)
+      threads: Number(env.WHISPER_THREADS ?? 2),
+      // Длина куска, которым считается длинная запись. Полчаса: расход памяти
+      // перестаёт зависеть от длины урока, а лишних запусков модели немного.
+      // Настройкой — чтобы проверять резку на коротком куске, не ожидая
+      // получаса счёта.
+      chunkMinutes: Number(env.WHISPER_CHUNK_MINUTES ?? 30)
     },
     media: {
       dir: env.MEDIA_DIR ?? '/app/media',

@@ -28,7 +28,16 @@ export function makeTranscribe(config, pool, queue, speech) {
       );
     }
 
-    const { text, segments, dropped } = await speech.transcribe(input);
+    const { text, segments, dropped, chunks } = await speech.transcribe(input, {
+      onChunk: ({ index, total }) =>
+        total > 1 ? console.log(`Расшифровка: кусок ${index} из ${total} готов`) : null
+    });
+    if (chunks > 1) {
+      // Длинная запись считается кусками по получасу — так расход памяти не
+      // зависит от длины урока. В журнале это видно, чтобы «двадцать минут
+      // тишины» не выглядели зависанием.
+      console.log(`Расшифровка: запись посчитана ${chunks} кусками`);
+    }
     if (dropped) {
       // Не молча: заготовки из титров — известное поведение модели на тишине,
       // и по их числу видно, много ли в уроке участков без речи.

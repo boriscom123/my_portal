@@ -72,6 +72,27 @@ export function ffmpegArgsForThumbnail({ input, output }) {
 }
 
 /**
+ * Аргументы для куска записи в wav.
+ * Перемотка ДО -i: иначе ffmpeg читает весь файл с начала ради куска из
+ * середины, и на часовой записи это заметно.
+ */
+export function ffmpegArgsForWavPart({ input, output, startMs, endMs }) {
+  return [
+    '-hide_banner',
+    '-loglevel', 'error',
+    '-ss', String(startMs / 1000),
+    '-to', String(endMs / 1000),
+    '-i', input,
+    '-vn',
+    '-ar', '16000',
+    '-ac', '1',
+    '-c:a', 'pcm_s16le',
+    '-y',
+    output
+  ];
+}
+
+/**
  * Пережимает обложку под предел площадки и отдаёт путь к пережатой.
  * Кладёт рядом, а не поверх: обложка принадлежит уроку и порталу, и портить её
  * ради чужого предела нельзя — на витрине она нужна крупной.
