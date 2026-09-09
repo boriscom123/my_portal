@@ -18,7 +18,7 @@ import {
   youtubeConsentUrl,
   exchangeYoutubeCode
 } from '../services/platforms/youtube-auth.js';
-import { youtubeApp, savePlatformApp } from '../services/platform-apps.js';
+import { youtubeApp, savePlatformApp, channelApp } from '../services/platform-apps.js';
 import { signShortLived, verifyShortLived } from '../lib/jwt.js';
 
 // Куда возвращать, если страница отправления неизвестна.
@@ -153,6 +153,30 @@ export function integrationRoutes(config, pool, fetchImpl = fetch) {
   router.post('/youtube/disconnect', async (req, res) => {
     await pool.query(`DELETE FROM integrations WHERE name = 'youtube'`);
     res.json({ ok: true });
+  });
+
+  // Настройки канала: куда постим и чем. У Telegram бот у портала уже есть —
+  // нужен только адрес канала; у MAX своего бота нет, и токен автор заводит сам.
+  router.post('/channel/:platform', async (req, res) => {
+    const platform = req.params.platform;
+    if (!['telegram', 'max'].includes(platform)) {
+      throw new PublicError('Неизвестная площадка', 400);
+    }
+
+    const channel = String(req.body?.channel ?? '').trim();
+    if (!channel) throw new PublicError('Адрес канала пустой', 400);
+
+    await savePlatformApp(pool, config, {
+      name: platform,
+      clientId: '',
+      // Пустой токен означает «не менять»: показать сохранённый нельзя.
+      clientSecret: String(req.body?.token ?? ''),
+      mode: 'auto',
+      settings: { channel }
+    });
+
+    const app = await channelApp(pool, config, platform);
+    res.json({ channel: app.channel, configured: app.configured });
   });
 
   /** Список видео в папке Диска. */

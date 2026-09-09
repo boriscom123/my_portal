@@ -467,25 +467,32 @@ export function initPage() {
 
   // Заливка идёт минутами, поэтому кнопка только ставит задачу: состояние ведёт
   // воркер, а страница показывает его после перечитывания.
-  const youtubeButton = document.querySelector('[data-youtube]');
-  youtubeButton?.addEventListener('click', async () => {
-    try {
-      await withButtonState(youtubeButton, 'Отправляю…', 'Отправлено', async () => {
-        const answer = await request(
-          `/api/admin/lessons/${youtubeButton.dataset.youtube}/publish/youtube`,
-          { method: 'POST' }
-        );
-        if (!answer) return;
-        toast('Ролик поехал на YouTube. Уведомление придёт, когда закончится.');
-        setTimeout(() => location.reload(), 1500);
-      });
-    } catch (error) {
-      toast(`Не отправилось: ${error.message}`, true);
-    }
-  });
+  // Отправка на площадку. Кнопки перебираются списком: площадок будет больше, и
+  // заводить по обработчику на каждую значит однажды забыть про новую.
+  for (const button of document.querySelectorAll('[data-publish]')) {
+    button.addEventListener('click', async () => {
+      const platform = button.dataset.publish;
+      try {
+        await withButtonState(button, 'Отправляю…', 'Отправлено', async () => {
+          const answer = await request(
+            `/api/admin/lessons/${button.value}/publish/${platform}`,
+            { method: 'POST' }
+          );
+          if (!answer) return;
+          toast(
+            platform === 'youtube'
+              ? 'Ролик поехал на YouTube. Уведомление придёт, когда закончится.'
+              : 'Анонс поехал в канал.'
+          );
+          // Состояние ведёт воркер, а не браузер: перечитываем страницу.
+          setTimeout(() => location.reload(), 1500);
+        });
+      } catch (error) {
+        toast(`Не отправилось: ${error.message}`, true);
+      }
+    });
+  }
 
-  // «Проверить»: автор открыл ролик в студии. Спрашиваем площадку, а не верим
-  // на слово, — иначе на карточке урока появится ссылка на приватный ролик.
   const youtubeCheckButton = document.querySelector('[data-youtube-check]');
   youtubeCheckButton?.addEventListener('click', async () => {
     try {

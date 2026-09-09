@@ -34,6 +34,10 @@ import {
   setThumbnail
 } from './services/platforms/youtube.js';
 import { shrinkThumbnail } from './lib/ffmpeg.js';
+import { makePublishChannel, makeRefreshChannels } from './jobs/publish-channel.js';
+import { channelApp } from './services/platform-apps.js';
+import { postToTelegram, editTelegramPost } from './services/platforms/telegram-channel.js';
+import { postToMax, editMaxPost } from './services/platforms/max-channel.js';
 
 const config = loadConfig();
 const pool = createPool(config.db);
@@ -62,6 +66,16 @@ for (const [name, model, modelUrl] of [
   }
 }
 
+// Площадки-каналы: у каждой свои запросы, но одинаковый смысл — отправить
+// анонс и потом поправить подпись. Шаг получает их набором функций, а не
+// импортом внутрь себя: так он проверяется тестом без сети.
+const telegramAdapter = {
+  app: channelApp,
+  post: postToTelegram,
+  edit: editTelegramPost
+};
+const maxAdapter = { app: channelApp, post: postToMax, edit: editMaxPost };
+
 // Обработчики шагов конвейера. Добавляются по мере готовности.
 const handlers = {
   [JOBS.fetchSource]: makeFetchSource(config, pool),
@@ -83,6 +97,12 @@ const handlers = {
     insertCaptions,
     setThumbnail,
     shrinkThumbnail
+  }),
+  [JOBS.publishTelegram]: makePublishChannel(config, pool, 'telegram', telegramAdapter),
+  [JOBS.publishMax]: makePublishChannel(config, pool, 'max', maxAdapter),
+  [JOBS.refreshChannels]: makeRefreshChannels(config, pool, {
+    telegram: telegramAdapter,
+    max: maxAdapter
   })
 };
 
@@ -134,7 +154,9 @@ const DONE_MESSAGES = {
   [JOBS.publishYoutube]: {
     title: 'Ролик на YouTube',
     body: 'Лежит приватным — откройте его в студии'
-  }
+  },
+  [JOBS.publishTelegram]: { title: 'Анонс в Telegram', body: 'Пост в канале опубликован' },
+  [JOBS.publishMax]: { title: 'Анонс в MAX', body: 'Пост в канале опубликован' }
 };
 
 worker.on('completed', async (job) => {

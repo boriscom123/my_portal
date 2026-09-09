@@ -18,7 +18,7 @@ import { startPublication, publicationsFor, markPublicationState } from '../serv
 import { assetsOfLesson } from '../services/media.js';
 import { pickVideoAsset } from '../services/platforms/youtube-fields.js';
 import { youtubeAccessToken } from '../services/platforms/youtube-auth.js';
-import { youtubeApp } from '../services/platform-apps.js';
+import { youtubeApp, channelApp } from '../services/platform-apps.js';
 import { readVideoPrivacy } from '../services/platforms/youtube.js';
 
 import { rebuildSubtitles } from '../services/transcript.js';
@@ -100,6 +100,38 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
     res.json({ publicationId: publication.id, state: 'queued' });
   });
 
+  // Анонс в канал. Кнопка на каждую площадку своя: у Telegram и MAX разные
+  // настройки и разные отказы, и общий запуск скрыл бы, какая из них молчит.
+  for (const [platform, job] of [
+    ['telegram', JOBS.publishTelegram],
+    ['max', JOBS.publishMax]
+  ]) {
+    router.post(`/lessons/:slug/publish/${platform}`, async (req, res) => {
+      const lesson = await getLessonBySlug(pool, req.params.slug, { includeDrafts: true });
+      if (!lesson) throw new PublicError('Урок не найден', 404);
+      if (!lesson.coverUrl) {
+        throw new PublicError('У урока нет обложки — без неё пост в ленте теряется', 400);
+      }
+
+      const app = await channelApp(pool, config, platform);
+      if (!app.configured) {
+        throw new PublicError(`Канал ${platform} не настроен — заполните его в настройках`, 400);
+      }
+
+      const publication = await startPublication(pool, {
+        lessonId: lesson.id,
+        platform,
+        assetId: null,
+        mode: 'auto'
+      });
+      await addJob(req.app.locals.queue, job, {
+        lessonId: lesson.id,
+        publicationId: publication.id
+      });
+      res.json({ publicationId: publication.id, state: 'queued' });
+    });
+  }
+
   // «Проверить»: автор открыл ролик в студии — спрашиваем площадку и снимаем
   // замок с ссылки в карточке. Опрашивать по расписанию незачем: это работа
   // ради одного нажатия раз в неделю.
@@ -121,7 +153,12 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
       fetchImpl
     });
     const state = privacy === 'public' ? 'published' : publication.state;
-    if (state !== publication.state) await markPublicationState(pool, publication.id, { state });
+    if (state !== publication.state) {
+      await markPublicationState(pool, publication.id, { state });
+      // Ролик стал виден зрителю — в постах каналов должна появиться ссылка на
+      // него. Правкой уже отправленных постов, а не новыми.
+      await addJob(req.app.locals.queue, JOBS.refreshChannels, { lessonId: lesson.id });
+    }
     res.json({ state, privacy });
   });
 

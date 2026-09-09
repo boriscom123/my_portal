@@ -56,18 +56,10 @@ export function adminReviewPage({
   covers = [],
   sideError = null,
   publications = [],
-  youtubeConfigured = false,
+  platforms = [],
   links
 }) {
   const state = stateLabel(lesson);
-  // Площадка пока одна, но строк публикаций у урока будет много: у каждого
-  // вертикального ролика своя. Берём ту, что про горизонтальную запись.
-  const youtube = publications.find((item) => item.platform === 'youtube') ?? null;
-  // Есть ли смысл в кнопке отправки. Ролик, который уже на канале, вторым
-  // нажатием не обновится — на канал уедет ВТОРАЯ копия, а удалять её придётся
-  // руками. Поэтому кнопка остаётся только там, где отправлять правда нечего
-  // или отправка провалилась.
-  const youtubeSendable = !youtube || youtube.state === 'failed';
   const failed = lesson.pipelineState === 'failed';
   const settings = readSettings(lesson.settings);
   // Пока записи нет, главное действие — загрузить её. Когда есть, предлагать
@@ -277,55 +269,73 @@ ${
 <section class="card">
   <h2>Площадки</h2>
   ${
-    !youtubeConfigured
-      ? `<p class="hint">YouTube не настроен: в окружении нет ключей приложения
-           Google. Как их завести — в docs/youtube-setup.md.</p>`
-      : youtube
-      ? `<p>YouTube: ${escapeHtml(PUBLICATION_STATES[youtube.state] ?? youtube.state)}${
-          youtube.url && youtube.state !== 'failed'
-            ? ` — <a href="${escapeHtml(youtube.url)}" rel="noopener" target="_blank">открыть ролик</a>`
-            : ''
-        }</p>
-         ${youtube.error ? `<p class="hint danger">${escapeHtml(youtube.error)}</p>` : ''}
-         ${
-           ['queued', 'uploading'].includes(youtube.state)
-             ? `<p class="hint">Пока идёт выкладка, отправлять заново нечего: вторая
-                  попытка положила бы на канал вторую копию.</p>`
-             : ''
-         }
-         ${
-           youtube.state === 'ready'
-             ? `<p class="hint">Ролик лежит на канале приватным — таковы правила Google,
-                  пока приложение не прошло проверку. Откройте его в студии и нажмите
-                  «Проверить»: тогда ссылка появится на странице урока.</p>
-                <p class="form-row">
-                  <button class="button" type="button"
-                    data-youtube-check="${escapeHtml(lesson.slug)}">Проверить</button>
-                </p>`
-             : ''
-         }`
-      : '<p class="hint">На YouTube ещё не отправляли.</p>'
+    platforms.length
+      ? platforms
+          .map((platform) => {
+            const publication = publications.find((item) => item.platform === platform.name);
+            // Кнопка остаётся только там, где ей есть что делать. Ролик и пост,
+            // которые уже ушли, вторым нажатием не обновятся — уедет вторая
+            // копия, и убирать её придётся руками на самой площадке.
+            const sendable = !publication || publication.state === 'failed';
+
+            return `<div class="platform-row">
+              <p><strong>${escapeHtml(platform.title)}</strong>: ${
+                publication
+                  ? escapeHtml(PUBLICATION_STATES[publication.state] ?? publication.state)
+                  : 'не отправляли'
+              }${
+                publication?.url && publication.state !== 'failed'
+                  ? ` — <a href="${escapeHtml(publication.url)}" rel="noopener" target="_blank">открыть</a>`
+                  : ''
+              }</p>
+              ${
+                publication?.error
+                  ? `<p class="hint danger">${escapeHtml(publication.error)}</p>`
+                  : ''
+              }
+              ${
+                platform.name === 'youtube' && publication?.state === 'ready'
+                  ? `<p class="hint">Ролик лежит на канале приватным — таковы правила Google,
+                       пока приложение не прошло проверку. Откройте его в студии и нажмите
+                       «Проверить»: тогда ссылка появится и на странице урока, и в постах
+                       каналов.</p>
+                     <p class="form-row">
+                       <button class="button" type="button"
+                         data-youtube-check="${escapeHtml(lesson.slug)}">Проверить</button>
+                     </p>`
+                  : ''
+              }
+              ${
+                sendable
+                  ? `<p class="form-row">
+                       <button class="button" type="button"
+                         data-publish="${escapeHtml(platform.name)}"
+                         value="${escapeHtml(lesson.slug)}"
+                         ${
+                           platform.needsCover && !lesson.coverUrl
+                             ? 'disabled title="Сначала нужна обложка"'
+                             : hasSource
+                               ? busy
+                                 ? 'disabled title="Идёт обработка — дождитесь её конца"'
+                                 : ''
+                               : 'disabled title="Сначала загрузите запись"'
+                         }>
+                         ${publication?.state === 'failed' ? 'Отправить заново' : platform.action}
+                       </button>
+                     </p>`
+                  : ''
+              }
+            </div>`;
+          })
+          .join('')
+      : `<p class="hint">Ни одна площадка не настроена. Ключи и каналы заводятся в
+           <a href="/settings">настройках</a>.</p>`
   }
-  ${
-    youtubeConfigured && youtubeSendable
-      ? `<div class="form-row">
-    <button class="button-brand" type="button" data-youtube="${escapeHtml(lesson.slug)}"
-      ${
-        hasSource
-          ? busy
-            ? 'disabled title="Идёт обработка — дождитесь её конца"'
-            : ''
-          : 'disabled title="Сначала загрузите запись"'
-      }>
-      ${youtube?.state === 'failed' ? 'Отправить заново' : 'Отправить на YouTube'}
-    </button>
-  </div>
   <p class="hint">
-    Уезжает смонтированная запись, если вы её собрали, иначе исходник. Субтитры
-    идут отдельным треком — зритель их выключает, а площадка по ним переводит.
-  </p>`
-      : ''
-  }
+    На YouTube уезжает смонтированная запись, если вы её собрали, иначе исходник;
+    субтитры идут отдельным треком. В каналы уходит анонс — обложка, описание и
+    ссылки, — и он дополняется сам, когда ролик выходит на площадках.
+  </p>
 </section>
 
 <section class="card">

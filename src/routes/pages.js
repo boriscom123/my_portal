@@ -13,7 +13,7 @@ import { privacyPage, termsPage } from '../views/legal.js';
 import { adminReviewPage } from '../views/admin-review.js';
 import { adminPreviewPage } from '../views/admin-preview.js';
 import { publicationsFor } from '../services/publications.js';
-import { youtubeApp } from '../services/platform-apps.js';
+import { youtubeApp, channelApp, loadPlatformApp } from '../services/platform-apps.js';
 import { mediaLink } from '../lib/media-token.js';
 import { probeDuration } from '../lib/ffmpeg.js';
 import { mediaPath } from '../services/media.js';
@@ -261,9 +261,33 @@ export function pageRoutes(config, pool) {
         // Публикации целиком, с причиной отказа: карточке урока хватает ссылки
         // и состояния, а кабинету нужно ещё и объяснение.
         publications: await publicationsFor(pool, lesson.id),
-        // Настроена ли площадка: без ключей кнопка выкладки была бы кнопкой,
-        // которая всегда отвечает отказом.
-        youtubeConfigured: (await youtubeApp(pool, config)).configured,
+        // Площадки, у которых есть настройки: без ключей кнопка выкладки была бы
+        // кнопкой, которая всегда отвечает отказом.
+        platforms: (
+          await Promise.all([
+            youtubeApp(pool, config).then((app) => ({
+              name: 'youtube',
+              title: 'YouTube',
+              action: 'Отправить на YouTube',
+              needsCover: false,
+              configured: app.configured
+            })),
+            channelApp(pool, config, 'telegram').then((app) => ({
+              name: 'telegram',
+              title: 'Канал Telegram',
+              action: 'Отправить анонс',
+              needsCover: true,
+              configured: app.configured
+            })),
+            channelApp(pool, config, 'max').then((app) => ({
+              name: 'max',
+              title: 'Канал MAX',
+              action: 'Отправить анонс',
+              needsCover: true,
+              configured: app.configured
+            }))
+          ])
+        ).filter((platform) => platform.configured),
         segments: segmentRows.map((row) => ({
           id: Number(row.id),
           startedMs: Number(row.started_ms),
@@ -381,7 +405,39 @@ export function pageRoutes(config, pool) {
             };
           })()
         : null;
-    res.type('html').send(settingsPage({ config, user, youtube }));
+    // Каналы: у Telegram бот портала уже есть, поэтому токен там не спрашиваем.
+    const channels =
+      user?.role === 'admin'
+        ? await Promise.all(
+            [
+              {
+                name: 'telegram',
+                title: 'Канал Telegram',
+                hint: 'Бот портала уже есть — сделайте его администратором канала и укажите адрес.',
+                placeholder: '@moy-kanal',
+                needsToken: false
+              },
+              {
+                name: 'max',
+                title: 'Канал MAX',
+                hint: 'Своего бота у портала здесь нет: заведите его в MAX и вставьте токен.',
+                placeholder: 'номер или адрес канала',
+                needsToken: true
+              }
+            ].map(async (item) => {
+              const app = await channelApp(pool, config, item.name);
+              const stored = await loadPlatformApp(pool, config, item.name);
+              return {
+                ...item,
+                channel: app.channel,
+                configured: app.configured,
+                // Сам токен наружу не отдаём — только то, что он есть.
+                hasToken: Boolean(stored?.clientSecret)
+              };
+            })
+          )
+        : [];
+    res.type('html').send(settingsPage({ config, user, youtube, channels }));
   });
 
   router.get('/ideas', async (req, res) => {

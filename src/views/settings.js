@@ -11,7 +11,7 @@
 import { escapeHtml } from '../lib/html.js';
 import { layout } from './layout.js';
 
-export function settingsPage({ config, user, youtube = null }) {
+export function settingsPage({ config, user, youtube = null, channels = [] }) {
   return layout({
     config,
     user,
@@ -111,7 +111,41 @@ ${
            </p>`
       : '<p class="hint">Сохраните ключи — после этого появится кнопка подключения канала.</p>'
   }
+</section>
+
+${channels
+  .map(
+    (channel) => `<section class="card">
+  <h3>${escapeHtml(channel.title)}</h3>
+  <p class="hint">${escapeHtml(channel.hint)}</p>
+  <form data-channel-app="${escapeHtml(channel.name)}">
+    <label>Адрес канала
+      <input name="channel" value="${escapeHtml(channel.channel)}" autocomplete="off"
+             maxlength="200" placeholder="${escapeHtml(channel.placeholder)}" required>
+    </label>
+    ${
+      channel.needsToken
+        ? `<label>Токен бота
+      <input name="token" type="password" autocomplete="off" maxlength="200"
+             placeholder="${channel.hasToken ? 'сохранён — оставьте пустым, чтобы не менять' : 'вставьте токен бота'}"
+             ${channel.hasToken ? '' : 'required'}>
+    </label>`
+        : ''
+    }
+    <div class="form-row">
+      <button class="button-brand" type="submit">Сохранить</button>
+    </div>
+  </form>
+  <p class="hint">
+    ${
+      channel.configured
+        ? 'Канал настроен — анонс отправляется с экрана урока.'
+        : 'Пока не настроен: анонс отправить не получится.'
+    }
+  </p>
 </section>`
+  )
+  .join('')}`
     : ''
 }`
   });

@@ -619,18 +619,20 @@ test('кнопка отправки исчезает, когда ролик уж
     assets: [{ kind: 'source', path: 'lesson-1/urok.mp4', bytes: 10, expiresLabel: '15.09.2026' }],
     transcript: null,
     links: { subtitles: [], clips: [] },
-    youtubeConfigured: true
+    platforms: [
+      { name: 'youtube', title: 'YouTube', action: 'Отправить на YouTube', needsCover: false }
+    ]
   };
 
   const before = adminReviewPage({ ...base, publications: [] });
-  assert.match(before, /data-youtube="urok"/, 'пока не отправляли — кнопка нужна');
+  assert.match(before, /data-publish="youtube"/, 'пока не отправляли — кнопка нужна');
 
   for (const state of ['queued', 'uploading', 'ready', 'published']) {
     const html = adminReviewPage({
       ...base,
       publications: [{ platform: 'youtube', state, url: 'https://youtu.be/x', error: null }]
     });
-    assert.doesNotMatch(html, /data-youtube="urok"/, `в состоянии ${state} кнопки быть не должно`);
+    assert.doesNotMatch(html, /data-publish="youtube"/, `в состоянии ${state} кнопки быть не должно`);
   }
 
   // А вот после отказа отправить заново — единственное, что можно сделать.
@@ -638,6 +640,6 @@ test('кнопка отправки исчезает, когда ролик уж
     ...base,
     publications: [{ platform: 'youtube', state: 'failed', url: null, error: 'квота' }]
   });
-  assert.match(failed, /data-youtube="urok"/);
+  assert.match(failed, /data-publish="youtube"/);
   assert.match(failed, /Отправить заново/);
 });

@@ -22,20 +22,26 @@ export function youtubeRedirectUri(config) {
  * странице всегда пустое, и правка одного лишь номера приложения не должна
  * молча ломать подключение.
  */
-export async function savePlatformApp(pool, config, { name, clientId, clientSecret, mode }) {
+export async function savePlatformApp(
+  pool,
+  config,
+  { name, clientId, clientSecret, mode, settings = {} }
+) {
   await pool.query(
-    `INSERT INTO platform_apps (name, client_id, client_secret, mode, updated_at)
-     VALUES ($1, $2, $3, $4, now())
+    `INSERT INTO platform_apps (name, client_id, client_secret, mode, settings, updated_at)
+     VALUES ($1, $2, $3, $4, $5::jsonb, now())
      ON CONFLICT (name) DO UPDATE
        SET client_id = EXCLUDED.client_id,
            client_secret = COALESCE(EXCLUDED.client_secret, platform_apps.client_secret),
            mode = EXCLUDED.mode,
+           settings = platform_apps.settings || EXCLUDED.settings,
            updated_at = now()`,
     [
       name,
       String(clientId ?? '').trim(),
       clientSecret ? encryptSecret(clientSecret, config.tokenEncryptionKey) : null,
-      mode === 'auto' ? 'auto' : 'semi'
+      mode === 'auto' ? 'auto' : 'semi',
+      JSON.stringify(settings ?? {})
     ]
   );
 }
@@ -43,7 +49,7 @@ export async function savePlatformApp(pool, config, { name, clientId, clientSecr
 /** Ключи приложения из базы. null — в кабинете их не заводили. */
 export async function loadPlatformApp(pool, config, name) {
   const { rows } = await pool.query(
-    'SELECT client_id, client_secret, mode FROM platform_apps WHERE name = $1',
+    'SELECT client_id, client_secret, mode, settings FROM platform_apps WHERE name = $1',
     [name]
   );
   if (!rows.length) return null;
@@ -52,7 +58,8 @@ export async function loadPlatformApp(pool, config, name) {
     clientSecret: rows[0].client_secret
       ? decryptSecret(rows[0].client_secret, config.tokenEncryptionKey)
       : '',
-    mode: rows[0].mode
+    mode: rows[0].mode,
+    settings: rows[0].settings ?? {}
   };
 }
 
@@ -78,5 +85,27 @@ export async function youtubeApp(pool, config) {
     // Настроена ли площадка. Отдельным полем, а не проверкой номера по месту:
     // спрашивают об этом три разные страницы, и правило должно быть одно.
     configured: Boolean(clientId && clientSecret)
+  };
+}
+
+/**
+ * Канал-площадка: куда постим и чем.
+ *
+ * У Telegram бот у портала уже есть — тот же, которым работают вход и
+ * уведомления, — поэтому оттуда нужен только адрес канала. У MAX своего бота
+ * нет вовсе, и токен для него автор заводит в кабинете.
+ * Вызывается из шагов выкладки в каналы и из кабинета.
+ */
+export async function channelApp(pool, config, name) {
+  const stored = await loadPlatformApp(pool, config, name);
+  const channel = String(stored?.settings?.channel ?? '').trim();
+  const token = name === 'telegram' ? (config.telegram?.botToken ?? '') : (stored?.clientSecret ?? '');
+
+  return {
+    name,
+    channel,
+    token,
+    // Настроена ли площадка: без канала постить некуда, без токена — нечем.
+    configured: Boolean(channel && token)
   };
 }

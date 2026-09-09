@@ -405,6 +405,34 @@ function initPage() {
     }
   });
 
+  // Настройки каналов: адрес канала и, у MAX, токен бота. Форма отправляется
+  // через API — без перехвата браузер увёз бы токен в адресную строку.
+  for (const form of document.querySelectorAll('[data-channel-app]')) {
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const fields = new FormData(form);
+      const button = form.querySelector('button[type=submit]');
+      button.disabled = true;
+
+      try {
+        const answer = await request(`/api/integrations/channel/${form.dataset.channelApp}`, {
+          method: 'POST',
+          body: JSON.stringify({
+            channel: fields.get('channel'),
+            token: fields.get('token') ?? ''
+          })
+        });
+        if (!answer) return;
+        toast('Канал сохранён.');
+        setTimeout(() => location.reload(), 1200);
+      } catch (error) {
+        toast(`Не сохранилось: ${error.message}`, true);
+      } finally {
+        button.disabled = false;
+      }
+    });
+  }
+
   const youtubeDisconnect = document.querySelector('[data-youtube-disconnect]');
   youtubeDisconnect?.addEventListener('click', async () => {
     youtubeDisconnect.disabled = true;
