@@ -64,7 +64,11 @@ export function lessonsPage({ config, user, lessons, diskConnected = false }) {
     title: 'Уроки — Solo AI Journey',
     description: 'Все видеоуроки портала: от идеи до продукта, шаг за шагом.',
     body: `
-<h1>Уроки</h1>
+<h1>Уроки${
+  isAdmin
+    ? ` <a class="add" href="/lessons/new" title="Завести урок" aria-label="Завести урок">+</a>`
+    : ''
+}</h1>
 ${
   isAdmin
     ? `<p class="hint">
@@ -77,23 +81,7 @@ ${
     : ''
 }
 
-${
-  isAdmin
-    ? `<section class="card">
-  <h2>Завести урок</h2>
-  <form id="new-lesson-form" data-new-lesson>
-    <div class="form-row">
-      <button class="button-brand" type="submit">Завести урок</button>
-    </div>
-  </form>
-  <p class="hint">
-    Название спрашивать нечего: на этом шаге его неоткуда взять. Урок получит
-    временное имя с датой, а настоящее предложит модель по расшифровке — и вы
-    его поправите. Дальше: загрузить запись, потом нажать «Обработать».
-  </p>
-</section>`
-    : ''
-}
+
 
 ${
   lessons.length

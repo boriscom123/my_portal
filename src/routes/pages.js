@@ -8,8 +8,9 @@ import { offlinePage } from '../views/offline.js';
 import { telegramReturnPage } from '../views/telegram-return.js';
 import { adminUploadPage } from '../views/admin-upload.js';
 import { lessonsPage } from '../views/lessons-page.js';
+import { lessonNewPage } from '../views/lesson-new.js';
 import { settingsPage } from '../views/settings.js';
-import { newsListPage, newsPage } from '../views/news.js';
+import { newsListPage, newsPage, newsEditPage } from '../views/news.js';
 import { listNews, getNewsBySlug } from '../services/news.js';
 import { privacyPage, termsPage } from '../views/legal.js';
 import { adminReviewPage } from '../views/admin-review.js';
@@ -157,6 +158,17 @@ export function pageRoutes(config, pool) {
         user,
         lessons: await listLessons(pool, { includeDrafts: isAdmin }),
         diskConnected: isAdmin ? await diskConnected() : false
+      })
+    );
+  });
+
+  // Заведение урока — своей страницей: форма посреди списка мешала его читать.
+  router.get('/lessons/new', requireAdmin, async (req, res) => {
+    res.type('html').send(
+      lessonNewPage({
+        config,
+        user: await currentUser(pool, req),
+        diskConnected: await diskConnected()
       })
     );
   });
@@ -378,6 +390,19 @@ export function pageRoutes(config, pool) {
   router.get('/news', async (req, res) => {
     const user = await currentUser(pool, req);
     res.type('html').send(newsListPage({ config, user, news: await listNews(pool, {}) }));
+  });
+
+  // Создание и правка — отдельными страницами: форма посреди списка мешает
+  // читать список, а на своей странице ей есть где развернуться.
+  // Объявлены ДО /news/:slug: иначе «new» попало бы в него как адрес новости.
+  router.get('/news/new', requireAdmin, async (req, res) => {
+    res.type('html').send(newsEditPage({ config, user: await currentUser(pool, req) }));
+  });
+
+  router.get('/news/:slug/edit', requireAdmin, async (req, res) => {
+    const item = await getNewsBySlug(pool, req.params.slug);
+    if (!item) throw new PublicError('Новость не найдена', 404);
+    res.type('html').send(newsEditPage({ config, user: await currentUser(pool, req), item }));
   });
 
   router.get('/news/:slug', async (req, res) => {

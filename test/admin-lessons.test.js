@@ -175,7 +175,7 @@ test('опубликованный урок так просто не удали�
   });
 });
 
-test('на странице видны уроки, форма заведения и кнопка удаления', skipWithoutDb, async () => {
+test('на странице видны уроки, ссылка на заведение и кнопка удаления', skipWithoutDb, async () => {
   const config = await makeConfig();
   await withTestDb(async (pool) => {
     await saveLesson(pool, { slug: 'chernovik', title: 'Черновик' });
@@ -183,7 +183,10 @@ test('на странице видны уроки, форма заведения
     const app = finalize(createApp({ config, pool }));
     await withServer(app, async (base) => {
       const html = await (await fetch(`${base}/lessons`, { headers })).text();
-      assert.match(html, /data-new-lesson/);
+      // Форма заведения переехала на свою страницу: посреди списка она мешала
+      // его читать. В заголовке остался «+», который туда ведёт.
+      assert.match(html, /href="\/lessons\/new"/);
+      assert.doesNotMatch(html, /data-new-lesson/);
       assert.match(html, /data-lesson-delete="chernovik"/);
       assert.match(html, /Черновик/);
     });
@@ -238,6 +241,27 @@ test('на странице уроков нет ссылок, которые у�
       for (const link of ['/settings', '/feedback', '"/"']) {
         assert.ok(!main.includes(`href="${link.replace(/"/g, '')}"`), `в теле осталась ссылка ${link}`);
       }
+    });
+  });
+});
+
+test('страница заведения урока открыта только автору', skipWithoutDb, async () => {
+  const config = await makeConfig();
+  await withTestDb(async (pool) => {
+    const { rows } = await pool.query(
+      `INSERT INTO users (display_name, role) VALUES ('Зритель', 'user') RETURNING id`
+    );
+    const app = finalize(createApp({ config, pool }));
+    await withServer(app, async (base) => {
+      const guest = await fetch(`${base}/lessons/new`, {
+        headers: {
+          Accept: 'text/html',
+          Authorization: `Bearer ${signSession({ userId: Number(rows[0].id), role: 'user' }, config.jwtSecret)}`
+        }
+      });
+      // Список уроков публичный, а заведение — нет: это распоряжение
+      // содержимым портала, а не его чтение.
+      assert.equal(guest.status, 403);
     });
   });
 });

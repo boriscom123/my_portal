@@ -145,3 +145,41 @@ test('перенос строки в новости остаётся перен�
   const { linkify } = await import('../src/views/news.js');
   assert.match(linkify('первая\nвторая'), /первая<br>вторая/);
 });
+
+test('в списке новостей есть «+» и значок правки — только автору', async () => {
+  const { newsListPage } = await import('../src/views/news.js');
+  const news = [
+    { id: 1, slug: 'novost', title: 'Новость', body: 'Текст', images: [], publishedAt: new Date() }
+  ];
+  const config = { publicBaseUrl: 'https://portal.example' };
+
+  const forAuthor = newsListPage({ config, user: { role: 'admin' }, news });
+  assert.match(forAuthor, /href="\/news\/new"/);
+  assert.match(forAuthor, /href="\/news\/novost\/edit"/);
+  // Формы посреди списка больше нет: она мешала читать список.
+  assert.doesNotMatch(forAuthor, /data-news-form/);
+
+  const forGuest = newsListPage({ config, user: null, news });
+  assert.doesNotMatch(forGuest, /\/news\/new/);
+  assert.doesNotMatch(forGuest, /\/edit/);
+});
+
+test('на странице правки есть форма, картинки и кнопка анонсов', async () => {
+  const { newsEditPage } = await import('../src/views/news.js');
+  const html = newsEditPage({
+    config: { publicBaseUrl: 'https://portal.example' },
+    user: { role: 'admin' },
+    item: {
+      id: 1,
+      slug: 'novost',
+      title: 'Новость',
+      body: 'Текст',
+      images: [{ id: 5, url: '/media/asset/5' }],
+      publishedAt: new Date()
+    }
+  });
+  assert.match(html, /data-news-form="novost"/);
+  assert.match(html, /data-announcements/);
+  assert.match(html, /data-news-image="novost"/);
+  assert.match(html, /media\/asset\/5/);
+});

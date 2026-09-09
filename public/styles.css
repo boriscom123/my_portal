@@ -883,6 +883,42 @@ form > textarea {
   margin-top: 12px;
 }
 
+/* «+» в заголовке раздела и значок правки у записи.
+ *
+ * Ссылками, а не кнопками: они ведут на страницу, а не совершают действие, и
+ * средним щелчком должны открываться в новой вкладке, как всякая ссылка. */
+.add,
+.edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--tap-target);
+  min-height: var(--tap-target);
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  text-decoration: none;
+  vertical-align: middle;
+}
+.add {
+  font-size: 24px;
+  line-height: 1;
+}
+.edit {
+  font-size: 16px;
+  /* У заголовка записи значок мельче: он спутник заголовка, а не сосед. */
+  min-width: 34px;
+  min-height: 34px;
+}
+.add:hover,
+.edit:hover,
+.add:focus-visible,
+.edit:focus-visible {
+  color: var(--brand-2);
+  border-color: var(--brand-2);
+  text-decoration: none;
+}
+
 /* --- Новости ------------------------------------------------------------- */
 
 .news-card h2 {

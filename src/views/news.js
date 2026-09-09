@@ -75,9 +75,11 @@ export function newsListPage({ config, user, news }) {
     title: 'Новости — Solo AI Journey',
     description: 'Что нового на портале: анонсы, итоги и заметки между уроками.',
     body: `
-<h1>Новости</h1>
-
-${isAdmin ? newsForm() : ''}
+<h1>Новости${
+      isAdmin
+        ? ` <a class="add" href="/news/new" title="Написать новость" aria-label="Написать новость">+</a>`
+        : ''
+    }</h1>
 
 ${
   news.length
@@ -85,7 +87,12 @@ ${
         .map(
           (item) => `<article class="card news-card">
   <p class="meta">${escapeHtml(formatDate(item.publishedAt))}</p>
-  <h2><a href="/news/${encodeURIComponent(item.slug)}">${escapeHtml(item.title)}</a></h2>
+  <h2><a href="/news/${encodeURIComponent(item.slug)}">${escapeHtml(item.title)}</a>${
+            isAdmin
+              ? ` <a class="edit" href="/news/${encodeURIComponent(item.slug)}/edit"
+                   title="Править новость" aria-label="Править новость">✎</a>`
+              : ''
+          }</h2>
   ${newsImages(item.images.slice(0, 1))}
   <p class="card-text">${escapeHtml(item.body).slice(0, 400)}</p>
 </article>`
@@ -115,16 +122,9 @@ export function newsPage({ config, user, item }) {
 
 ${
   isAdmin
-    ? `${newsForm(item)}
-<section class="card">
-  <h2>Картинки</h2>
-  <p class="hint">Одна показывается как есть, несколько — лентой с прокруткой.</p>
-  <p class="form-row">
-    <label class="button" for="news-image">Добавить картинку</label>
-    <input id="news-image" type="file" accept="image/png,image/jpeg,image/webp" hidden
-      data-news-image="${escapeHtml(item.slug)}">
-  </p>
-</section>`
+    ? `<p class="form-row">
+         <a class="button" href="/news/${encodeURIComponent(item.slug)}/edit">Править новость</a>
+       </p>`
     : ''
 }`
   });
@@ -146,4 +146,38 @@ export function linkify(text) {
       )
     )
     .join('<br>');
+}
+
+/** Страница создания и правки новости. */
+export function newsEditPage({ config, user, item = null }) {
+  return layout({
+    config,
+    user,
+    path: item ? `/news/${item.slug}/edit` : '/news/new',
+    title: item ? `Правка новости — Solo AI Journey` : 'Новая новость — Solo AI Journey',
+    description: 'Написать или поправить новость портала.',
+    body: `
+<p><a href="/news">← Новости</a></p>
+<h1>${item ? 'Правка новости' : 'Новая новость'}</h1>
+
+${newsForm(item)}
+
+${
+  item
+    ? `<section class="card">
+  <h2>Картинки</h2>
+  <p class="hint">
+    Одна показывается как есть, несколько — лентой с прокруткой. Порядок — тот,
+    в каком вы их загружали.
+  </p>
+  ${newsImages(item.images)}
+  <p class="form-row">
+    <label class="button" for="news-image">Добавить картинку</label>
+    <input id="news-image" type="file" accept="image/png,image/jpeg,image/webp" hidden
+      data-news-image="${escapeHtml(item.slug)}">
+  </p>
+</section>`
+    : '<p class="hint">Картинки добавляются после сохранения — на этой же странице.</p>'
+}`
+  });
 }
