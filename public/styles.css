@@ -956,6 +956,41 @@ form > textarea {
   flex-wrap: wrap;
 }
 
+/* Полоска про файлы браузера.
+ *
+ * Внизу и узкой: рассказ о куках — не событие, ради которого стоит закрывать
+ * урок. Она уступает дорогу всплывающим сообщениям (z-index ниже) — те
+ * отвечают на действие человека прямо сейчас, а эта просто висит.
+ */
+.cookie-note {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: min(94vw, 46rem);
+  padding: 12px 18px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--muted);
+  border: 1px solid var(--line);
+  box-shadow: 0 12px 32px -18px #000;
+  font-size: 13px;
+}
+.cookie-note p {
+  margin: 0;
+  flex: 1 1 18rem;
+}
+.cookie-note .button {
+  flex: 0 0 auto;
+  min-height: var(--tap-target);
+}
+
 /* --- Сообщения ----------------------------------------------------------- */
 
 /* Полоска внизу экрана: короткий ответ на действие человека. Внизу, а не

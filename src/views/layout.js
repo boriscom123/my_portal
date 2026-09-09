@@ -102,6 +102,18 @@ ${
 <div class="rocket-flight" data-rocket hidden aria-hidden="true">${rocket({ height: 34, id: 'flight' })}</div>
 
 <main>${body}</main>
+<!-- Полоска про файлы браузера. Скрыта разметкой и открывается скриптом, если
+     человек её ещё не закрывал: иначе вернувшийся зритель видел бы её мельканием
+     на каждой странице. -->
+<aside class="cookie-note" data-cookie-note hidden>
+  <p>
+    Портал держит в браузере только нужное для работы: то, что вы вошли, и
+    выбранную тему оформления. Счётчиков и рекламных файлов здесь нет —
+    <a href="/privacy">подробности в политике</a>.
+  </p>
+  <button class="button" type="button" data-cookie-ok>Понятно</button>
+</aside>
+
 <footer>
   <span>soloaijourney.online</span>
   <span class="tagline">от идеи до продукта</span>

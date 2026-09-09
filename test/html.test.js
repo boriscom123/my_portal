@@ -472,3 +472,17 @@ test('ссылки площадок переливаются тем же гра�
   assert.match(styles, /\.platform-link:hover,\s*\n\.platform-link:focus-visible \{\s*\n\s*text-decoration: none;/);
   assert.doesNotMatch(styles, /\.platform-link \{[^}]*border-bottom/);
 });
+
+test('полоска про файлы браузера есть, скрыта и говорит правду', () => {
+  const html = layout({ config, path: '/', title: 'Портал', description: '', body: '<p>тело</p>' });
+
+  // Скрыта разметкой: вернувшийся зритель не должен видеть её мельканием на
+  // каждой странице, пока скрипт не решит, показывать ли.
+  assert.match(html, /data-cookie-note hidden/);
+  assert.match(html, /data-cookie-ok/);
+
+  // Текст обязан совпадать с тем, что портал правда делает: одна кука после
+  // входа и выбор темы. Счётчиков нет — проверено по разметке.
+  assert.match(html, /Счётчиков и рекламных файлов здесь нет/);
+  assert.match(html, /href="\/privacy"/);
+});
