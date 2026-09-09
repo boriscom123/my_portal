@@ -12,17 +12,20 @@ async function makeLesson(pool) {
   return rows[0].id;
 }
 
-test('у файла буфера обязателен срок жизни', skipWithoutDb, async () => {
+test('пустой срок жизни допустим — это файл витрины', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
     const id = await makeLesson(pool);
-    // Файл без срока однажды переполнит диск и положит все проекты сервера.
-    await assert.rejects(
-      pool.query(
-        `INSERT INTO assets (lesson_id, kind, path, bytes) VALUES ($1, 'source', '/a', 1)`,
-        [id]
-      ),
-      /null value|not-null/i
+    // Раньше срок был обязателен: файл без него однажды переполнил бы диск.
+    // Но обложка живёт на витрине, и удалять её по времени значит ломать
+    // карточку урока — поэтому пустой срок теперь означает «храним, пока
+    // используется». Рабочим файлам срок по-прежнему ставит registerAsset, и
+    // это проверяет media-service.test.js.
+    await pool.query(
+      `INSERT INTO assets (lesson_id, kind, path, bytes) VALUES ($1, 'cover', '/a', 1)`,
+      [id]
     );
+    const { rows } = await pool.query(`SELECT expires_at FROM assets WHERE path = '/a'`);
+    assert.equal(rows[0].expires_at, null);
   });
 });
 

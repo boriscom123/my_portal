@@ -26,7 +26,7 @@ test('выход за пределы буфера не допускается', 
   assert.throws(() => mediaPath(config, '/etc/passwd'), /за пределы/i);
 });
 
-test('лёгкие файлы живут дольше тяжёлых', skipWithoutDb, async () => {
+test('лёгкие рабочие файлы живут дольше тяжёлых', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
     const lesson = await saveLesson(pool, { slug: 'u', title: 'Урок' });
     const source = await registerAsset(pool, config, {
@@ -35,15 +35,25 @@ test('лёгкие файлы живут дольше тяжёлых', skipWitho
       relativePath: 'u/source.mp4',
       bytes: 1_000_000_000
     });
+    const subtitles = await registerAsset(pool, config, {
+      lessonId: lesson.id,
+      kind: 'subtitles',
+      relativePath: 'u/subtitles.srt',
+      bytes: 900
+    });
+    // Исходник весит гигабайты и уходит первым; субтитры лёгкие и нужны дольше.
+    assert.ok(subtitles.expiresAt > source.expiresAt);
+
+    // Обложка в этом сравнении больше не участвует: у неё срока нет вовсе —
+    // она на витрине, и удалять её по времени значит ломать карточку урока.
+    // Правило проверяется в kept-assets.test.js.
     const cover = await registerAsset(pool, config, {
       lessonId: lesson.id,
       kind: 'cover',
       relativePath: 'u/cover.jpg',
       bytes: 100_000
     });
-    // Исходник весит гигабайты и уходит первым; обложка лёгкая и нужна
-    // карточке урока долго после публикации.
-    assert.ok(cover.expiresAt > source.expiresAt);
+    assert.equal(cover.expiresAt, null);
   });
 });
 
