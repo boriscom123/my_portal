@@ -75,6 +75,47 @@ ${text}`;
 }
 
 /**
+ * Запрос на текст новости.
+ *
+ * Новость — не урок: у неё нет расшифровки, и всё, что есть, — заголовок,
+ * который написал автор. Поэтому просим короткий текст по существу и прямо
+ * запрещаем выдумывать подробности: модель, которой не хватило материала,
+ * охотно дописывает то, чего не было.
+ */
+export function buildNewsPrompt(title) {
+  return `Ты помогаешь автору портала видеоуроков по разработке писать короткие
+новости. Заголовок новости: «${String(title).trim()}».
+
+Напиши текст этой новости: 2–4 предложения, до 500 знаков, по-русски.
+
+Правила:
+— пиши только то, что следует из заголовка; не выдумывай дат, чисел, названий и
+  обещаний, которых в нём нет;
+— без рекламных оборотов, без «мы рады сообщить», без восклицательных знаков;
+— это заметка автора о своей работе, а не пресс-релиз;
+— если из заголовка непонятно, о чём речь, напиши одно нейтральное предложение,
+  которое автор допишет сам.
+
+Верни JSON с единственным полем body.`;
+}
+
+/** Достаёт текст новости из ответа модели. */
+export function parseNewsResponse(body) {
+  const text = body?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) throw new Error('модель вернула пустой ответ');
+
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error('модель вернула не JSON');
+  }
+  const news = String(parsed.body ?? '').trim();
+  if (!news) throw new Error('модель не написала текст');
+  return news;
+}
+
+/**
  * Разбирает ответ модели.
  * Вынесено отдельно ради проверки без сети: форма ответа у моделей меняется
  * чаще, чем всё остальное в этом файле.
@@ -172,52 +213,92 @@ export function createTexts(config, fetchImpl = fetch) {
   const models = parseModels(model);
   if (!apiKey || !models.length) return null;
 
+  /**
+   * Спрашивает модели по очереди, пока одна не ответит.
+   *
+   * Схема ответа задаётся вызывающим и обязана перечислять ВСЕ ожидаемые поля:
+   * то, чего в ней нет, модель не вернёт. Главы однажды уже не приходили
+   * именно поэтому — в запросе их просили словами, а схема их не допускала.
+   */
+  async function ask(prompt, schema) {
+    let lastError = null;
+
+    for (const name of models) {
+      const response = await fetchImpl(`${API_BASE}/${name}:generateContent`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // Ключ заголовком, а не в адресе: адреса попадают в журналы
+          // посредников целиком, а заголовки — нет.
+          'x-goog-api-key': apiKey
+        },
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            // Просим сразу JSON: разбирать текст с пояснениями вокруг —
+            // источник тихих поломок при смене модели.
+            responseMimeType: 'application/json',
+            responseSchema: schema
+          }
+        })
+      });
+
+      if (response.ok) return { body: await response.json(), model: name };
+
+      const text = await response.text().catch(() => '');
+      lastError = new Error(
+        `${name} ответила ${response.status}: ` +
+          `${readErrorMessage(hideKey(text, apiKey)).slice(0, 200)}`
+      );
+      // Отказ не про эту модель, а про сам запрос — следующая ответит тем же.
+      if (!shouldTryNext(response.status)) throw lastError;
+    }
+
+    throw lastError ?? new Error('ни одна модель не ответила');
+  }
+
   return {
     async suggest(transcript, timeline = '') {
-      const prompt = buildPrompt(transcript, timeline);
-      let lastError = null;
-
-      for (const name of models) {
-        const response = await fetchImpl(`${API_BASE}/${name}:generateContent`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            // Ключ заголовком, а не в адресе: адреса попадают в журналы
-            // посредников целиком, а заголовки — нет.
-            'x-goog-api-key': apiKey
-          },
-          signal: AbortSignal.timeout(TIMEOUT_MS),
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: {
-              // Просим сразу JSON: разбирать текст с пояснениями вокруг —
-              // источник тихих поломок при смене модели.
-              responseMimeType: 'application/json',
-              responseSchema: {
-                type: 'object',
-                properties: {
-                  title: { type: 'string' },
-                  description: { type: 'string' },
-                  tags: { type: 'array', items: { type: 'string' } }
-                },
-                required: ['title', 'description', 'tags']
+      const schema = {
+        type: 'object',
+        properties: {
+          title: { type: 'string' },
+          description: { type: 'string' },
+          tags: { type: 'array', items: { type: 'string' } },
+          ...(timeline
+            ? {
+                chapters: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: { at: { type: 'string' }, title: { type: 'string' } },
+                    required: ['at', 'title']
+                  }
+                }
               }
-            }
-          })
-        });
+            : {})
+        },
+        required: timeline ? ['title', 'description', 'tags', 'chapters'] : ['title', 'description', 'tags']
+      };
 
-        if (response.ok) return { ...parseTextsResponse(await response.json()), model: name };
+      const { body, model: name } = await ask(buildPrompt(transcript, timeline), schema);
+      return { ...parseTextsResponse(body), model: name };
+    },
 
-        const body = await response.text().catch(() => '');
-        lastError = new Error(
-          `${name} ответила ${response.status}: ` +
-            `${readErrorMessage(hideKey(body, apiKey)).slice(0, 200)}`
-        );
-        // Отказ не про эту модель, а про сам запрос — следующая ответит тем же.
-        if (!shouldTryNext(response.status)) throw lastError;
-      }
-
-      throw lastError ?? new Error('ни одна модель не ответила');
+    /**
+     * Пишет текст новости по её заголовку.
+     * Отдельным запросом, а не тем же: у новости нет ни расшифровки, ни тегов,
+     * и просить у модели поля, которых не будет, — верный способ получить
+     * выдуманное.
+     */
+    async suggestNews(title) {
+      const { body, model: name } = await ask(buildNewsPrompt(title), {
+        type: 'object',
+        properties: { body: { type: 'string' } },
+        required: ['body']
+      });
+      return { body: parseNewsResponse(body), model: name };
     }
   };
 }

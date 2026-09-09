@@ -50,6 +50,7 @@ function newsForm(item = null) {
     добавляются после сохранения, на странице самой новости.
   </p>
   <div class="form-row">
+    <button class="button" type="button" data-news-suggest>Написать по заголовку</button>
     <button class="button-brand" type="submit">${item ? 'Сохранить' : 'Завести новость'}</button>
     ${
       item

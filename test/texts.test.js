@@ -7,6 +7,8 @@ import {
   createTexts,
   parseTextsResponse,
   buildPrompt,
+  buildNewsPrompt,
+  parseNewsResponse,
   hideKey,
   shouldTryNext,
   parseModels,
@@ -262,4 +264,69 @@ test('в запрос попадают реплики с временами, к�
   // Без времён просить главы бессмысленно: модель выдумает их из воздуха.
   const without = buildPrompt('расшифровка');
   assert.doesNotMatch(without, /chapters/);
+});
+
+test('запрос на текст новости просит не выдумывать', () => {
+  // У новости нет расшифровки: весь материал — заголовок. Модель, которой не
+  // хватило материала, охотно дописывает даты и обещания, которых не было.
+  const prompt = buildNewsPrompt('Портал научился публиковать в MAX');
+  assert.match(prompt, /Портал научился публиковать в MAX/);
+  assert.match(prompt, /не выдумывай/i);
+  assert.match(prompt, /body/);
+});
+
+test('текст новости разбирается, а пустой ответ — отказ', () => {
+  const parsed = parseNewsResponse({
+    candidates: [{ content: { parts: [{ text: JSON.stringify({ body: 'Коротко о деле.' }) }] } }]
+  });
+  assert.equal(parsed, 'Коротко о деле.');
+
+  // Пустой текст лучше отдать отказом: подставить пустоту в поле — значит
+  // сделать вид, что кнопка сработала.
+  assert.throws(
+    () =>
+      parseNewsResponse({
+        candidates: [{ content: { parts: [{ text: JSON.stringify({ body: '  ' }) }] } }]
+      }),
+    /не написала/
+  );
+});
+
+test('схема ответа перечисляет главы, когда их просят', async () => {
+  // Схема — не формальность: то, чего в ней нет, модель не вернёт. Главы
+  // однажды уже не приходили именно поэтому.
+  const asked = [];
+  const texts = createTexts(
+    { gemini: { apiKey: 'k', model: 'm' } },
+    async (url, options) => {
+      asked.push(JSON.parse(options.body));
+      return {
+        ok: true,
+        json: async () => ({
+          candidates: [
+            {
+              content: {
+                parts: [
+                  {
+                    text: JSON.stringify({
+                      title: 'Урок',
+                      description: 'Описание',
+                      tags: [],
+                      chapters: [{ at: '0:00', title: 'Начало' }]
+                    })
+                  }
+                ]
+              }
+            }
+          ]
+        })
+      };
+    }
+  );
+
+  const result = await texts.suggest('расшифровка', '0:00 первая реплика');
+  const schema = asked[0].generationConfig.responseSchema;
+  assert.ok(schema.properties.chapters, 'глав нет в схеме — модель их и не вернёт');
+  assert.ok(schema.required.includes('chapters'));
+  assert.equal(result.chapters[0].atMs, 0);
 });

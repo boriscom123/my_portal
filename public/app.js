@@ -393,6 +393,36 @@ function initPage() {
     }
   });
 
+  // Текст по заголовку. Заготовка, а не готовая новость: модель знает только
+  // заголовок, и подписывать её работу своим именем не глядя не стоит.
+  const newsSuggest = document.querySelector('[data-news-suggest]');
+  newsSuggest?.addEventListener('click', async () => {
+    const form = document.querySelector('[data-news-form]');
+    const title = form?.querySelector('[name=title]')?.value?.trim();
+    if (!title) {
+      toast('Сначала напишите заголовок — по нему и пишем.', true);
+      return;
+    }
+
+    const wasText = newsSuggest.textContent;
+    newsSuggest.disabled = true;
+    newsSuggest.textContent = 'Пишу…';
+    try {
+      const answer = await request('/api/admin/news/suggest', {
+        method: 'POST',
+        body: JSON.stringify({ title })
+      });
+      if (!answer) return;
+      form.querySelector('[name=body]').value = answer.body;
+      toast('Текст написан. Поправьте и сохраните.');
+    } catch (error) {
+      toast(`Не написалось: ${error.message}`, true);
+    } finally {
+      newsSuggest.disabled = false;
+      newsSuggest.textContent = wasText;
+    }
+  });
+
   const newsDelete = document.querySelector('[data-news-delete]');
   newsDelete?.addEventListener('click', async () => {
     // Спрашиваем: удаление новости необратимо, а кнопка стоит рядом с

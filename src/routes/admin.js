@@ -19,6 +19,7 @@ import { assetsOfLesson } from '../services/media.js';
 import { pickVideoAsset } from '../services/platforms/youtube-fields.js';
 import { parseChaptersText } from '../lib/chapters.js';
 import { saveNews, deleteNews } from '../services/news.js';
+import { createTexts } from '../services/texts.js';
 import { youtubeAccessToken } from '../services/platforms/youtube-auth.js';
 import { youtubeApp, channelApp } from '../services/platform-apps.js';
 import { readVideoPrivacy } from '../services/platforms/youtube.js';
@@ -185,6 +186,26 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
     });
     if (!item) throw new PublicError('Новость не найдена', 404);
     res.json({ slug: item.slug, title: item.title });
+  });
+
+  // Текст новости по её заголовку. Синхронно, в отличие от текстов урока: там
+  // модель читает часовую расшифровку и отвечает за минуту с лишним, а здесь
+  // весь материал — одна строка, и ответ приходит за секунды.
+  router.post('/news/suggest', async (req, res) => {
+    const title = String(req.body?.title ?? '').trim();
+    if (!title) throw new PublicError('Сначала напишите заголовок', 400);
+
+    const texts = createTexts(config, fetchImpl);
+    if (!texts) throw new PublicError('Модель не подключена: нет ключа в настройках сервера', 503);
+
+    try {
+      const { body } = await texts.suggestNews(title);
+      res.json({ body });
+    } catch (error) {
+      // Отказ модели — не поломка портала: автор напишет текст сам, и сказать
+      // ему надо именно это, а не показать чужую ошибку целиком.
+      throw new PublicError(`Модель не ответила: ${error.message}`, 502);
+    }
   });
 
   router.delete('/news/:slug', async (req, res) => {
