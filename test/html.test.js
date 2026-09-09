@@ -495,3 +495,15 @@ test('атрибут hidden прячет, что бы ни говорило оф
   const styles = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
   assert.match(styles, /\[hidden\] \{\s*\n\s*display: none !important;\s*\n\}/);
 });
+
+test('полоска про куки прижата к краям, а не ужимается по содержимому', async () => {
+  // На узком экране центрирование сдвигом превращало её в столбик посреди
+  // экрана: элемент с position: fixed сжимается по содержимому, и текст с
+  // основой в 18rem вставал колонкой. Заказчик прислал снимок.
+  const styles = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
+  const block = styles.slice(styles.indexOf('.cookie-note {'), styles.indexOf('.cookie-note p'));
+  assert.match(block, /left: 12px;/);
+  assert.match(block, /right: 12px;/);
+  assert.match(block, /margin: 0 auto;/);
+  assert.doesNotMatch(block, /transform: translateX/);
+});
