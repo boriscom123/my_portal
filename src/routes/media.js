@@ -12,12 +12,17 @@ import { PublicError } from '../middleware/errors.js';
 export function mediaRoutes(config, pool) {
   const router = Router();
 
-  // Обложка — единственный файл буфера, который показывается всем: она стоит
-  // в карточке урока и в превью ссылки. Токен для неё был бы бессмыслен,
-  // ссылку видят все, кто видит урок.
+  // Обложка урока и картинка новости — единственные файлы буфера, которые
+  // показываются всем: они стоят в карточках и в превью ссылки. Токен для них
+  // был бы бессмыслен — их видят все, кто видит урок или новость.
   router.get('/asset/:id', async (req, res) => {
     const asset = await assetById(pool, Number(req.params.id));
-    if (!asset || asset.kind !== 'cover') throw new PublicError('Файл не найден', 404);
+    // Картинки новостей отдаются тем же маршрутом: они так же открыты всем и
+    // так же попадают в превью ссылки. Всё остальное содержимое буфера наружу
+    // по-прежнему не смотрит.
+    if (!asset || !['cover', 'image'].includes(asset.kind)) {
+      throw new PublicError('Файл не найден', 404);
+    }
     res.set('Cache-Control', 'public, max-age=86400');
     res.sendFile(mediaPath(config, asset.path));
   });

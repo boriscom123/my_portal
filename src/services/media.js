@@ -20,7 +20,7 @@ const TTL_SHARE = { source: 1, audio: 0.5, clip: 1, subtitles: 10 };
 
 // Виды файлов, которые живут, пока на них ссылаются. Это то, что видит
 // зритель: удалить их по сроку — значит показать битую картинку на витрине.
-const KEPT_KINDS = new Set(['cover']);
+const KEPT_KINDS = new Set(['cover', 'image']);
 
 /**
  * Абсолютный путь к файлу буфера.
@@ -37,7 +37,11 @@ export function mediaPath(config, relative) {
 }
 
 /** Записывает файл в учёт и назначает ему срок. */
-export async function registerAsset(pool, config, { lessonId, kind, relativePath, bytes }) {
+export async function registerAsset(
+  pool,
+  config,
+  { lessonId = null, newsId = null, kind, relativePath, bytes, position = 0 }
+) {
   // Пустой срок — «храним, пока используется». Уборщик такие файлы не трогает
   // по времени и удаляет только когда на них перестали ссылаться.
   const hours = KEPT_KINDS.has(kind) ? null : config.media.ttlHours * (TTL_SHARE[kind] ?? 1);
@@ -45,14 +49,23 @@ export async function registerAsset(pool, config, { lessonId, kind, relativePath
   // учёте должна обновиться, а не удвоиться. Иначе уборка удаляла бы один
   // файл дважды, а размер буфера считался вдвое больше настоящего.
   const { rows } = await pool.query(
-    `INSERT INTO assets (lesson_id, kind, path, bytes, expires_at)
-     VALUES ($1, $2, $3, $4,
-             CASE WHEN $5::text IS NULL THEN NULL ELSE now() + ($5 || ' hours')::interval END)
+    `INSERT INTO assets (lesson_id, news_id, kind, path, bytes, position, expires_at)
+     VALUES ($1, $2, $3, $4, $5, $6,
+             CASE WHEN $7::text IS NULL THEN NULL ELSE now() + ($7 || ' hours')::interval END)
      ON CONFLICT (lesson_id, path) DO UPDATE SET kind = EXCLUDED.kind,
                                                  bytes = EXCLUDED.bytes,
+                                                 position = EXCLUDED.position,
                                                  expires_at = EXCLUDED.expires_at
      RETURNING id, path, expires_at`,
-    [lessonId, kind, relativePath, bytes, hours === null ? null : String(hours)]
+    [
+      lessonId,
+      newsId,
+      kind,
+      relativePath,
+      bytes,
+      position,
+      hours === null ? null : String(hours)
+    ]
   );
   return { id: Number(rows[0].id), path: rows[0].path, expiresAt: rows[0].expires_at };
 }

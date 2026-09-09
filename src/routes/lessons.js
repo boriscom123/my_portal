@@ -6,10 +6,10 @@ import { Router } from 'express';
 import {
   listLessons,
   getLessonBySlug,
-  listNews,
   saveLesson,
   setLessonTags
 } from '../services/lessons.js';
+import { listNews } from '../services/news.js';
 import { countReactions, ratingSummary } from '../services/feedback.js';
 import { requireAdmin } from '../middleware/guards.js';
 import { PublicError } from '../middleware/errors.js';

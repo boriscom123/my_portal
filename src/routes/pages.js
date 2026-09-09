@@ -9,6 +9,8 @@ import { telegramReturnPage } from '../views/telegram-return.js';
 import { adminUploadPage } from '../views/admin-upload.js';
 import { adminLessonsPage } from '../views/admin-lessons.js';
 import { settingsPage } from '../views/settings.js';
+import { newsListPage, newsPage } from '../views/news.js';
+import { listNews, getNewsBySlug } from '../services/news.js';
 import { privacyPage, termsPage } from '../views/legal.js';
 import { adminReviewPage } from '../views/admin-review.js';
 import { adminPreviewPage } from '../views/admin-preview.js';
@@ -26,7 +28,7 @@ import { ideasPage } from '../views/ideas.js';
 import { searchPage } from '../views/search.js';
 import { searchSegments } from '../services/search.js';
 import { listIdeas } from '../services/ideas.js';
-import { listLessons, getLessonBySlug, listNews } from '../services/lessons.js';
+import { listLessons, getLessonBySlug } from '../services/lessons.js';
 import {
   listComments,
   countReactions,
@@ -363,6 +365,21 @@ export function pageRoutes(config, pool) {
         subtitlesUrl: subtitles ? mediaLink(config, Number(subtitles.id), 3 * 3600) : null
       })
     );
+  });
+
+  // Новости: список для всех, форма для автора. Отдельной админской страницы
+  // нет намеренно — она отличалась бы только кнопками, а две почти одинаковые
+  // страницы однажды разойдутся.
+  router.get('/news', async (req, res) => {
+    const user = await currentUser(pool, req);
+    res.type('html').send(newsListPage({ config, user, news: await listNews(pool, {}) }));
+  });
+
+  router.get('/news/:slug', async (req, res) => {
+    const user = await currentUser(pool, req);
+    const item = await getNewsBySlug(pool, req.params.slug);
+    if (!item) throw new PublicError('Новость не найдена', 404);
+    res.type('html').send(newsPage({ config, user, item }));
   });
 
   router.get('/search', async (req, res) => {

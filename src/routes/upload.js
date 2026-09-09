@@ -19,6 +19,7 @@ import { requireAdmin } from '../middleware/guards.js';
 import { PublicError } from '../middleware/errors.js';
 import { mediaPath, registerAsset } from '../services/media.js';
 import { imageTypeOf } from '../lib/image-type.js';
+import { getNewsBySlug } from '../services/news.js';
 import { getLessonBySlug } from '../services/lessons.js';
 import { addJob } from '../queue.js';
 
@@ -159,6 +160,44 @@ export function uploadRoutes(config, pool) {
     ]);
 
     res.json({ assetId: asset.id, bytes: bytes.length, type });
+  });
+
+  // Картинка новости. Устроена как обложка урока: тот же предел, та же проверка
+  // по первым байтам, тот же учёт файлов. Отличие одно — картинок у новости
+  // может быть несколько, поэтому имя файла своё у каждой, а не постоянное.
+  router.put('/news-image/:slug', async (req, res) => {
+    const news = await getNewsBySlug(pool, req.params.slug);
+    if (!news) throw new PublicError('Новость не найдена', 404);
+
+    const chunks = [];
+    let size = 0;
+    for await (const chunk of req) {
+      size += chunk.length;
+      if (size > COVER_LIMIT) throw new PublicError('Картинка больше десяти мегабайт', 413);
+      chunks.push(chunk);
+    }
+    const bytes = Buffer.concat(chunks);
+
+    const type = imageTypeOf(bytes);
+    if (!type) throw new PublicError('Это не картинка: принимаются png, jpeg и webp', 415);
+
+    const dir = `news-${news.id}`;
+    await mkdir(mediaPath(config, dir), { recursive: true });
+    // Порядок — следующий за последней картинкой: автор грузит их по одной, и
+    // они встают в слайдер в том порядке, в каком он их выбирал.
+    const position = news.images.length + 1;
+    const relative = `${dir}/kartinka-${position}.${type}`;
+    await writeFile(mediaPath(config, relative), bytes);
+
+    const asset = await registerAsset(pool, config, {
+      newsId: news.id,
+      kind: 'image',
+      relativePath: relative,
+      bytes: bytes.length,
+      position
+    });
+
+    res.json({ assetId: asset.id, url: `/media/asset/${asset.id}`, bytes: bytes.length });
   });
 
   router.put('/:uploadId/:index', async (req, res) => {

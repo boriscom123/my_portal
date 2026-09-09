@@ -402,6 +402,81 @@ function initPage() {
     });
   }
 
+  /* --- Новости ------------------------------------------------------------- */
+
+  // Формы новостей живут на публичных страницах: автор пишет новость там же,
+  // где её читают. Поэтому обработчик здесь, а не в скрипте кабинета.
+  const newsForm = document.querySelector('[data-news-form]');
+  newsForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const fields = new FormData(newsForm);
+    const button = newsForm.querySelector('button[type=submit]');
+    button.disabled = true;
+
+    try {
+      const answer = await request('/api/admin/news', {
+        method: 'POST',
+        body: JSON.stringify({
+          slug: newsForm.dataset.newsForm || null,
+          title: fields.get('title'),
+          body: fields.get('body')
+        })
+      });
+      if (!answer) return;
+      toast(newsForm.dataset.newsForm ? 'Новость сохранена.' : 'Новость заведена.');
+      // Уходим на страницу новости: картинки добавляются там, и без перехода
+      // автор не понял бы, куда идти дальше.
+      setTimeout(() => (location.href = `/news/${answer.slug}`), 900);
+    } catch (error) {
+      toast(`Не сохранилось: ${error.message}`, true);
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  const newsDelete = document.querySelector('[data-news-delete]');
+  newsDelete?.addEventListener('click', async () => {
+    // Спрашиваем: удаление новости необратимо, а кнопка стоит рядом с
+    // «Сохранить».
+    if (!confirm('Удалить новость вместе с картинками?')) return;
+    newsDelete.disabled = true;
+    try {
+      const answer = await request(`/api/admin/news/${newsDelete.dataset.newsDelete}`, {
+        method: 'DELETE'
+      });
+      if (!answer) return;
+      location.href = '/news';
+    } catch (error) {
+      toast(`Не удалилось: ${error.message}`, true);
+      newsDelete.disabled = false;
+    }
+  });
+
+  const newsImage = document.querySelector('[data-news-image]');
+  newsImage?.addEventListener('change', async () => {
+    const file = newsImage.files[0];
+    if (!file) return;
+    const label = document.querySelector('label[for="news-image"]');
+    const wasText = label?.textContent;
+    if (label) label.textContent = 'Загружаю…';
+
+    try {
+      // Тип сервер определяет по первым байтам, а не по заголовку запроса.
+      const response = await fetch(`/api/upload/news-image/${newsImage.dataset.newsImage}`, {
+        method: 'PUT',
+        body: file
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error ?? `сервер ответил ${response.status}`);
+      }
+      location.reload();
+    } catch (error) {
+      toast(`Картинка не загрузилась: ${error.message}`, true);
+      if (label) label.textContent = wasText;
+    }
+  });
+
   /* --- Ключи приложения площадки ------------------------------------------- */
 
   // Форма отправляется через API, а не сама собой: без перехвата браузер уйдёт

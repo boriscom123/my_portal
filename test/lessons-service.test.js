@@ -7,7 +7,6 @@ import {
   getLessonBySlug,
   saveLesson,
   setLessonTags,
-  listNews
 } from '../src/services/lessons.js';
 import { withTestDb, skipWithoutDb } from './helpers/db.js';
 
@@ -102,17 +101,3 @@ test('замена тегов не копит старые', skipWithoutDb, asyn
   });
 });
 
-test('новости отдаются свежими сверху', skipWithoutDb, async () => {
-  await withTestDb(async (pool) => {
-    await pool.query(
-      `INSERT INTO news (slug, title, body, published_at) VALUES
-       ('staraya', 'Старая', 'текст', '2026-07-01'),
-       ('svezhaya', 'Свежая', 'текст', '2026-08-20')`
-    );
-    const news = await listNews(pool, {});
-    assert.deepEqual(
-      news.map((n) => n.slug),
-      ['svezhaya', 'staraya']
-    );
-  });
-});

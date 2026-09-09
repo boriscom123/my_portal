@@ -184,17 +184,4 @@ export async function setLessonTags(pool, lessonId, tagSlugs) {
   }
 }
 
-/** Лента новостей. Новость публикуется сразу: черновиков у неё нет. */
-export async function listNews(pool, { limit = DEFAULT_LIMIT } = {}) {
-  const { rows } = await pool.query(
-    'SELECT id, slug, title, body, published_at FROM news ORDER BY published_at DESC LIMIT $1',
-    [limit]
-  );
-  return rows.map((r) => ({
-    id: Number(r.id),
-    slug: r.slug,
-    title: r.title,
-    body: r.body,
-    publishedAt: r.published_at
-  }));
-}
+

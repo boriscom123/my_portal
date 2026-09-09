@@ -883,6 +883,38 @@ form > textarea {
   margin-top: 12px;
 }
 
+/* --- Новости ------------------------------------------------------------- */
+
+.news-card h2 {
+  margin: 6px 0 10px;
+}
+.news-image {
+  width: 100%;
+  border-radius: var(--radius);
+  display: block;
+}
+
+/* Несколько картинок — лента с прокруткой по одной. Слайдер на скриптах здесь
+   лишний: браузер умеет притягивать прокрутку к краю картинки сам, и это
+   работает даже когда скрипты не загрузились. */
+.news-slider {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: thin;
+  padding-bottom: 6px;
+}
+.news-slider .news-image {
+  flex: 0 0 min(100%, 34rem);
+  scroll-snap-align: center;
+}
+
+.news-body {
+  line-height: 1.7;
+  max-width: var(--text-width);
+}
+
 /* --- Борд идей ----------------------------------------------------------- */
 
 .ideas-board {

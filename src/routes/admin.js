@@ -18,6 +18,7 @@ import { startPublication, publicationsFor, markPublicationState } from '../serv
 import { assetsOfLesson } from '../services/media.js';
 import { pickVideoAsset } from '../services/platforms/youtube-fields.js';
 import { parseChaptersText } from '../lib/chapters.js';
+import { saveNews, deleteNews } from '../services/news.js';
 import { youtubeAccessToken } from '../services/platforms/youtube-auth.js';
 import { youtubeApp, channelApp } from '../services/platform-apps.js';
 import { readVideoPrivacy } from '../services/platforms/youtube.js';
@@ -172,6 +173,27 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
       await addJob(req.app.locals.queue, JOBS.refreshChannels, { lessonId: lesson.id });
     }
     res.json({ state, privacy });
+  });
+
+  // Новости заводятся и правятся одним маршрутом: разделять их значило бы
+  // разложить одно действие автора — «сохранить» — по двум адресам.
+  router.post('/news', async (req, res) => {
+    const item = await saveNews(pool, {
+      slug: req.body?.slug ? String(req.body.slug) : null,
+      title: String(req.body?.title ?? ''),
+      body: String(req.body?.body ?? '')
+    });
+    if (!item) throw new PublicError('Новость не найдена', 404);
+    res.json({ slug: item.slug, title: item.title });
+  });
+
+  router.delete('/news/:slug', async (req, res) => {
+    if (!(await deleteNews(pool, req.params.slug))) {
+      throw new PublicError('Новость не найдена', 404);
+    }
+    // Картинки уходят вместе с ней: в учёте по внешнему ключу, с диска — при
+    // ближайшей уборке, как и всё остальное осиротевшее.
+    res.json({ ok: true });
   });
 
   // Настройки подготовки урока: вид подписей и монтаж. Значения приходят от
