@@ -452,6 +452,9 @@ function initPage() {
    */
   const announcementsButton = document.querySelector('[data-announcements]');
   const announcementsList = document.querySelector('[data-announcements-list]');
+  // Выбранный анонс: его описание и ссылка нужны, когда автор попросит написать
+  // текст. Живёт до перехода на другую страницу, как и сама форма.
+  let chosenAnnouncement = null;
 
   announcementsButton?.addEventListener('click', async () => {
     const wasText = announcementsButton.textContent;
@@ -499,6 +502,9 @@ function initPage() {
           const item = answer.items[Number(pick.dataset.pick)];
           const form = document.querySelector('[data-news-form]');
           form.querySelector('[name=title]').value = item.title;
+          // Запоминаем, из чего эта новость выросла: описание от источника
+          // уходит модели вместе с заголовком, иначе ей не о чем писать.
+          chosenAnnouncement = { summary: item.summary ?? '', url: item.url };
           const body = form.querySelector('[name=body]');
           if (!body.value.includes(item.url)) {
             body.value = `${body.value ? `${body.value}\n\n` : ''}Источник: ${item.url}`;
@@ -535,7 +541,11 @@ function initPage() {
     try {
       const answer = await request('/api/admin/news/suggest', {
         method: 'POST',
-        body: JSON.stringify({ title })
+        body: JSON.stringify({
+          title,
+          summary: chosenAnnouncement?.summary ?? '',
+          url: chosenAnnouncement?.url ?? ''
+        })
       });
       if (!answer) return;
       form.querySelector('[name=body]').value = answer.body;

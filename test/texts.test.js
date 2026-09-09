@@ -266,13 +266,27 @@ test('в запрос попадают реплики с временами, к�
   assert.doesNotMatch(without, /chapters/);
 });
 
-test('запрос на текст новости просит не выдумывать', () => {
-  // У новости нет расшифровки: весь материал — заголовок. Модель, которой не
-  // хватило материала, охотно дописывает даты и обещания, которых не было.
-  const prompt = buildNewsPrompt('Портал научился публиковать в MAX');
-  assert.match(prompt, /Портал научился публиковать в MAX/);
-  assert.match(prompt, /не выдумывай/i);
-  assert.match(prompt, /body/);
+test('запрос на текст новости просит не выдумывать и опирается на источник', () => {
+  // Модель, которой не хватило материала, охотно дописывает даты, версии и
+  // цифры. Поэтому в запрос идёт описание от самого источника, а на месте
+  // собственных результатов автора модель обязана оставить пометку.
+  const prompt = buildNewsPrompt('Вышла новая модель', {
+    summary: 'Модель отвечает вдвое быстрее прежней.',
+    url: 'https://example.com/a'
+  });
+  assert.match(prompt, /Вышла новая модель/);
+  assert.match(prompt, /отвечает вдвое быстрее/, 'слова источника обязаны дойти до модели');
+  assert.match(prompt, /https:\/\/example\.com\/a/);
+  assert.match(prompt, /не выдумывай ЧИСЕЛ/);
+  assert.match(prompt, /⟨/, 'место под собственный результат помечается явно');
+  assert.match(prompt, /от первого лица/);
+});
+
+test('без описания запрос всё равно собирается', () => {
+  // Заголовок автор может написать и сам, не выбирая анонс.
+  const prompt = buildNewsPrompt('Своя новость');
+  assert.match(prompt, /Своя новость/);
+  assert.doesNotMatch(prompt, /Что пишет источник/);
 });
 
 test('текст новости разбирается, а пустой ответ — отказ', () => {
@@ -329,4 +343,41 @@ test('схема ответа перечисляет главы, когда их
   assert.ok(schema.properties.chapters, 'глав нет в схеме — модель их и не вернёт');
   assert.ok(schema.required.includes('chapters'));
   assert.equal(result.chapters[0].atMs, 0);
+});
+
+test('медленная модель уступает следующей, а не хоронит запрос', async () => {
+  // На длинном тексте первая модель однажды не уложилась в срок, и запрос
+  // упал целиком — при том что следующая в списке отвечает за секунды.
+  const tried = [];
+  const texts = createTexts(
+    { gemini: { apiKey: 'k', model: 'medlennaya,bystraya' } },
+    async (url, options) => {
+      const name = String(url).match(/models\/([^:]+):/)[1];
+      tried.push(name);
+      if (name === 'medlennaya') {
+        const error = new Error('timeout');
+        error.name = 'TimeoutError';
+        throw error;
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          candidates: [{ content: { parts: [{ text: JSON.stringify({ body: 'Текст готов.' }) }] } }]
+        })
+      };
+    }
+  );
+
+  const { body } = await texts.suggestNews('Заголовок');
+  assert.equal(body, 'Текст готов.');
+  assert.deepEqual(tried, ['medlennaya', 'bystraya']);
+});
+
+test('когда не ответила ни одна, причина называет последнюю', async () => {
+  const texts = createTexts({ gemini: { apiKey: 'k', model: 'odna' } }, async () => {
+    const error = new Error('timeout');
+    error.name = 'TimeoutError';
+    throw error;
+  });
+  await assert.rejects(texts.suggestNews('Заголовок'), /не ответила вовремя/);
 });

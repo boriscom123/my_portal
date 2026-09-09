@@ -110,3 +110,38 @@ test('источник, который не отвечает, не вешает 
   });
   assert.match(failed, /не ответил вовремя/);
 });
+
+test('из записи берётся и краткое описание — без разметки', () => {
+  // По одному заголовку писать нечего: модель начнёт выдумывать подробности.
+  // Описание из ленты — слова самого источника, на них можно опереться.
+  const withSummary = `<rss><channel><item>
+    <title>Claude Opus 5</title>
+    <link>https://example.com/a</link>
+    <description><![CDATA[<p>Новая модель <b>быстрее</b> прежней.</p>]]></description>
+  </item></channel></rss>`;
+  const [item] = parseFeed(withSummary, { source: 'Anthropic' });
+  assert.equal(item.summary, 'Новая модель быстрее прежней.');
+});
+
+test('описание Atom берётся из summary или content', () => {
+  const atomWithSummary = `<feed><entry>
+    <title>Node.js 26</title>
+    <link rel="alternate" href="https://nodejs.org/a"/>
+    <summary>Вышла новая версия с обновлённым V8.</summary>
+  </entry></feed>`;
+  const [item] = parseFeed(atomWithSummary, { source: 'Node.js' });
+  assert.match(item.summary, /обновлённым V8/);
+});
+
+test('служебное описание агрегатора за материал не считается', () => {
+  // Hacker News кладёт в описание адрес статьи, адрес обсуждения и число
+  // голосов. Как материал это хуже пустоты: модель примет их за содержание и
+  // напишет заметку о голосах.
+  const hn = `<rss><channel><item>
+    <title>Apple Unveils iPhone Duo</title>
+    <link>https://news.ycombinator.com/item?id=49630964</link>
+    <description>Article URL: https://www.apple.com/newsroom/2026/09/duo/ Comments URL: https://news.ycombinator.com/item?id=49630964 Points: 291 # Comments: 88</description>
+  </item></channel></rss>`;
+  const [item] = parseFeed(hn, { source: 'Hacker News' });
+  assert.equal(item.summary, '', 'пусто честнее, чем адреса и голоса');
+});

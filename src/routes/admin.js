@@ -198,6 +198,9 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
       items: items.map((item) => ({
         source: item.source,
         title: item.title,
+        // Краткое описание от самого источника: по нему модель пишет текст, не
+        // выдумывая подробностей, которых в заголовке нет.
+        summary: item.summary ?? '',
         url: item.url,
         publishedAt: item.publishedAt
       })),
@@ -244,12 +247,18 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
   router.post('/news/suggest', async (req, res) => {
     const title = String(req.body?.title ?? '').trim();
     if (!title) throw new PublicError('Сначала напишите заголовок', 400);
+    // Материал от источника, если новость выбрана из анонсов: с ним текст
+    // получается о деле, а не о названии.
+    const source = {
+      summary: String(req.body?.summary ?? '').slice(0, 1000),
+      url: String(req.body?.url ?? '').slice(0, 500)
+    };
 
     const texts = createTexts(config, fetchImpl);
     if (!texts) throw new PublicError('Модель не подключена: нет ключа в настройках сервера', 503);
 
     try {
-      const { body } = await texts.suggestNews(title);
+      const { body } = await texts.suggestNews(title, source);
       res.json({ body });
     } catch (error) {
       // Отказ модели — не поломка портала: автор напишет текст сам, и сказать

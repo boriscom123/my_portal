@@ -59,6 +59,37 @@ function itemDate(xml) {
 }
 
 /**
+ * Краткое описание записи: в лентах оно лежит под тремя разными именами и почти
+ * всегда с разметкой внутри.
+ *
+ * Зачем оно нам: по одному заголовку писать новость нечего — модель начнёт
+ * выдумывать подробности. Описание из ленты — это слова самого источника, и на
+ * них уже можно опереться.
+ */
+function itemSummary(xml, limit = 700) {
+  for (const name of ['description', 'summary', 'content']) {
+    const raw = tagText(xml, name);
+    if (!raw) continue;
+    const text = decode(raw.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+    // Ленты-агрегаторы кладут в описание не суть, а служебные строки: адрес
+    // статьи, адрес обсуждения, число голосов. Как материал для текста это
+    // хуже пустоты — модель примет их за содержание и напишет о голосах.
+    const clean = text
+      .replace(/(Article|Comments) URL:\s*\S+/gi, '')
+      .replace(/Points:\s*\d+/gi, '')
+      .replace(/#\s*Comments:?\s*\d*/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    // Порог длины — только для описаний, из которых мы что-то вычистили: у
+    // обычной ленты короткое описание это по-прежнему описание, а у
+    // агрегатора остаток в пару слов — обрывок служебной строки.
+    const wasNoise = clean !== text;
+    if (clean && (!wasNoise || clean.length > 40)) return clean.slice(0, limit);
+  }
+  return '';
+}
+
+/**
  * Разбирает ленту в записи.
  * Возвращает массив; на непонятной ленте — пустой, а не исключение: один
  * сломавшийся источник не должен уносить с собой остальные восемь.
@@ -72,6 +103,7 @@ export function parseFeed(xml, { source = '', limit = 10 } = {}) {
     .map((chunk) => ({
       source,
       title: tagText(chunk, 'title'),
+      summary: itemSummary(chunk),
       url: itemLink(chunk),
       publishedAt: itemDate(chunk)
     }))

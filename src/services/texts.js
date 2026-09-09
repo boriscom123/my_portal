@@ -33,9 +33,15 @@ const TRANSCRIPT_LIMIT = 60_000;
 // вынесен в очередь.
 const TIMEOUT_MS = 180_000;
 
-// Срок для синхронного запроса о новости. Сорок секунд: nginx рвёт соединение
-// на шестидесяти, и отказ должен быть наш, а не оборванная страница.
-const NEWS_TIMEOUT_MS = 40_000;
+// Сроки для синхронного запроса о новости.
+//
+// На каждую модель — двадцать секунд, на весь запрос — сорок пять. Nginx рвёт
+// соединение на шестидесяти, и отказ должен быть наш, а не оборванная страница.
+// Раздельно потому, что модели разной прыти: медленная не должна хоронить
+// запрос, когда следующая в списке отвечает за три секунды — так и вышло на
+// первом же длинном тексте.
+const NEWS_MODEL_TIMEOUT_MS = 20_000;
+const NEWS_TOTAL_MS = 45_000;
 
 /**
  * Что просим у модели.
@@ -68,13 +74,13 @@ export function buildPrompt(transcript, timeline = '') {
 рассмотрим», без восклицательных знаков.
 
 ${
-    timeline
-      ? `Реплики с временами — по ним определяй, где начинается глава:
+  timeline
+    ? `Реплики с временами — по ним определяй, где начинается глава:
 ${timeline}
 
 `
-      : ''
-  }Расшифровка:
+    : ''
+}Расшифровка:
 ${text}`;
 }
 
@@ -86,19 +92,38 @@ ${text}`;
  * запрещаем выдумывать подробности: модель, которой не хватило материала,
  * охотно дописывает то, чего не было.
  */
-export function buildNewsPrompt(title) {
-  return `Ты помогаешь автору портала видеоуроков по разработке писать короткие
-новости. Заголовок новости: «${String(title).trim()}».
+export function buildNewsPrompt(title, { summary = '', url = '' } = {}) {
+  return `Ты помогаешь автору портала видеоуроков по разработке писать заметки о
+том, что происходит в мире технологий. Автор ведёт портал один: пишет код с
+Claude Code, держит свой VPS, собирает конвейер обработки видео.
 
-Напиши текст этой новости: 2–4 предложения, до 500 знаков, по-русски.
+Заголовок заметки: «${String(title).trim()}».
+${summary ? `\nЧто пишет источник:\n${String(summary).trim()}\n` : ''}${
+    url ? `\nСсылка на источник: ${url}\n` : ''
+  }
+Напиши текст заметки от первого лица — так, как её пишет практик, который
+прочитал новость и пошёл смотреть, что это значит для его собственной работы.
 
-Правила:
-— пиши только то, что следует из заголовка; не выдумывай дат, чисел, названий и
-  обещаний, которых в нём нет;
-— без рекламных оборотов, без «мы рады сообщить», без восклицательных знаков;
-— это заметка автора о своей работе, а не пресс-релиз;
-— если из заголовка непонятно, о чём речь, напиши одно нейтральное предложение,
-  которое автор допишет сам.
+Строй так:
+1. Что случилось — одно-два предложения по существу, без пересказа заголовка.
+2. Почему это важно тому, кто делает своё: чем это меняет работу.
+3. Что стоит проверить на практике: какой опыт поставить, на что смотреть.
+4. Короткий вывод — стоит ли к этому возвращаться.
+
+Объём: 5–8 предложений, 900–1400 знаков.
+
+ЖЁСТКИЕ ПРАВИЛА:
+— не выдумывай ЧИСЕЛ, замеров и результатов: автор их ещё не получил. Там, где
+  нужен его собственный результат, ставь пометку в угловых скобках, например
+  ⟨здесь: что вышло у меня на своём проекте⟩;
+— НЕ ПРИПИСЫВАЙ АВТОРУ ДЕЙСТВИЙ, которых он не делал. Нельзя: «я поставил», «я
+  прогнал», «я закинул задачу», «планирую сегодня». Можно: «это стоит
+  проверить так-то», «первым делом я бы посмотрел на то-то». Разница простая:
+  замысел — можно, отчёт о сделанном — нельзя;
+— не выдумывай дат, версий и названий, которых нет в заголовке и в описании
+  источника;
+— пиши как автор о своей работе: без рекламных оборотов, без «мы рады
+  сообщить», без восклицательных знаков.
 
 Верни JSON с единственным полем body.`;
 }
@@ -224,29 +249,44 @@ export function createTexts(config, fetchImpl = fetch) {
    * то, чего в ней нет, модель не вернёт. Главы однажды уже не приходили
    * именно поэтому — в запросе их просили словами, а схема их не допускала.
    */
-  async function ask(prompt, schema, timeoutMs = TIMEOUT_MS) {
+  async function ask(prompt, schema, { timeoutMs = TIMEOUT_MS, totalMs = null } = {}) {
     let lastError = null;
+    const startedAt = Date.now();
 
     for (const name of models) {
-      const response = await fetchImpl(`${API_BASE}/${name}:generateContent`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          // Ключ заголовком, а не в адресе: адреса попадают в журналы
-          // посредников целиком, а заголовки — нет.
-          'x-goog-api-key': apiKey
-        },
-        signal: AbortSignal.timeout(timeoutMs),
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            // Просим сразу JSON: разбирать текст с пояснениями вокруг —
-            // источник тихих поломок при смене модели.
-            responseMimeType: 'application/json',
-            responseSchema: schema
-          }
-        })
-      });
+      // Общий срок кончился — пробовать следующую значит гарантированно
+      // упереться в обрыв соединения вместо внятного отказа.
+      if (totalMs && Date.now() - startedAt > totalMs - timeoutMs) break;
+
+      let response;
+      try {
+        response = await fetchImpl(`${API_BASE}/${name}:generateContent`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            // Ключ заголовком, а не в адресе: адреса попадают в журналы
+            // посредников целиком, а заголовки — нет.
+            'x-goog-api-key': apiKey
+          },
+          signal: AbortSignal.timeout(timeoutMs),
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              // Просим сразу JSON: разбирать текст с пояснениями вокруг —
+              // источник тихих поломок при смене модели.
+              responseMimeType: 'application/json',
+              responseSchema: schema
+            }
+          })
+        });
+      } catch (error) {
+        // Не ответила вовремя — это про эту модель, а не про запрос: следующая
+        // в списке обычно быстрее.
+        lastError = new Error(
+          `${name}: ${error.name === 'TimeoutError' ? 'не ответила вовремя' : error.message}`
+        );
+        continue;
+      }
 
       if (response.ok) return { body: await response.json(), model: name };
 
@@ -283,7 +323,9 @@ export function createTexts(config, fetchImpl = fetch) {
               }
             : {})
         },
-        required: timeline ? ['title', 'description', 'tags', 'chapters'] : ['title', 'description', 'tags']
+        required: timeline
+          ? ['title', 'description', 'tags', 'chapters']
+          : ['title', 'description', 'tags']
       };
 
       const { body, model: name } = await ask(buildPrompt(transcript, timeline), schema);
@@ -296,20 +338,20 @@ export function createTexts(config, fetchImpl = fetch) {
      * и просить у модели поля, которых не будет, — верный способ получить
      * выдуманное.
      */
-    async suggestNews(title) {
+    async suggestNews(title, source = {}) {
       // Свой срок, короче общего: этот запрос идёт синхронно, а nginx рвёт
       // соединение на шестидесяти секундах. Лучше отказать самим на сороковой и
       // сказать словами, чем оставить человека смотреть на «Пишу…» до обрыва,
       // который он не поймёт. Измерено: первая модель отвечает секунд за
       // тридцать.
       const { body, model: name } = await ask(
-        buildNewsPrompt(title),
+        buildNewsPrompt(title, source),
         {
           type: 'object',
           properties: { body: { type: 'string' } },
           required: ['body']
         },
-        NEWS_TIMEOUT_MS
+        { timeoutMs: NEWS_MODEL_TIMEOUT_MS, totalMs: NEWS_TOTAL_MS }
       );
       return { body: parseNewsResponse(body), model: name };
     }
