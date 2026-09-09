@@ -120,3 +120,36 @@ test('отказ MAX не выдаёт токен наружу', async () => {
     }
   );
 });
+
+test('номер поста MAX ищется в нескольких местах ответа', async () => {
+  // Устройство ответа взято из документации, а не из живого обмена. Пустой
+  // номер означал бы пост, который в канале есть, а портал его не знает и
+  // потом не поправит.
+  for (const body of [
+    { message: { body: { mid: 'mid-1' } } },
+    { body: { mid: 'mid-1' } },
+    { mid: 'mid-1' }
+  ]) {
+    const result = await postToMax({
+      token: 't',
+      channel: '-1',
+      photoUrl: 'u',
+      caption: 'c',
+      fetchImpl: async () => ({ ok: true, json: async () => body })
+    });
+    assert.equal(result.messageId, 'mid-1');
+  }
+});
+
+test('ответ без номера поста — не молчаливая удача', async () => {
+  await assert.rejects(
+    postToMax({
+      token: 't',
+      channel: '-1',
+      photoUrl: 'u',
+      caption: 'c',
+      fetchImpl: async () => ({ ok: true, json: async () => ({ ok: true }) })
+    }),
+    /не сказал его номер/
+  );
+});

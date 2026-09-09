@@ -19,6 +19,23 @@ async function failure(response, token) {
   throw new Error(`MAX отказал (${response.status}): ${hideToken(text, token) || 'без объяснения'}`);
 }
 
+/**
+ * Достаёт номер поста из ответа.
+ *
+ * Смотрим в нескольких местах намеренно: устройство ответа MAX мы взяли из
+ * документации, а не из живого обмена, и ошибиться тут дешевле всего именно так.
+ * Не нашли — говорим об этом вслух с куском ответа: молчаливый пустой номер
+ * означал бы пост, который есть в канале, но которого портал не знает и не
+ * сможет потом поправить.
+ */
+function readMessageId(body) {
+  const found = body?.message?.body?.mid ?? body?.body?.mid ?? body?.mid ?? '';
+  if (found) return String(found);
+  throw new Error(
+    `MAX принял пост, но не сказал его номер — правка подписи потом не сработает. Ответ: ${JSON.stringify(body).slice(0, 200)}`
+  );
+}
+
 export async function postToMax({ token, channel, photoUrl, caption, fetchImpl = fetch }) {
   const response = await fetchImpl(`${API}/messages?chat_id=${encodeURIComponent(channel)}`, {
     method: 'POST',
@@ -32,8 +49,7 @@ export async function postToMax({ token, channel, photoUrl, caption, fetchImpl =
   });
   if (!response.ok) await failure(response, token);
 
-  const body = await response.json();
-  return { messageId: String(body.message?.body?.mid ?? ''), url: null };
+  return { messageId: readMessageId(await response.json()), url: null };
 }
 
 /** Переписывает пост. Вложение шлём заново: без него площадка снимет картинку. */
