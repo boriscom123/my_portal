@@ -3,21 +3,12 @@
 // поэтому заголовок, описание и обложка обязаны попасть в теги превью.
 // Вызывается из src/routes/pages.js по маршруту /lesson/:slug.
 import { escapeHtml } from '../lib/html.js';
+import { platformLinks } from './platform-links.js';
 import { layout } from './layout.js';
 import { formatDate } from './feed.js';
 import { SCALE } from '../lib/reactions.js';
 
 // Как называются площадки на кнопках. Слаг площадки для человека не годится.
-const PLATFORM_NAMES = {
-  youtube: 'YouTube',
-  vk: 'VK Видео',
-  telegram: 'Telegram',
-  rutube: 'RuTube',
-  tiktok: 'TikTok',
-  instagram: 'Instagram',
-  dzen: 'Дзен',
-  max: 'MAX'
-};
 
 /**
  * Русское склонение после числа: 1 оценка, 2 оценки, 5 оценок.
@@ -50,15 +41,7 @@ export function lessonPage({
   viewerReaction = null,
   rating = { total: 0, average: null }
 }) {
-  const platformButtons = lesson.publications
-    .filter((p) => p.url && p.state === 'published')
-    .map(
-      (p) =>
-        `<a class="button" href="${escapeHtml(p.url)}" rel="noopener" target="_blank">Смотреть на ${escapeHtml(
-          PLATFORM_NAMES[p.platform] ?? p.platform
-        )}</a>`
-    )
-    .join('');
+  const platformButtons = platformLinks(lesson.publications);
 
   // Девять ступеней подряд. Подпись уходит в title и aria-label: кнопка из
   // одного смайлика непонятна и не читается программой чтения с экрана.

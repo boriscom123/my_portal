@@ -200,14 +200,19 @@ test('номер канала MAX находится по ссылке и по �
   };
   const fetchStub = async () => ({ ok: true, json: async () => chats });
 
-  assert.equal(
-    await findMaxChat({ token: 't', needle: 'https://max.ru/id253_biz2', fetchImpl: fetchStub }),
-    '-78307129940137'
-  );
-  assert.equal(
-    await findMaxChat({ token: 't', needle: 'Solo AI Journey', fetchImpl: fetchStub }),
-    '-78307129940137'
-  );
+  const byLink = await findMaxChat({
+    token: 't',
+    needle: 'https://max.ru/id253_biz2',
+    fetchImpl: fetchStub
+  });
+  assert.equal(byLink.chatId, '-78307129940137');
+  // Ссылку на канал запоминаем тут же: у поста в MAX своего адреса нет, и на
+  // карточке урока вести некуда, кроме как в канал.
+  assert.equal(byLink.link, 'https://max.ru/id253_biz2');
+
+  const byTitle = await findMaxChat({ token: 't', needle: 'Solo AI Journey', fetchImpl: fetchStub });
+  assert.equal(byTitle.chatId, '-78307129940137');
+
   assert.equal(
     await findMaxChat({ token: 't', needle: 'https://max.ru/chuzhoy', fetchImpl: fetchStub }),
     null

@@ -192,7 +192,7 @@ export function integrationRoutes(config, pool, fetchImpl = fetch) {
     // документацию из-за нашей лени.
     if (platform === 'max' && app.token && !/^-?\d+$/.test(app.channel)) {
       const found = await findMaxChat({ token: app.token, needle: app.channel });
-      if (!found) {
+      if (!found?.chatId) {
         throw new PublicError(
           'Канал не найден среди каналов этого бота. Проверьте, что бот добавлен в канал, ' +
             'и вставьте ссылку на канал или его числовой идентификатор.',
@@ -204,7 +204,7 @@ export function integrationRoutes(config, pool, fetchImpl = fetch) {
         clientId: '',
         clientSecret: '',
         mode: 'auto',
-        settings: { channel: found }
+        settings: { channel: found.chatId, link: found.link }
       });
       app = await channelApp(pool, config, platform);
     }

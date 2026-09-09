@@ -152,5 +152,8 @@ export async function findMaxChat({ token, needle, fetchImpl = maxFetch }) {
         .toLowerCase() === wanted ||
       String(chat.title ?? '').trim().toLowerCase() === wanted
   );
-  return found ? String(found.chat_id) : null;
+  // Возвращаем и ссылку: у поста в MAX публичного адреса нет вовсе — площадка
+  // его не выдаёт, — а канал открывается по ссылке, и это единственное, куда
+  // честно вести зрителя с карточки урока.
+  return found ? { chatId: String(found.chat_id), link: String(found.link ?? '') } : null;
 }

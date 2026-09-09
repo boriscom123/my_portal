@@ -401,3 +401,56 @@ test('правовые ссылки стоят в подвале каждой с
   assert.match(html, /href="\/privacy"/);
   assert.match(html, /href="\/terms"/);
 });
+
+test('в ленте у карточки есть ссылки на площадки — и только на вышедшее', async () => {
+  // Заказчик ищет их именно тут: на главной, не заходя в урок.
+  const { feedPage } = await import('../src/views/feed.js');
+  const html = feedPage({
+    config,
+    user: null,
+    news: [],
+    lessons: [
+      {
+        id: 1,
+        slug: 'urok',
+        title: 'Урок',
+        description: 'Описание',
+        tags: [],
+        coverUrl: null,
+        publishedAt: new Date(),
+        publications: [
+          { platform: 'youtube', state: 'published', url: 'https://youtu.be/vyshel' },
+          { platform: 'max', state: 'published', url: 'https://max.ru/kanal' },
+          { platform: 'rutube', state: 'ready', url: 'https://rutube.ru/nevyshel' }
+        ]
+      }
+    ]
+  });
+
+  assert.match(html, /youtu\.be\/vyshel/);
+  assert.match(html, /max\.ru\/kanal/, 'MAX ведёт на канал: своего адреса у поста нет');
+  assert.doesNotMatch(html, /nevyshel/, 'невышедшее показывать нельзя');
+  assert.match(html, /MAX/);
+});
+
+test('урок без публикаций в ленте не ломается', async () => {
+  const { feedPage } = await import('../src/views/feed.js');
+  const html = feedPage({
+    config,
+    user: null,
+    news: [],
+    lessons: [
+      {
+        id: 1,
+        slug: 'urok',
+        title: 'Урок',
+        description: '',
+        tags: [],
+        coverUrl: null,
+        publishedAt: new Date()
+      }
+    ]
+  });
+  assert.match(html, /Урок/);
+  assert.doesNotMatch(html, /Смотреть:/);
+});

@@ -110,6 +110,9 @@ export async function channelApp(pool, config, name) {
     name,
     channel,
     token,
+    // Человеческая ссылка на канал. У поста в MAX своего адреса нет, и это
+    // единственное, куда можно честно вести зрителя с карточки урока.
+    link: String(stored?.settings?.link ?? '').trim(),
     // Настроена ли площадка: без канала постить некуда, без токена — нечем.
     configured: Boolean(channel && token)
   };

@@ -698,6 +698,25 @@ form > textarea {
   color: var(--fg);
 }
 
+/* Ссылки на площадки в ленте: строкой, а не кнопками. Кнопка в карточке спорит
+   за внимание с самим уроком, а зритель приходит сюда читать заголовок. */
+.platform-links {
+  font-size: 13px;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: baseline;
+}
+.platform-link {
+  color: var(--brand-1);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--brand-1) 35%, transparent);
+}
+.platform-link:hover {
+  border-bottom-color: var(--brand-1);
+}
+
 /* --- Карточка урока ------------------------------------------------------ */
 
 .lesson {

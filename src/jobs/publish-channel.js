@@ -59,7 +59,9 @@ export function makePublishChannel(config, pool, platform, adapter) {
         // Пост в канале виден сразу: приватного состояния у него нет.
         state: 'published',
         externalId: messageId,
-        url
+        // У поста в MAX своего адреса нет — площадка его не выдаёт. Тогда ведём
+        // на канал: это не точное место, но единственное честное.
+        url: url ?? app.link ?? null
       });
       return { messageId };
     } catch (error) {

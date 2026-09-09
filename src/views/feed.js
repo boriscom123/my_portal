@@ -5,6 +5,7 @@ import { escapeHtml } from '../lib/html.js';
 import { layout } from './layout.js';
 import { stateLabel } from './lesson-state.js';
 import { hero } from './hero.js';
+import { platformLinks } from './platform-links.js';
 
 /** Дата в виде, привычном читателю: «1 августа 2026». */
 export function formatDate(value) {
@@ -33,6 +34,14 @@ function lessonCard(lesson, isAdmin) {
     }</p>
     <h3><a href="/lesson/${encodeURIComponent(lesson.slug)}">${escapeHtml(lesson.title)}</a></h3>
     <p class="card-text">${escapeHtml(lesson.description)}</p>
+    ${
+      platformLinks(lesson.publications ?? [], { className: 'platform-link', prefix: '' })
+        ? `<p class="platform-links">Смотреть: ${platformLinks(lesson.publications ?? [], {
+            className: 'platform-link',
+            prefix: ''
+          })}</p>`
+        : ''
+    }
     ${
       lesson.tags.length
         ? `<p class="tags">${lesson.tags

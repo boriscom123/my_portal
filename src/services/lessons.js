@@ -64,7 +64,23 @@ export async function listLessons(
       LIMIT $3 OFFSET $4`,
     [includeDrafts, tag, limit, offset]
   );
-  return rows.map(toLesson);
+  const lessons = rows.map(toLesson);
+  if (!lessons.length) return lessons;
+
+  // Ссылки на площадки — одним запросом на всю страницу, а не по одному на
+  // урок: двадцать карточек означали бы двадцать походов в базу за тремя
+  // строчками каждый.
+  const { rows: pubs } = await pool.query(
+    `SELECT lesson_id, platform, url, state FROM publications
+      WHERE lesson_id = ANY($1::bigint[]) ORDER BY platform`,
+    [lessons.map((lesson) => lesson.id)]
+  );
+  for (const lesson of lessons) {
+    lesson.publications = pubs
+      .filter((row) => Number(row.lesson_id) === lesson.id)
+      .map(({ platform, url, state }) => ({ platform, url, state }));
+  }
+  return lessons;
 }
 
 /** Карточка урока вместе со ссылками на площадки. null, если показывать нечего. */
