@@ -7,7 +7,7 @@ import { createApp, finalize } from '../src/app.js';
 import { signSession } from '../src/lib/jwt.js';
 import { saveLesson } from '../src/services/lessons.js';
 import { parseTags } from '../src/routes/admin.js';
-import { humanDuration, humanBytes } from '../src/views/admin-review.js';
+import { adminReviewPage, humanDuration, humanBytes } from '../src/views/admin-review.js';
 import { withServer } from './helpers/http.js';
 import { withTestDb, skipWithoutDb } from './helpers/db.js';
 
@@ -607,4 +607,37 @@ test('кадр на обложку берётся по нажатию, а не �
     });
     assert.equal(added[0].name, 'makeCover');
   });
+});
+
+test('кнопка отправки исчезает, когда ролик уже на канале', () => {
+  // Второе нажатие не обновит ролик, а положит на канал ВТОРУЮ копию: у
+  // площадки нет понятия «перезалить». Удалять её пришлось бы руками.
+  const base = {
+    config: { youtube: { clientId: 'id' } },
+    user: { role: 'admin' },
+    lesson: { slug: 'urok', title: 'Урок', description: '', tags: [], settings: {} },
+    assets: [{ kind: 'source', path: 'lesson-1/urok.mp4', bytes: 10, expiresLabel: '15.09.2026' }],
+    transcript: null,
+    links: { subtitles: [], clips: [] },
+    youtubeConfigured: true
+  };
+
+  const before = adminReviewPage({ ...base, publications: [] });
+  assert.match(before, /data-youtube="urok"/, 'пока не отправляли — кнопка нужна');
+
+  for (const state of ['queued', 'uploading', 'ready', 'published']) {
+    const html = adminReviewPage({
+      ...base,
+      publications: [{ platform: 'youtube', state, url: 'https://youtu.be/x', error: null }]
+    });
+    assert.doesNotMatch(html, /data-youtube="urok"/, `в состоянии ${state} кнопки быть не должно`);
+  }
+
+  // А вот после отказа отправить заново — единственное, что можно сделать.
+  const failed = adminReviewPage({
+    ...base,
+    publications: [{ platform: 'youtube', state: 'failed', url: null, error: 'квота' }]
+  });
+  assert.match(failed, /data-youtube="urok"/);
+  assert.match(failed, /Отправить заново/);
 });

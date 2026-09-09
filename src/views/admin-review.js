@@ -63,6 +63,11 @@ export function adminReviewPage({
   // Площадка пока одна, но строк публикаций у урока будет много: у каждого
   // вертикального ролика своя. Берём ту, что про горизонтальную запись.
   const youtube = publications.find((item) => item.platform === 'youtube') ?? null;
+  // Есть ли смысл в кнопке отправки. Ролик, который уже на канале, вторым
+  // нажатием не обновится — на канал уедет ВТОРАЯ копия, а удалять её придётся
+  // руками. Поэтому кнопка остаётся только там, где отправлять правда нечего
+  // или отправка провалилась.
+  const youtubeSendable = !youtube || youtube.state === 'failed';
   const failed = lesson.pipelineState === 'failed';
   const settings = readSettings(lesson.settings);
   // Пока записи нет, главное действие — загрузить её. Когда есть, предлагать
@@ -283,6 +288,12 @@ ${
         }</p>
          ${youtube.error ? `<p class="hint danger">${escapeHtml(youtube.error)}</p>` : ''}
          ${
+           ['queued', 'uploading'].includes(youtube.state)
+             ? `<p class="hint">Пока идёт выкладка, отправлять заново нечего: вторая
+                  попытка положила бы на канал вторую копию.</p>`
+             : ''
+         }
+         ${
            youtube.state === 'ready'
              ? `<p class="hint">Ролик лежит на канале приватным — таковы правила Google,
                   пока приложение не прошло проверку. Откройте его в студии и нажмите
@@ -296,7 +307,7 @@ ${
       : '<p class="hint">На YouTube ещё не отправляли.</p>'
   }
   ${
-    youtubeConfigured
+    youtubeConfigured && youtubeSendable
       ? `<div class="form-row">
     <button class="button-brand" type="button" data-youtube="${escapeHtml(lesson.slug)}"
       ${
@@ -306,7 +317,7 @@ ${
             : ''
           : 'disabled title="Сначала загрузите запись"'
       }>
-      Отправить на YouTube
+      ${youtube?.state === 'failed' ? 'Отправить заново' : 'Отправить на YouTube'}
     </button>
   </div>
   <p class="hint">
