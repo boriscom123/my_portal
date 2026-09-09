@@ -96,7 +96,7 @@ test('когда всё сделано, страница сама не дёрг�
   });
 });
 
-test('в ленте состояние видит автор, но не зритель', skipWithoutDb, async () => {
+test('состояние обработки видит автор, но не зритель', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
     const lesson = await saveLesson(pool, {
       slug: 'urok',
@@ -108,12 +108,17 @@ test('в ленте состояние видит автор, но не зрит
     const headers = await admin(pool);
     const app = finalize(createApp({ config, pool }));
     await withServer(app, async (base) => {
-      const forAuthor = await (await fetch(`${base}/`, { headers })).text();
+      // Спрашиваем раздел «Уроки», а не главную: вышедший урок показывает
+      // заглавный блок, и карточкой ниже он больше не повторяется — иначе один
+      // и тот же урок выводился бы дважды.
+      const forAuthor = await (await fetch(`${base}/lessons`, { headers })).text();
       assert.match(forAuthor, /обрабатывается/i);
 
       // Зрителю состояние обработки не говорит ничего, а лишняя надпись на
       // витрине выглядит поломкой.
-      const forGuest = await (await fetch(`${base}/`, { headers: { Accept: 'text/html' } })).text();
+      const forGuest = await (
+        await fetch(`${base}/lessons`, { headers: { Accept: 'text/html' } })
+      ).text();
       assert.ok(!/обрабатывается/i.test(forGuest));
     });
   });

@@ -4,7 +4,7 @@
 import { escapeHtml } from '../lib/html.js';
 import { layout } from './layout.js';
 import { stateLabel } from './lesson-state.js';
-import { hero } from './hero.js';
+import { hero, heroLessons } from './hero.js';
 import { platformLinks } from './platform-links.js';
 
 /** Дата в виде, привычном читателю: «1 августа 2026». */
@@ -83,8 +83,14 @@ function newsCard(item) {
 export function feedPage({ config, lessons, news = [], user, tag = null }) {
   // Одна лента по дате: уроки снимаются долго, а новости выходят часто, и
   // разложенные по разным разделам они читались бы как два несвязанных сайта.
+  // Наверху заглавный блок уже показал свежие уроки. Повторять их карточками
+  // сразу под собой — значит выводить один урок дважды: сперва текстом, потом
+  // обложкой. В ленте остаётся то, что наверх не попало.
+  const shownAbove = new Set(tag ? [] : heroLessons(lessons).map((lesson) => lesson.id));
   const feed = [
-    ...lessons.map((lesson) => ({
+    ...lessons
+      .filter((lesson) => !shownAbove.has(lesson.id))
+      .map((lesson) => ({
       at: lesson.publishedAt ?? lesson.createdAt ?? new Date(0),
       html: lessonCard(lesson, user?.role === 'admin')
     })),

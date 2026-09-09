@@ -34,10 +34,20 @@ function item(lesson, index) {
 </li>`;
 }
 
+/**
+ * Уроки, которые показывает заглавный блок.
+ * Отдельной функцией, чтобы лента внизу знала, что не повторять: иначе один и
+ * тот же урок выводится дважды — сперва текстом наверху, потом карточкой.
+ * Заказчик увидел это первым.
+ */
+export function heroLessons(lessons = []) {
+  return lessons.filter((lesson) => lesson.status === 'published').slice(0, MAX_ITEMS);
+}
+
 export function hero({ lessons = [] } = {}) {
   // Черновики сюда не попадают, даже автору: заглавный блок — это витрина, а
   // не рабочий стол.
-  const published = lessons.filter((lesson) => lesson.status === 'published').slice(0, MAX_ITEMS);
+  const published = heroLessons(lessons);
 
   return `<div class="hero">
   <h1 class="hero-name">

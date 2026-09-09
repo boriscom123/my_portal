@@ -545,3 +545,51 @@ test('на главной уроки и новости идут одной ле�
   assert.match(html, /badge">новость</);
   assert.match(html, /href="\/news\/svezhaya"/);
 });
+
+test('урок из заглавного блока не повторяется карточкой ниже', async () => {
+  // Один и тот же урок выводился дважды: сверху текстом в заглавном блоке,
+  // сразу под ним — карточкой с обложкой. Заказчик увидел это первым.
+  const { feedPage } = await import('../src/views/feed.js');
+  const lesson = {
+    id: 1,
+    slug: 'urok',
+    title: 'Урок про портал',
+    description: 'Описание',
+    tags: [],
+    coverUrl: null,
+    status: 'published',
+    publishedAt: new Date('2026-09-08'),
+    publications: []
+  };
+
+  const html = feedPage({ config, user: null, lessons: [lesson], news: [] });
+  const first = html.indexOf('Урок про портал');
+  assert.ok(first > -1, 'урок должен быть на странице');
+  assert.equal(html.indexOf('Урок про портал', first + 1), -1, 'но ровно один раз');
+});
+
+test('на странице тега заглавного блока нет, и уроки не пропадают', async () => {
+  // Там свой заголовок вместо заглавного блока — значит прятать из ленты
+  // нечего, и все уроки по теме обязаны остаться видны.
+  const { feedPage } = await import('../src/views/feed.js');
+  const html = feedPage({
+    config,
+    user: null,
+    tag: 'docker',
+    news: [],
+    lessons: [
+      {
+        id: 1,
+        slug: 'urok',
+        title: 'Урок про докер',
+        description: '',
+        tags: ['docker'],
+        coverUrl: null,
+        status: 'published',
+        publishedAt: new Date(),
+        publications: []
+      }
+    ]
+  });
+  assert.match(html, /Урок про докер/);
+});

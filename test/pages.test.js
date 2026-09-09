@@ -38,7 +38,11 @@ test('лента отдаёт HTML с заголовком урока', skipWith
       assert.match(res.headers.get('content-type'), /text\/html/);
       const html = await res.text();
       assert.match(html, /Docker, часть 1/);
-      assert.match(html, /1 августа 2026/);
+      // Дата вышедшего урока живёт на его карточке, а карточка теперь только в
+      // разделе «Уроки»: на главной свежие уроки показывает заглавный блок, и
+      // повторять их ниже значит выводить один урок дважды.
+      const lessons = await (await fetch(`${base}/lessons`, { headers: { Accept: 'text/html' } })).text();
+      assert.match(lessons, /1 августа 2026/);
     });
   });
 });
