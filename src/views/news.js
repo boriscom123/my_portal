@@ -115,7 +115,7 @@ ${
 }
 
 /** Страница одной новости. */
-export function newsPage({ config, user, item, publications = [], platforms = [] }) {
+export function newsPage({ config, user, item }) {
   const isAdmin = user?.role === 'admin';
   return layout({
     config,
@@ -135,7 +135,13 @@ export function newsPage({ config, user, item, publications = [], platforms = []
   <div class="news-body">${linkify(item.body)}</div>
 </article>
 
-${isAdmin ? newsAdminBlock(item, publications, platforms) : ''}`
+${
+  isAdmin
+    ? `<p class="form-row">
+         <a class="button" href="/news/${encodeURIComponent(item.slug)}/edit">Править новость</a>
+       </p>`
+    : ''
+}`
   });
 }
 
@@ -158,7 +164,7 @@ export function linkify(text) {
 }
 
 /** Страница создания и правки новости. */
-export function newsEditPage({ config, user, item = null }) {
+export function newsEditPage({ config, user, item = null, publications = [], platforms = [] }) {
   return layout({
     config,
     user,
@@ -170,6 +176,8 @@ export function newsEditPage({ config, user, item = null }) {
 <h1>${item ? 'Правка новости' : 'Новая новость'}</h1>
 
 ${newsForm(item)}
+
+${item ? newsAdminBlock(item, publications, platforms) : ''}
 
 ${
   item
@@ -192,11 +200,12 @@ ${
 }
 
 /**
- * Выпуск новости и посты в каналах — блок для автора под самой новостью.
+ * Выпуск новости и посты в каналах — блоки на странице правки.
  *
- * Здесь, а не на странице правки: решение «выпускать» принимается, когда
- * новость видна целиком, глазами читателя, а не когда она разложена по полям
- * формы.
+ * Не на странице просмотра: там новость показывается так, как её увидит
+ * читатель, и формы посреди неё мешают увидеть главное — саму новость. Всё,
+ * что автор с новостью делает, собрано в одном месте: правка, выпуск, каналы,
+ * картинки.
  */
 function newsAdminBlock(item, publications, platforms) {
   const published = item.status === 'published';

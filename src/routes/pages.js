@@ -149,6 +149,23 @@ export function pageRoutes(config, pool) {
   });
 
   /**
+   * Каналы, у которых есть настройки.
+   * Без токена и адреса кнопка отправки была бы кнопкой, которая всегда
+   * отвечает отказом. Вызывается со страницы правки новости.
+   */
+  const configuredChannels = async () =>
+    (
+      await Promise.all(
+        [
+          ['telegram', 'Канал Telegram'],
+          ['max', 'Канал MAX']
+        ].map(([name, title]) =>
+          channelApp(pool, config, name).then((app) => ({ name, title, configured: app.configured }))
+        )
+      )
+    ).filter((platform) => platform.configured);
+
+  /**
    * Подключён ли Яндекс Диск. Нужен двум страницам кабинета, поэтому вынесен.
    * Вызывается из обработчиков /admin и /admin/upload.
    */
@@ -447,7 +464,17 @@ export function pageRoutes(config, pool) {
   router.get('/news/:slug/edit', requireAdmin, async (req, res) => {
     const item = await getNewsBySlug(pool, req.params.slug);
     if (!item) throw new PublicError('Новость не найдена', 404);
-    res.type('html').send(newsEditPage({ config, user: await currentUser(pool, req), item }));
+    res.type('html').send(
+      newsEditPage({
+        config,
+        user: await currentUser(pool, req),
+        item,
+        // Выпуск и каналы живут здесь: на странице просмотра новость должна
+        // выглядеть так, как её увидит читатель.
+        publications: await newsPublications(pool, item.id),
+        platforms: await configuredChannels()
+      })
+    );
   });
 
   router.get('/news/:slug', async (req, res) => {
@@ -460,32 +487,7 @@ export function pageRoutes(config, pool) {
       throw new PublicError('Новость не найдена', 404);
     }
 
-    res.type('html').send(
-      newsPage({
-        config,
-        user,
-        item,
-        publications: isAdmin ? await newsPublications(pool, item.id) : [],
-        // Каналы, у которых есть настройки: без токена кнопка отправки была бы
-        // кнопкой, которая всегда отвечает отказом.
-        platforms: isAdmin
-          ? (
-              await Promise.all(
-                [
-                  ['telegram', 'Канал Telegram'],
-                  ['max', 'Канал MAX']
-                ].map(([name, title]) =>
-                  channelApp(pool, config, name).then((app) => ({
-                    name,
-                    title,
-                    configured: app.configured
-                  }))
-                )
-              )
-            ).filter((platform) => platform.configured)
-          : []
-      })
-    );
+    res.type('html').send(newsPage({ config, user, item }));
   });
 
   router.get('/search', async (req, res) => {

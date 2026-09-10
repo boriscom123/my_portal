@@ -119,11 +119,21 @@ test('черновик по прямой ссылке — «не найдено�
       // Даже заголовка не показываем: «есть, но не для вас» — это тоже утечка.
       assert.doesNotMatch(await guest.text(), /Тайна/);
 
-      const author = await fetch(`${base}/news/${item.slug}`, { headers: await admin(pool) });
+      const headers = await admin(pool);
+      const author = await fetch(`${base}/news/${item.slug}`, { headers });
       assert.equal(author.status, 200);
       const page = await author.text();
-      assert.match(page, /Опубликовать/);
       assert.match(page, /черновик/i);
+      // Просмотр показывает новость так, как её увидит читатель: кнопки и формы
+      // живут на странице правки, рядом с остальной работой над новостью.
+      assert.doesNotMatch(page, /data-news-publish/);
+      assert.doesNotMatch(page, /data-news-post/);
+
+      const edit = await fetch(`${base}/news/${item.slug}/edit`, { headers });
+      assert.equal(edit.status, 200);
+      const form = await edit.text();
+      assert.match(form, /Опубликовать/);
+      assert.match(form, /data-news-publish/);
     });
   });
 });
