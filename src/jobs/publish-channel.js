@@ -9,7 +9,11 @@
 import { getLessonById } from '../services/lessons.js';
 import { getNewsById } from '../services/news.js';
 import { assetsOfLesson, assetsOfNews, mediaPath } from '../services/media.js';
-import { markPublicationState, publicationsFor } from '../services/publications.js';
+import {
+  markPublicationState,
+  publicationsFor,
+  publicationById
+} from '../services/publications.js';
 import { buildAnnouncement, buildNewsAnnouncement } from '../services/platforms/announcement.js';
 
 /**
@@ -109,6 +113,58 @@ export function makePublishChannel(config, pool, platform, adapter) {
       await markPublicationState(pool, publicationId, {
         state: 'failed',
         error: error.message.slice(0, 500)
+      });
+      throw error;
+    }
+  };
+}
+
+/**
+ * Шаг правки поста о новости: автор поправил текст — переписываем пост.
+ *
+ * Правкой, а не новым постом: подписчики уже получили уведомление об этой
+ * новости, и второе за исправленную опечатку — это спам.
+ * Картинку правка не трогает у Telegram: заменить её в готовом посте площадка
+ * не даёт. MAX кладёт вложение заново, так устроена его правка.
+ * Вызывается воркером по имени JOBS.refreshPost.
+ */
+export function makeRefreshPost(config, pool, adapters) {
+  return async ({ newsId, publicationId }) => {
+    const publication = await publicationById(pool, publicationId);
+    if (!publication) throw new Error('Пост не найден');
+    if (!publication.externalId) {
+      // Номера поста нет — значит, править нечего: пост не отправлялся или
+      // площадка его номер не вернула.
+      throw new Error('Портал не знает номера этого поста — отправьте его заново');
+    }
+
+    const adapter = adapters[publication.platform];
+    if (!adapter) throw new Error(`Площадка ${publication.platform} не подключена`);
+
+    const app = await adapter.app(pool, config, publication.platform);
+    if (!app.configured) {
+      throw new Error(`Канал ${publication.platform} не настроен — заполните его в настройках`);
+    }
+
+    const post = await newsPost(config, pool, newsId);
+
+    try {
+      await adapter.edit({
+        token: app.token,
+        channel: app.channel,
+        messageId: publication.externalId,
+        ...post
+      });
+      // Пост в канале как стоял, так и стоит: состояние прежнее, прежняя
+      // причина отказа стирается.
+      await markPublicationState(pool, publicationId, { state: 'published' });
+      return { updated: 1 };
+    } catch (error) {
+      // Failed здесь означало бы «пост не уехал» — а он стоит в канале, и
+      // кнопка отправки после такого предложила бы отправить его второй раз.
+      await markPublicationState(pool, publicationId, {
+        state: 'published',
+        error: `пост не обновился: ${error.message}`.slice(0, 400)
       });
       throw error;
     }

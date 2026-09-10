@@ -81,15 +81,31 @@ export async function postToTelegram({ token, channel, photoUrl, caption, fetchI
 }
 
 /**
- * Переписывает подпись у уже отправленного поста.
+ * Переписывает текст у уже отправленного поста.
  * Правка, а не второй пост: подписчики не должны получать второе уведомление об
  * одном и том же уроке только потому, что у нас появилась ещё одна ссылка.
+ *
+ * Метод зависит от того, с картинкой пост или без: у поста с картинкой
+ * правится подпись, у поста без неё — сам текст. Перепутать нельзя, площадка
+ * отвечает отказом. Саму картинку правка не трогает: заменить её в готовом
+ * посте площадка не даёт.
  */
-export async function editTelegramPost({ token, channel, messageId, caption, fetchImpl = fetch }) {
-  const response = await fetchImpl(`${API}${token}/editMessageCaption`, {
+export async function editTelegramPost({
+  token,
+  channel,
+  messageId,
+  photoUrl,
+  caption,
+  fetchImpl = fetch
+}) {
+  const [method, payload] = photoUrl
+    ? ['editMessageCaption', { chat_id: channel, message_id: Number(messageId), caption }]
+    : ['editMessageText', { chat_id: channel, message_id: Number(messageId), text: caption }];
+
+  const response = await fetchImpl(`${API}${token}/${method}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: channel, message_id: Number(messageId), caption })
+    body: JSON.stringify(payload)
   });
   if (!response.ok) await failure(response);
 }

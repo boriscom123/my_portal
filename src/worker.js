@@ -34,7 +34,11 @@ import {
   setThumbnail
 } from './services/platforms/youtube.js';
 import { shrinkThumbnail } from './lib/ffmpeg.js';
-import { makePublishChannel, makeRefreshChannels } from './jobs/publish-channel.js';
+import {
+  makePublishChannel,
+  makeRefreshChannels,
+  makeRefreshPost
+} from './jobs/publish-channel.js';
 import { channelApp } from './services/platform-apps.js';
 import { postToTelegram, editTelegramPost } from './services/platforms/telegram-channel.js';
 import { postToMax, editMaxPost } from './services/platforms/max-channel.js';
@@ -101,6 +105,10 @@ const handlers = {
   [JOBS.publishTelegram]: makePublishChannel(config, pool, 'telegram', telegramAdapter),
   [JOBS.publishMax]: makePublishChannel(config, pool, 'max', maxAdapter),
   [JOBS.refreshChannels]: makeRefreshChannels(config, pool, {
+    telegram: telegramAdapter,
+    max: maxAdapter
+  }),
+  [JOBS.refreshPost]: makeRefreshPost(config, pool, {
     telegram: telegramAdapter,
     max: maxAdapter
   })

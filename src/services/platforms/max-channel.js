@@ -110,6 +110,7 @@ export async function postToMax({
  * Переписывает пост. Картинку кладём заново: без вложения площадка снимет её с
  * поста, а токен прошлой загрузки живёт не вечно. Правки редки — раз на выход
  * ролика, — и лишняя загрузка ста килобайт того стоит.
+ * Без файла правится один текст: у поста о новости картинки может и не быть.
  */
 export async function editMaxPost({
   token,
@@ -119,14 +120,16 @@ export async function editMaxPost({
   fetchImpl = maxFetch,
   uploadFetch = fetch
 }) {
-  const photoToken = await uploadImage({ token, filePath, fetchImpl, uploadFetch });
+  const photoToken = filePath
+    ? await uploadImage({ token, filePath, fetchImpl, uploadFetch })
+    : null;
 
   const response = await fetchImpl(`${API}/messages?message_id=${encodeURIComponent(messageId)}`, {
     method: 'PUT',
     headers: { Authorization: token, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       text: caption,
-      attachments: [{ type: 'image', payload: { token: photoToken } }]
+      ...(photoToken ? { attachments: [{ type: 'image', payload: { token: photoToken } }] } : {})
     })
   });
   if (!response.ok) await failure(response, token);

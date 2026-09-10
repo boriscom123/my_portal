@@ -38,7 +38,9 @@ export const JOBS = {
   publishTelegram: 'publishTelegram',
   publishMax: 'publishMax',
   // Ролик где-то вышел — дописываем ссылку в уже отправленные посты.
-  refreshChannels: 'refreshChannels'
+  refreshChannels: 'refreshChannels',
+  // Новость поправили — переписываем уже отправленный пост о ней.
+  refreshPost: 'refreshPost'
 };
 
 /**

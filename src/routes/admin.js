@@ -14,7 +14,12 @@ import { notifyAboutLesson } from '../services/notify/lesson.js';
 import { rm } from 'node:fs/promises';
 import { mediaPath, forgetAsset } from '../services/media.js';
 import { readSettings } from '../lib/settings.js';
-import { startPublication, publicationsFor, markPublicationState } from '../services/publications.js';
+import {
+  startPublication,
+  publicationsFor,
+  newsPublications,
+  markPublicationState
+} from '../services/publications.js';
 import { assetsOfLesson } from '../services/media.js';
 import { pickVideoAsset } from '../services/platforms/youtube-fields.js';
 import { parseChaptersText } from '../lib/chapters.js';
@@ -388,6 +393,32 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
       res.json({ publicationId: publication.id, state: 'queued' });
     });
   }
+
+  // Правка уже отправленного поста. Отдельным нажатием, а не при каждом
+  // сохранении новости: автор правит её в несколько заходов, и каждый заход не
+  // должен ходить в чужие каналы.
+  router.post('/news/:slug/publish/:platform/refresh', async (req, res) => {
+    const platform = req.params.platform;
+    if (!['telegram', 'max'].includes(platform)) {
+      throw new PublicError('Неизвестная площадка', 400);
+    }
+
+    const item = await getNewsBySlug(pool, req.params.slug);
+    if (!item) throw new PublicError('Новость не найдена', 404);
+
+    const publication = (await newsPublications(pool, item.id)).find(
+      (post) => post.platform === platform
+    );
+    if (!publication || publication.state !== 'published') {
+      throw new PublicError('В этот канал пост ещё не уходил — сначала отправьте его', 400);
+    }
+
+    await addJob(req.app.locals.queue, JOBS.refreshPost, {
+      newsId: item.id,
+      publicationId: publication.id
+    });
+    res.json({ publicationId: publication.id });
+  });
 
   router.delete('/news/:slug', async (req, res) => {
     if (!(await deleteNews(pool, req.params.slug))) {

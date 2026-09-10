@@ -730,6 +730,29 @@ function initPage() {
     });
   }
 
+  // Правка уже отправленного поста. Отдельными кнопками от отправки: одна
+  // создаёт пост, другая переписывает, и путать их нельзя.
+  for (const button of document.querySelectorAll('[data-news-refresh]')) {
+    button.addEventListener('click', async () => {
+      const wasText = button.textContent;
+      button.disabled = true;
+      button.textContent = 'Обновляю…';
+      try {
+        const answer = await request(
+          `/api/admin/news/${button.value}/publish/${button.dataset.newsRefresh}/refresh`,
+          { method: 'POST' }
+        );
+        if (!answer) return;
+        toast('Пост в канале обновляется.');
+        setTimeout(() => location.reload(), 1500);
+      } catch (error) {
+        toast(`Не обновилось: ${error.message}`, true);
+        button.disabled = false;
+        button.textContent = wasText;
+      }
+    });
+  }
+
   const newsDelete = document.querySelector('[data-news-delete]');
   newsDelete?.addEventListener('click', async () => {
     // Спрашиваем: удаление новости необратимо, а кнопка стоит рядом с

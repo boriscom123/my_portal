@@ -59,6 +59,8 @@ test('правка поста в Telegram идёт по номеру сообщ�
     token: 'bot-token',
     channel: '@kanal',
     messageId: '42',
+    // Анонс урока всегда с обложкой — у поста с картинкой правится подпись.
+    photoUrl: 'https://portal.example/media/asset/9',
     caption: 'Заголовок\n\nYouTube: https://youtu.be/x',
     fetchImpl: fetchStub
   });
@@ -273,4 +275,39 @@ test('пост без картинки уходит обычным сообще�
   assert.match(sent.url, /\/sendMessage$/);
   assert.equal(sent.body.text, 'Текст');
   assert.equal(sent.body.photo, undefined);
+});
+
+test('правка поста без картинки идёт другим методом', async () => {
+  // У поста с картинкой правится подпись, у поста без неё — сам текст.
+  // Перепутать нельзя: площадка отвечает отказом.
+  const seen = [];
+  const fetchStub = async (url) => {
+    seen.push(String(url).split('/').pop());
+    return { ok: true, json: async () => ({ ok: true, result: {} }) };
+  };
+
+  await editTelegramPost({ token: 't', channel: '@k', messageId: '1', caption: 'c', fetchImpl: fetchStub });
+  await editTelegramPost({
+    token: 't',
+    channel: '@k',
+    messageId: '1',
+    photoUrl: 'https://portal.example/media/asset/9',
+    caption: 'c',
+    fetchImpl: fetchStub
+  });
+
+  assert.deepEqual(seen, ['editMessageText', 'editMessageCaption']);
+});
+
+test('правка поста MAX без файла не трогает вложения', async () => {
+  let sent = null;
+  const fetchStub = async (url, options) => {
+    sent = { url: String(url), body: JSON.parse(options.body) };
+    return { ok: true, json: async () => ({}) };
+  };
+
+  await editMaxPost({ token: 't', messageId: 'mid.1', caption: 'Текст', fetchImpl: fetchStub });
+  assert.match(sent.url, /message_id=mid\.1/);
+  assert.equal(sent.body.text, 'Текст');
+  assert.equal(sent.body.attachments, undefined);
 });

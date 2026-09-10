@@ -11,7 +11,7 @@ import { listNews, saveNews, publishNews, getNewsBySlug } from '../src/services/
 import { registerAsset } from '../src/services/media.js';
 import { startPublication, newsPublications } from '../src/services/publications.js';
 import { savePlatformApp } from '../src/services/platform-apps.js';
-import { makePublishChannel } from '../src/jobs/publish-channel.js';
+import { makePublishChannel, makeRefreshPost } from '../src/jobs/publish-channel.js';
 import { buildNewsAnnouncement } from '../src/services/platforms/announcement.js';
 import { withServer } from './helpers/http.js';
 import { withTestDb, skipWithoutDb } from './helpers/db.js';
@@ -53,14 +53,33 @@ async function connectChannel(pool, name = 'telegram') {
   });
 }
 
-function adapterStub() {
+function adapterStub(overrides = {}) {
   const calls = [];
+  const edits = [];
   return {
     calls,
+    edits,
     app: async () => ({ configured: true, token: 't', channel: '@kanal' }),
     post: async (args) => (calls.push(args), { messageId: '7', url: 'https://t.me/kanal/7' }),
-    edit: async () => {}
+    edit: async (args) => edits.push(args),
+    ...overrides
   };
+}
+
+/** Вышедшая новость с уже отправленным постом в канале. */
+async function posted(pool, title = 'Новость') {
+  const item = await saveNews(pool, { title, body: 'Первая редакция.' });
+  await publishNews(pool, item.slug);
+  const { id: publicationId } = await startPublication(pool, {
+    newsId: item.id,
+    platform: 'telegram',
+    mode: 'auto'
+  });
+  await pool.query(
+    `UPDATE publications SET state = 'published', external_id = '7' WHERE id = $1`,
+    [publicationId]
+  );
+  return { item, publicationId };
 }
 
 test('новость заводится черновиком и без даты выхода', skipWithoutDb, async () => {
@@ -325,4 +344,83 @@ test('длинный текст режется, а ссылка остаётся
   });
   assert.ok(caption.length <= 1024, 'подпись обязана влезать в предел Telegram');
   assert.ok(caption.endsWith('https://portal.example/news/novost'));
+});
+
+test('правка новости переписывает пост, а не шлёт второй', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const { item, publicationId } = await posted(pool);
+    await saveNews(pool, { slug: item.slug, title: 'Новость', body: 'Вторая редакция.' });
+
+    const adapter = adapterStub();
+    await makeRefreshPost(config, pool, { telegram: adapter })({
+      newsId: item.id,
+      publicationId
+    });
+
+    // Второй пост означал бы второе уведомление подписчикам об одной новости.
+    assert.equal(adapter.calls.length, 0, 'нового поста быть не должно');
+    assert.equal(adapter.edits.length, 1);
+    assert.equal(adapter.edits[0].messageId, '7');
+    assert.match(adapter.edits[0].caption, /Вторая редакция/);
+  });
+});
+
+test('неудачная правка не выдаёт стоящий пост за неотправленный', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const { item, publicationId } = await posted(pool);
+    const adapter = adapterStub({
+      edit: async () => {
+        throw new Error('Telegram отказал (400): message is not modified');
+      }
+    });
+
+    await assert.rejects(
+      makeRefreshPost(config, pool, { telegram: adapter })({ newsId: item.id, publicationId }),
+      /не modified|message is not modified/
+    );
+
+    // failed означало бы «пост не уехал» — а он стоит в канале, и кнопка после
+    // такого предложила бы отправить его второй раз.
+    const [publication] = await newsPublications(pool, item.id);
+    assert.equal(publication.state, 'published');
+    assert.match(publication.error, /пост не обновился/);
+  });
+});
+
+test('кнопка обновления есть только у отправленного поста', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const { item } = await posted(pool, 'Есть в канале');
+    await connectChannel(pool);
+    const headers = await admin(pool);
+    const app = finalize(createApp({ config, pool, queue: { add: async () => {} } }));
+
+    await withServer(app, async (base) => {
+      const page = await (await fetch(`${base}/news/${item.slug}/edit`, { headers })).text();
+      assert.match(page, /data-news-refresh="telegram"/);
+      // В MAX пост не уходил — обновлять там нечего.
+      assert.doesNotMatch(page, /data-news-refresh="max"/);
+    });
+  });
+});
+
+test('правку неотправленного поста портал не принимает', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const item = await saveNews(pool, { title: 'Не отправляли' });
+    await publishNews(pool, item.slug);
+    const headers = await admin(pool);
+    const queued = [];
+    const app = finalize(
+      createApp({ config, pool, queue: { add: async (name, data) => queued.push({ name, data }) } })
+    );
+
+    await withServer(app, async (base) => {
+      const response = await fetch(
+        `${base}/api/admin/news/${item.slug}/publish/telegram/refresh`,
+        { method: 'POST', headers }
+      );
+      assert.equal(response.status, 400);
+      assert.match((await response.json()).error, /сначала отправьте/i);
+    });
+    assert.equal(queued.length, 0);
+  });
 });

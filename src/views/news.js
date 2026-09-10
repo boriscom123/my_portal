@@ -257,18 +257,27 @@ function newsAdminBlock(item, publications, platforms) {
                   ? `<p class="hint danger">${escapeHtml(publication.error)}</p>`
                   : ''
               }
-              ${
-                sendable
-                  ? `<p class="form-row">
-                       <button class="button" type="button"
+              <p class="form-row">
+                ${
+                  sendable
+                    ? `<button class="button" type="button"
                          data-news-post="${escapeHtml(platform.name)}"
                          value="${escapeHtml(item.slug)}"
                          ${published ? '' : 'disabled title="Сначала опубликуйте новость"'}>
                          ${publication?.state === 'failed' ? 'Отправить заново' : 'Отправить пост'}
-                       </button>
-                     </p>`
-                  : ''
-              }
+                       </button>`
+                    : ''
+                }
+                ${
+                  // Пост уже в канале: правим его, а не шлём второй. Второй пост
+                  // означал бы второе уведомление подписчикам об одной новости.
+                  publication?.state === 'published' && publication.externalId
+                    ? `<button class="button" type="button"
+                         data-news-refresh="${escapeHtml(platform.name)}"
+                         value="${escapeHtml(item.slug)}">Обновить пост</button>`
+                    : ''
+                }
+              </p>
             </div>`;
           })
           .join('')
@@ -276,8 +285,14 @@ function newsAdminBlock(item, publications, platforms) {
            <a href="/settings">настройках</a>.</p>`
   }
   <p class="hint">
-    В пост уходит заголовок, начало текста и ссылка на эту страницу. Картинка —
-    первая из тех, что здесь стоят; без неё пост уйдёт текстом.
+    В пост уходит заголовок, начало текста и ссылка на страницу новости.
+    Картинка — первая из тех, что стоят ниже; без неё пост уйдёт текстом.
+  </p>
+  <p class="hint">
+    Поправили новость — нажмите «Обновить пост»: портал перепишет уже
+    отправленный, а не отправит второй. Второй пост — это второе уведомление
+    подписчикам об одной и той же новости. Картинку Telegram в готовом посте
+    менять не даёт, обновится только текст; MAX перекладывает и картинку.
   </p>
 </section>`;
 }
