@@ -8,6 +8,7 @@ import { createApp, finalize } from '../src/app.js';
 import { signSession } from '../src/lib/jwt.js';
 import { saveLesson } from '../src/services/lessons.js';
 import { saveNews, publishNews } from '../src/services/news.js';
+import { readFile } from 'node:fs/promises';
 import { feedPage } from '../src/views/feed.js';
 import { withServer } from './helpers/http.js';
 import { withTestDb, skipWithoutDb } from './helpers/db.js';
@@ -142,4 +143,15 @@ test('черновик новости в ленту не попадает', skip
       assert.ok(draft.slug, 'черновик заведён — иначе проверка ничего не значит');
     });
   });
+});
+
+test('обложка урока в ленте не обрезается по краям', async () => {
+  // Обложка у урока — не картинка, а плакат: на нём написаны название и краткое
+  // содержание. Обрезка съедает край вместе с буквами, а растяжение по высоте
+  // соседней колонки и есть та обрезка. Заказчик увидел это первым.
+  const styles = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
+  const rule = styles.slice(styles.indexOf('.lesson-card.wide .cover {'));
+  assert.ok(rule, 'правило для обложки широкой карточки пропало');
+  assert.match(rule.slice(0, 500), /object-fit: contain/);
+  assert.match(rule.slice(0, 500), /aspect-ratio: 16 \/ 9/);
 });
