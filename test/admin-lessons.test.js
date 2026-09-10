@@ -175,7 +175,7 @@ test('опубликованный урок так просто не удали�
   });
 });
 
-test('на странице видны уроки, ссылка на заведение и кнопка удаления', skipWithoutDb, async () => {
+test('на странице видны уроки, ссылка на заведение и значок правки', skipWithoutDb, async () => {
   const config = await makeConfig();
   await withTestDb(async (pool) => {
     await saveLesson(pool, { slug: 'chernovik', title: 'Черновик' });
@@ -187,7 +187,11 @@ test('на странице видны уроки, ссылка на завед�
       // его читать. В заголовке остался «+», который туда ведёт.
       assert.match(html, /href="\/lessons\/new"/);
       assert.doesNotMatch(html, /data-new-lesson/);
-      assert.match(html, /data-lesson-delete="chernovik"/);
+      // Правка — значком у заголовка, как у новости, и ведёт на экран урока.
+      assert.match(html, /class="edit" href="\/admin\/lesson\/chernovik"/);
+      // Удаление переехало на сам экран урока: в списке оно стоит вплотную к
+      // соседним урокам, а промах необратим.
+      assert.doesNotMatch(html, /data-lesson-delete/);
       assert.match(html, /Черновик/);
     });
   });

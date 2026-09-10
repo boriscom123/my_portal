@@ -9,7 +9,6 @@ import { escapeHtml } from '../lib/html.js';
 import { layout } from './layout.js';
 import { stateLabel } from './lesson-state.js';
 import { formatDate } from './feed.js';
-import { assetUrl } from '../lib/assets.js';
 
 /** Русское склонение после числа: 1 урок, 2 урока, 5 уроков. */
 function plural(n, [one, few, many]) {
@@ -21,40 +20,37 @@ function plural(n, [one, few, many]) {
   return many;
 }
 
-function lessonRow(lesson, isAdmin) {
+/**
+ * Урок карточкой — так же, как новость в своём разделе.
+ * Значок правки ведёт на экран урока: там и поля, и обработка, и площадки.
+ * Отдельной кнопки «Обработка» больше нет — она вела туда же, а два входа в
+ * одно место заставляют выбирать там, где выбора нет.
+ */
+function lessonCard(lesson, isAdmin) {
   const state = stateLabel(lesson);
   const published = lesson.status === 'published';
 
-  return `<li class="admin-lesson">
-  <div class="grow">
-    <h3><a href="/lesson/${encodeURIComponent(lesson.slug)}">${escapeHtml(lesson.title)}</a></h3>
-    <p class="meta">
-      ${published ? escapeHtml(formatDate(lesson.publishedAt)) : 'черновик'}
-      ${
-        isAdmin
-          ? ` · <span class="meta">/${escapeHtml(lesson.slug)}</span>${
-              state
-                ? ` · <span class="badge${lesson.pipelineState === 'failed' ? ' danger' : ''}">${escapeHtml(state)}</span>`
-                : ''
-            }`
-          : ''
-      }
-    </p>
-  </div>
-  ${
-    isAdmin
-      ? `<div class="actions">
-    <a class="button" href="/admin/lesson/${encodeURIComponent(lesson.slug)}">Обработка</a>
+  return `<article class="card news-card">
+  <p class="meta">
+    ${published ? escapeHtml(formatDate(lesson.publishedAt)) : '<span class="badge">черновик</span>'}
     ${
-      published
-        ? '<span class="badge" title="Опубликованный урок сначала снимают с витрины">на витрине</span>'
-        : `<button class="button" type="button"
-             data-lesson-delete="${escapeHtml(lesson.slug)}">Удалить</button>`
+      isAdmin && state
+        ? ` · <span class="badge${lesson.pipelineState === 'failed' ? ' danger' : ''}">${escapeHtml(state)}</span>`
+        : ''
     }
-  </div>`
+  </p>
+  <h2><a href="/lesson/${encodeURIComponent(lesson.slug)}">${escapeHtml(lesson.title)}</a>${
+    isAdmin
+      ? ` <a class="edit" href="/admin/lesson/${encodeURIComponent(lesson.slug)}"
+             title="Открыть урок" aria-label="Открыть урок">✎</a>`
+      : ''
+  }</h2>
+  ${
+    lesson.description
+      ? `<p class="card-text">${escapeHtml(lesson.description).slice(0, 400)}</p>`
       : ''
   }
-</li>`;
+</article>`;
 }
 
 export function lessonsPage({ config, user, lessons, series = [], diskConnected = false }) {
@@ -116,12 +112,11 @@ ${
 
 ${
   lessons.length
-    ? `<ul class="admin-lessons">${lessons.map((lesson) => lessonRow(lesson, isAdmin)).join('')}</ul>`
+    ? lessons.map((lesson) => lessonCard(lesson, isAdmin)).join('')
     : `<p class="hint">${
-        isAdmin ? 'Уроков пока нет. Заведите первый — форма выше.' : 'Уроков пока нет.'
+        isAdmin ? 'Уроков пока нет. Заведите первый — плюсом в заголовке.' : 'Уроков пока нет.'
       }</p>`
 }
-
-${isAdmin ? `<script src="${assetUrl('/admin.js')}" type="module"></script>` : ''}`
+`
   });
 }

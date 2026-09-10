@@ -695,3 +695,38 @@ test('главы показываются и предупреждают, ког�
   });
   assert.match(bad, /не покажет — ни одной/);
 });
+
+test('удаление урока живёт на его экране, а не в списке', () => {
+  // В списке кнопка стоит вплотную к соседним урокам, а промах необратим:
+  // вместе с уроком уходят файлы, расшифровка и отзывы.
+  const base = {
+    config: { youtube: { clientId: 'id' } },
+    user: { role: 'admin' },
+    assets: [],
+    transcript: null,
+    links: { subtitles: [], clips: [] },
+    platforms: []
+  };
+  const lesson = { title: 'Черновик', description: '', tags: [], settings: {} };
+
+  const draft = adminReviewPage({
+    ...base,
+    lesson: { ...lesson, slug: 'chernovik', status: 'draft' }
+  });
+  assert.match(draft, /data-lesson-delete="chernovik"/);
+
+  const published = adminReviewPage({
+    ...base,
+    lesson: {
+      ...lesson,
+      slug: 'vyshel',
+      title: 'Вышедший',
+      status: 'published',
+      publishedAt: new Date('2026-09-01T10:00:00Z')
+    }
+  });
+  // Опубликованный урок сначала снимают с витрины: удалить его одним нажатием
+  // значит оборвать ссылки, которыми уже поделились.
+  assert.doesNotMatch(published, /data-lesson-delete/);
+  assert.match(published, /на витрине/);
+});

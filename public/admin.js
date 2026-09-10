@@ -692,14 +692,17 @@ export function initPage() {
   document.querySelectorAll('[data-lesson-delete]').forEach((button) => {
     button.addEventListener('click', async () => {
       const slug = button.dataset.lessonDelete;
-      const title =
-        button.closest('.admin-lesson')?.querySelector('h3')?.textContent.trim() ?? slug;
+      // Заголовок берём с самой страницы: подтверждение называет урок по имени,
+      // а не спрашивает «вы уверены?» — промах здесь необратим.
+      const title = document.querySelector('h1')?.textContent.trim() || slug;
       if (!confirm(`Удалить урок «${title}» со всеми файлами, расшифровкой и отзывами?`)) return;
 
       button.disabled = true;
       try {
         const answer = await request(`/api/admin/lessons/${slug}`, { method: 'DELETE' });
-        if (answer) location.reload();
+        // Возвращаемся в список: перечитывать страницу урока, которого больше
+        // нет, значит показать «не найдено» вместо ответа на нажатие.
+        if (answer) location.href = '/lessons';
         else button.disabled = false;
       } catch (error) {
         toast(`Не удалилось: ${error.message}`, true);

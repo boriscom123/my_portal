@@ -269,6 +269,15 @@ ${
     <a class="button" href="/lesson/${encodeURIComponent(lesson.slug)}">
       Открыть страницу урока
     </a>
+    ${
+      // Удаление живёт здесь, рядом с остальной работой над уроком, — как и у
+      // новости. В списке ему не место: там оно стоит вплотную к соседним
+      // урокам, а промах необратим.
+      lesson.status === 'published'
+        ? `<span class="badge" title="Опубликованный урок сначала снимают с витрины">на витрине</span>`
+        : `<button class="button" type="button"
+             data-lesson-delete="${escapeHtml(lesson.slug)}">Удалить урок</button>`
+    }
   </p>
 </section>
 
