@@ -15,7 +15,7 @@ import { listNews, getNewsBySlug } from '../services/news.js';
 import { privacyPage, termsPage } from '../views/legal.js';
 import { adminReviewPage } from '../views/admin-review.js';
 import { adminPreviewPage } from '../views/admin-preview.js';
-import { publicationsFor, newsPublications } from '../services/publications.js';
+import { publicationsFor, newsPublications, shortPublications } from '../services/publications.js';
 import {
   listSeries,
   getSeriesBySlug,
@@ -23,6 +23,13 @@ import {
   relatedLessons
 } from '../services/series.js';
 import { seriesPage } from '../views/series.js';
+import {
+  shortsListPage,
+  shortPage,
+  shortNewPage,
+  shortEditPage
+} from '../views/shorts.js';
+import { listShorts, getShortBySlug, shortsOfLesson } from '../services/shorts.js';
 import { youtubeApp, channelApp, loadPlatformApp } from '../services/platform-apps.js';
 import { listSources } from '../services/news-sources.js';
 import { mediaLink } from '../lib/media-token.js';
@@ -328,6 +335,9 @@ export function pageRoutes(config, pool) {
         publications: await publicationsFor(pool, lesson.id),
         // Серии для выбора: в какую поставить этот урок.
         series: await listSeries(pool, { includeDrafts: true }),
+        // Ролики, уже сделанные из нарезок этого урока: кнопка «Сделать
+        // роликом» у такой нарезки не нужна, а ссылка на готовый — нужна.
+        shorts: await shortsOfLesson(pool, lesson.id),
         // Площадки, у которых есть настройки: без ключей кнопка выкладки была бы
         // кнопкой, которая всегда отвечает отказом.
         platforms: (
@@ -372,6 +382,7 @@ export function pageRoutes(config, pool) {
           clips: assets
             .filter((row) => row.kind === 'clip')
             .map((row) => ({
+              id: Number(row.id),
               name: row.path.split('/').pop(),
               url: mediaLink(config, Number(row.id))
             })),
@@ -435,6 +446,44 @@ export function pageRoutes(config, pool) {
   // Новости: список для всех, форма для автора. Отдельной админской страницы
   // нет намеренно — она отличалась бы только кнопками, а две почти одинаковые
   // страницы однажды разойдутся.
+  // Короткие ролики. Устроены как новости: список, своя страница у каждого,
+  // правка отдельной страницей.
+  router.get('/shorts', async (req, res) => {
+    const user = await currentUser(pool, req);
+    const shorts = await listShorts(pool, { includeDrafts: user?.role === 'admin' });
+    res.type('html').send(shortsListPage({ config, user, shorts }));
+  });
+
+  // Объявлен ДО /short/:slug — иначе «new» попало бы в него как адрес ролика.
+  router.get('/shorts/new', requireAdmin, async (req, res) => {
+    res.type('html').send(shortNewPage({ config, user: await currentUser(pool, req) }));
+  });
+
+  router.get('/short/:slug/edit', requireAdmin, async (req, res) => {
+    const short = await getShortBySlug(pool, req.params.slug);
+    if (!short) throw new PublicError('Ролик не найден', 404);
+    res.type('html').send(
+      shortEditPage({
+        config,
+        user: await currentUser(pool, req),
+        short,
+        publications: await shortPublications(pool, short.id),
+        platforms: await configuredChannels()
+      })
+    );
+  });
+
+  router.get('/short/:slug', async (req, res) => {
+    const user = await currentUser(pool, req);
+    const short = await getShortBySlug(pool, req.params.slug);
+    // Черновик по прямой ссылке — «не найдено»: сказать «есть, но не для вас»
+    // значит показать чужому и заголовок, и то, что он существует.
+    if (!short || (short.status !== 'published' && user?.role !== 'admin')) {
+      throw new PublicError('Ролик не найден', 404);
+    }
+    res.type('html').send(shortPage({ config, user, short }));
+  });
+
   // Серия целиком: все её уроки по порядку. Отдельным адресом, чтобы ссылкой
   // на курс можно было поделиться так же, как на урок.
   router.get('/series/:slug', async (req, res) => {

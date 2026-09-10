@@ -40,8 +40,12 @@ import {
   makeRefreshPost
 } from './jobs/publish-channel.js';
 import { channelApp } from './services/platform-apps.js';
-import { postToTelegram, editTelegramPost } from './services/platforms/telegram-channel.js';
-import { postToMax, editMaxPost } from './services/platforms/max-channel.js';
+import {
+  postToTelegram,
+  postVideoToTelegram,
+  editTelegramPost
+} from './services/platforms/telegram-channel.js';
+import { postToMax, postVideoToMax, editMaxPost } from './services/platforms/max-channel.js';
 
 const config = loadConfig();
 const pool = createPool(config.db);
@@ -76,9 +80,15 @@ for (const [name, model, modelUrl] of [
 const telegramAdapter = {
   app: channelApp,
   post: postToTelegram,
+  postVideo: postVideoToTelegram,
   edit: editTelegramPost
 };
-const maxAdapter = { app: channelApp, post: postToMax, edit: editMaxPost };
+const maxAdapter = {
+  app: channelApp,
+  post: postToMax,
+  postVideo: postVideoToMax,
+  edit: editMaxPost
+};
 
 // Обработчики шагов конвейера. Добавляются по мере готовности.
 const handlers = {

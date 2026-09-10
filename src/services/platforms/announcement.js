@@ -74,13 +74,21 @@ export function buildAnnouncement({
  * решит, что пост сломался, — поэтому режем по концу предложения, а ссылка
  * остаётся всегда: ради неё пост и отправляется.
  */
-export function buildNewsAnnouncement({ item, publicBaseUrl, limit = TELEGRAM_CAPTION_LIMIT }) {
-  const link = `${publicBaseUrl}/news/${item.slug}`;
+export function buildNewsAnnouncement({
+  item,
+  publicBaseUrl,
+  // Хвост поста: по умолчанию одна ссылка на саму новость. У вертикального
+  // ролика их две — на него и на урок целиком, — и собирает их вызывающий:
+  // здесь мы не знаем, из чего ролик вырезан.
+  tail = null,
+  limit = TELEGRAM_CAPTION_LIMIT
+}) {
+  const end = tail ?? `${publicBaseUrl}/news/${item.slug}`;
   const head = `${item.title}\n\n`;
-  const room = limit - head.length - link.length - 2;
+  const room = limit - head.length - end.length - 2;
   const body = room > 40 ? trimToSentence(item.body ?? '', room) : '';
 
-  return `${head}${body ? `${body}\n\n` : ''}${link}`;
+  return `${head}${body ? `${body}\n\n` : ''}${end}`;
 }
 
 /**

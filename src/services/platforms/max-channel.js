@@ -81,6 +81,58 @@ async function uploadImage({ token, filePath, fetchImpl, uploadFetch }) {
  * Без файла — просто текстом: у новости картинки может и не быть, а пустое
  * вложение площадка считает ошибкой запроса.
  */
+/**
+ * Отправляет вертикальный ролик файлом.
+ *
+ * Загрузка двухшаговая, как у картинки, но узел и ответ другие: видео площадка
+ * принимает по адресу с type=video и отдаёт токен вложения прямо в ответе
+ * загрузки, а не списком, как у картинок.
+ */
+export async function postVideoToMax({
+  token,
+  channel,
+  filePath,
+  caption,
+  fetchImpl = maxFetch,
+  uploadFetch = fetch
+}) {
+  const asked = await fetchImpl(`${API}/uploads?type=video`, {
+    method: 'POST',
+    headers: { Authorization: token, 'Content-Type': 'application/json' },
+    body: '{}'
+  });
+  if (!asked.ok) await failure(asked, token);
+
+  const { url, token: videoToken } = await asked.json();
+  if (!url) throw new Error('MAX не дал адрес для загрузки ролика');
+
+  const form = new FormData();
+  form.append('data', new Blob([await readFile(filePath)], { type: 'video/mp4' }), 'short.mp4');
+  const sent = await uploadFetch(url, { method: 'POST', body: form });
+  if (!sent.ok) throw new Error(`MAX не принял ролик (${sent.status})`);
+
+  // Токен вложения площадка выдаёт дважды: в ответе на запрос адреса и в ответе
+  // самой загрузки. Берём тот, что есть: документация называет первый, живой
+  // обмен показывал и второй.
+  const uploaded = await sent.json().catch(() => ({}));
+  const attachment = videoToken ?? uploaded.token ?? uploaded.video?.token;
+  if (!attachment) {
+    throw new Error(`MAX принял ролик, но не дал его токен: ${JSON.stringify(uploaded).slice(0, 200)}`);
+  }
+
+  const response = await fetchImpl(`${API}/messages?chat_id=${encodeURIComponent(channel)}`, {
+    method: 'POST',
+    headers: { Authorization: token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      text: caption,
+      attachments: [{ type: 'video', payload: { token: attachment } }]
+    })
+  });
+  if (!response.ok) await failure(response, token);
+
+  return { messageId: readMessageId(await response.json()), url: null };
+}
+
 export async function postToMax({
   token,
   channel,

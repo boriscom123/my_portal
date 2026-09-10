@@ -344,6 +344,36 @@ export function runFfmpeg(args, { failOn = null } = {}) {
   });
 }
 
+/**
+ * Размер кадра через ffprobe. null, если файл не читается как видео.
+ *
+ * Нужен, чтобы отличить вертикальный ролик от горизонтального до отправки:
+ * Instagram и TikTok горизонтальный не примут, а в канале он выйдет узкой
+ * полосой. Сказать об этом при загрузке честнее, чем на третьей площадке.
+ * Вызывается из src/routes/upload.js.
+ */
+export function probeFrameSize(file) {
+  return new Promise((resolve, reject) => {
+    const child = spawn('ffprobe', [
+      '-v', 'error',
+      '-select_streams', 'v:0',
+      '-show_entries', 'stream=width,height',
+      '-of', 'csv=p=0',
+      file
+    ]);
+    let out = '';
+    child.stdout.on('data', (chunk) => (out += chunk));
+    child.on('error', reject);
+    child.on('close', () => resolve(parseFrameSize(out)));
+  });
+}
+
+/** Разбирает вывод ffprobe о размере кадра. null — размера в нём нет. */
+export function parseFrameSize(text) {
+  const [width, height] = String(text).trim().split(',').map(Number);
+  return width > 0 && height > 0 ? { width, height } : null;
+}
+
 /** Длительность файла в секундах через ffprobe. null, если не определилась. */
 export function probeDuration(file) {
   return new Promise((resolve, reject) => {

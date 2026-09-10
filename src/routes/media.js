@@ -9,6 +9,15 @@ import { readMediaToken } from '../lib/media-token.js';
 import { assetById, mediaPath } from '../services/media.js';
 import { PublicError } from '../middleware/errors.js';
 
+/** Выпущен ли ролик, которому принадлежит этот файл. */
+async function shortIsPublished(pool, assetId) {
+  const { rows } = await pool.query(
+    `SELECT 1 FROM shorts WHERE asset_id = $1 AND status = 'published'`,
+    [assetId]
+  );
+  return rows.length > 0;
+}
+
 export function mediaRoutes(config, pool) {
   const router = Router();
 
@@ -21,7 +30,12 @@ export function mediaRoutes(config, pool) {
     // так же попадают в превью ссылки. Всё остальное содержимое буфера наружу
     // по-прежнему не смотрит.
     if (!asset || !['cover', 'image'].includes(asset.kind)) {
-      throw new PublicError('Файл не найден', 404);
+      // Кроме файла вертикального ролика: он и есть содержимое своей страницы,
+      // и плееру нужен прямой адрес. Но только у выпущенного — иначе прямая
+      // ссылка на файл обходила бы черновик.
+      if (!asset || !(await shortIsPublished(pool, asset.id))) {
+        throw new PublicError('Файл не найден', 404);
+      }
     }
     res.set('Cache-Control', 'public, max-age=86400');
     res.sendFile(mediaPath(config, asset.path));

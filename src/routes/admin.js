@@ -25,6 +25,13 @@ import { pickVideoAsset } from '../services/platforms/youtube-fields.js';
 import { parseChaptersText } from '../lib/chapters.js';
 import { saveNews, deleteNews, publishNews, getNewsBySlug } from '../services/news.js';
 import {
+  saveShort,
+  publishShort,
+  deleteShort,
+  getShortBySlug,
+  shortFromClip
+} from '../services/shorts.js';
+import {
   saveSeries,
   deleteSeries,
   setLessonSeries,
@@ -246,6 +253,98 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
       throw new PublicError('Серия не найдена', 404);
     }
     // Уроки остаются: серия — способ их разложить, а не хозяин записей.
+    res.json({ ok: true });
+  });
+
+  /* --- Короткие вертикальные ролики --------------------------------------- */
+
+  router.post('/shorts', async (req, res) => {
+    try {
+      const short = await saveShort(pool, {
+        slug: req.body?.slug ? String(req.body.slug) : null,
+        title: String(req.body?.title ?? ''),
+        description: String(req.body?.description ?? '')
+      });
+      if (!short) throw new PublicError('Ролик не найден', 404);
+      res.json({ slug: short.slug, title: short.title });
+    } catch (error) {
+      if (error instanceof PublicError) throw error;
+      throw new PublicError(error.message, 400);
+    }
+  });
+
+  /**
+   * Делает роликом готовую нарезку урока.
+   * Кнопка стоит на экране урока, рядом с самой нарезкой: решение принимается
+   * там, где автор её смотрит.
+   */
+  router.post('/lessons/:slug/shorts', async (req, res) => {
+    const lesson = await getLessonBySlug(pool, req.params.slug, { includeDrafts: true });
+    if (!lesson) throw new PublicError('Урок не найден', 404);
+
+    const assetId = Number(req.body?.assetId);
+    const assets = await assetsOfLesson(pool, lesson.id);
+    const clip = assets.find((asset) => asset.id === assetId && asset.kind === 'clip');
+    if (!clip) throw new PublicError('Нарезка не найдена', 404);
+
+    // Номер фрагмента — по его месту среди нарезок урока: «второй» понятнее
+    // человеку, чем номер файла в учёте.
+    const number = assets.filter((asset) => asset.kind === 'clip').indexOf(clip) + 1;
+    const short = await shortFromClip(pool, {
+      assetId: clip.id,
+      lesson,
+      title: `${lesson.title} — фрагмент ${number}`
+    });
+    if (!short) throw new PublicError('Из этой нарезки ролик уже сделан', 409);
+
+    res.json({ slug: short.slug, title: short.title });
+  });
+
+  router.post('/shorts/:slug/publish', async (req, res) => {
+    const short = await publishShort(pool, req.params.slug, req.body?.publish !== false);
+    if (!short) throw new PublicError('Ролик не найден', 404);
+    if (short.status === 'published' && !short.assetId) {
+      // Выпуск ролика без файла показал бы зрителю пустой плеер.
+      await publishShort(pool, req.params.slug, false);
+      throw new PublicError('У ролика нет файла — сначала загрузите его', 400);
+    }
+    res.json({ slug: short.slug, status: short.status, publishedAt: short.publishedAt });
+  });
+
+  for (const [platform, job] of [
+    ['telegram', JOBS.publishTelegram],
+    ['max', JOBS.publishMax]
+  ]) {
+    router.post(`/shorts/:slug/publish/${platform}`, async (req, res) => {
+      const short = await getShortBySlug(pool, req.params.slug);
+      if (!short) throw new PublicError('Ролик не найден', 404);
+      if (short.status !== 'published') {
+        throw new PublicError('Ролик ещё черновик — сначала опубликуйте его', 400);
+      }
+
+      const app = await channelApp(pool, config, platform);
+      if (!app.configured) {
+        throw new PublicError(`Канал ${platform} не настроен — заполните его в настройках`, 400);
+      }
+
+      const publication = await startPublication(pool, {
+        shortId: short.id,
+        platform,
+        mode: 'auto'
+      });
+      await addJob(req.app.locals.queue, job, {
+        shortId: short.id,
+        publicationId: publication.id
+      });
+      res.json({ publicationId: publication.id, state: 'queued' });
+    });
+  }
+
+  router.delete('/shorts/:slug', async (req, res) => {
+    if (!(await deleteShort(pool, req.params.slug))) {
+      throw new PublicError('Ролик не найден', 404);
+    }
+    // Свои файлы уходят с ним по внешнему ключу; нарезка остаётся у урока.
     res.json({ ok: true });
   });
 

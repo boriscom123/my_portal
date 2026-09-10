@@ -83,6 +83,7 @@ ${
     <a href="/search">Поиск</a>
     <a href="/news">Новости</a>
     <a href="/lessons">Уроки</a>
+    <a href="/shorts">Коротко</a>
     <a href="/feedback">Обратная связь</a>
     <a href="/settings">Настройки</a>
     ${

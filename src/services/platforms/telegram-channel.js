@@ -9,6 +9,8 @@
 // уже разрешил ему писать, а второй бот в хозяйстве — это второй токен и второй
 // повод забыть про его продление.
 // Вызывается из src/jobs/publish-telegram.js.
+import { readFile } from 'node:fs/promises';
+
 const API = 'https://api.telegram.org/bot';
 
 /** Отказ площадки её же словами: они точнее нашего пересказа. */
@@ -73,6 +75,37 @@ export async function postToTelegram({ token, channel, photoUrl, caption, fetchI
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   });
+  if (!response.ok) await failure(response);
+
+  const body = await response.json();
+  const messageId = String(body.result?.message_id ?? '');
+  return { messageId, url: postUrl(channel, messageId) };
+}
+
+/**
+ * Отправляет вертикальный ролик файлом.
+ *
+ * Файлом, а не ссылкой: подписчик должен смотреть его в ленте канала, а не
+ * уходить на сайт. Предел бота — 50 МБ, и он проверяется до отправки: ответ
+ * площадки на превышение приходит после того, как файл уже уехал по сети.
+ *
+ * supports_streaming — не украшение: без него Telegram отдаёт ролик как файл,
+ * который сначала надо скачать целиком, и лента канала перестаёт работать.
+ */
+export async function postVideoToTelegram({
+  token,
+  channel,
+  filePath,
+  caption,
+  fetchImpl = fetch
+}) {
+  const form = new FormData();
+  form.append('chat_id', channel);
+  form.append('caption', caption);
+  form.append('supports_streaming', 'true');
+  form.append('video', new Blob([await readFile(filePath)], { type: 'video/mp4' }), 'short.mp4');
+
+  const response = await fetchImpl(`${API}${token}/sendVideo`, { method: 'POST', body: form });
   if (!response.ok) await failure(response);
 
   const body = await response.json();

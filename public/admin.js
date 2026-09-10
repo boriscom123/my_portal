@@ -410,6 +410,26 @@ export function initPage() {
     }
   });
 
+  // «Сделать роликом»: нарезка становится роликом раздела «Коротко». Файл
+  // остаётся за уроком — здесь он и показывается.
+  for (const button of document.querySelectorAll('[data-make-short]')) {
+    button.addEventListener('click', async () => {
+      try {
+        await withButtonState(button, 'Завожу…', 'Готово', async () => {
+          const answer = await request(`/api/admin/lessons/${button.value}/shorts`, {
+            method: 'POST',
+            body: JSON.stringify({ assetId: Number(button.dataset.makeShort) })
+          });
+          if (!answer) return;
+          toast(`Ролик «${answer.title}» заведён — правьте и выпускайте.`);
+          setTimeout(() => (location.href = `/short/${answer.slug}/edit`), 900);
+        });
+      } catch (error) {
+        toast(`Не получилось: ${error.message}`, true);
+      }
+    });
+  }
+
   const reviewForm = document.querySelector('[data-approve]');
   reviewForm?.addEventListener('submit', async (event) => {
     event.preventDefault();

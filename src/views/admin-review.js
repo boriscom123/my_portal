@@ -51,6 +51,7 @@ export function adminReviewPage({
   publications = [],
   platforms = [],
   series = [],
+  shorts = [],
   links
 }) {
   const state = stateLabel(lesson);
@@ -520,12 +521,27 @@ ${
   </p>
   ${
     links.clips.length
-      ? `<ul>${links.clips
-          .map(
-            (item) => `<li><a href="${escapeHtml(item.url)}">${escapeHtml(item.name)}</a></li>`
-          )
+      ? `<ul class="clip-list">${links.clips
+          .map((item) => {
+            const short = shorts.find((made) => made.assetId === item.id);
+            return `<li>
+              <a href="${escapeHtml(item.url)}">${escapeHtml(item.name)}</a>
+              ${
+                short
+                  ? ` — <a href="/short/${encodeURIComponent(short.slug)}/edit">ролик «${escapeHtml(
+                      short.title
+                    )}»</a>`
+                  : `<button class="button" type="button" data-make-short="${item.id}"
+                       value="${escapeHtml(lesson.slug)}">Сделать роликом</button>`
+              }
+            </li>`;
+          })
           .join('')}</ul>
-         <p class="hint">Ссылка живёт час — посмотрите и решите, годится ли.</p>`
+         <p class="hint">
+           Ссылка живёт час — посмотрите и решите, годится ли. «Сделать роликом»
+           заводит его в разделе «Коротко»: файл при этом остаётся здесь и
+           перестаёт стареть.
+         </p>`
       : ''
   }
   <p class="form-row">

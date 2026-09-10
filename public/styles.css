@@ -1856,3 +1856,53 @@ label[for='cover-file'] {
   object-fit: contain;
   background: var(--bg);
 }
+
+/* --- Короткие ролики ------------------------------------------------------ */
+
+/* Карточки уже остальных: у вертикали высота втрое больше ширины, и в колонке
+   привычной ширины одна такая заняла бы весь экран. */
+.shorts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 11rem), 1fr));
+  gap: 20px;
+}
+.short-card {
+  padding: 14px;
+}
+.short-card h2 {
+  font-size: 16px;
+  margin: 10px 0 0;
+}
+.short-card .meta {
+  margin: 0 0 10px;
+}
+
+/* Заставка и сам ролик — 9:16. Соотношение задано, а не взято из файла: без
+   него список прыгает, пока грузятся картинки. */
+.short-cover,
+.short-video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 9 / 16;
+  object-fit: cover;
+  border-radius: var(--radius);
+}
+
+/* Плеер на странице ролика: по высоте не выше экрана, иначе вертикаль на
+   ноутбуке уходит за нижний край и её приходится проматывать. */
+.short-video {
+  max-height: min(80vh, 40rem);
+  width: auto;
+  margin: 0 auto;
+  background: #000;
+  object-fit: contain;
+}
+
+/* Список нарезок на экране урока: имя файла и кнопка рядом, а не под ним. */
+.clip-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}

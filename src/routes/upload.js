@@ -17,10 +17,12 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { requireAdmin } from '../middleware/guards.js';
 import { PublicError } from '../middleware/errors.js';
-import { mediaPath, registerAsset } from '../services/media.js';
+import { mediaPath, registerAsset, forgetAssetByPath } from '../services/media.js';
 import { imageTypeOf } from '../lib/image-type.js';
 import { getNewsBySlug } from '../services/news.js';
 import { getLessonBySlug } from '../services/lessons.js';
+import { getShortBySlug, setShortFile } from '../services/shorts.js';
+import { probeFrameSize, runFfmpeg, ffmpegArgsForCover } from '../lib/ffmpeg.js';
 import { addJob } from '../queue.js';
 
 // Размер куска. Восемь мегабайт: меньше — слишком много запросов на часовой
@@ -30,6 +32,11 @@ const CHUNK_SIZE = 8 * 1024 * 1024;
 // Предел для обложки. Десять мегабайт с запасом покрывают любую разумную
 // картинку; больше — это уже не обложка, а чей-то способ занять диск.
 const COVER_LIMIT = 10 * 1024 * 1024;
+
+// Предел для вертикального ролика. Триста мегабайт: минута вертикали весит
+// десятки, а всё, что больше, — это уже не короткий ролик, и площадки его не
+// возьмут.
+const SHORT_LIMIT = 300 * 1024 * 1024;
 
 /**
  * Приводит имя файла к безопасному виду.
@@ -198,6 +205,91 @@ export function uploadRoutes(config, pool) {
     });
 
     res.json({ assetId: asset.id, url: `/media/asset/${asset.id}`, bytes: bytes.length });
+  });
+
+  /**
+   * Файл вертикального ролика, снятого автором отдельно.
+   *
+   * Одним запросом с записью на диск потоком, а не кусками с продолжением, как
+   * исходник урока: продолжение после обрыва нужно там, где счёт идёт на
+   * гигабайты и получасовые загрузки, а вертикалка весит десятки мегабайт.
+   * Потоком, а не в память: у контейнера потолок памяти, и триста мегабайт в
+   * буфере — верный способ его выбрать.
+   */
+  router.put('/short/:slug', async (req, res) => {
+    const short = await getShortBySlug(pool, req.params.slug);
+    if (!short) throw new PublicError('Ролик не найден', 404);
+
+    const dir = `short-${short.id}`;
+    await mkdir(mediaPath(config, dir), { recursive: true });
+    // Имя постоянное: второй загруженный файл заменяет первый, а не копится в
+    // буфере до истечения срока.
+    const relative = `${dir}/vertical.mp4`;
+    const full = mediaPath(config, relative);
+
+    let size = 0;
+    const out = createWriteStream(full);
+    try {
+      for await (const chunk of req) {
+        size += chunk.length;
+        if (size > SHORT_LIMIT) throw new PublicError('Ролик больше трёхсот мегабайт', 413);
+        if (!out.write(chunk)) await new Promise((resolve) => out.once('drain', resolve));
+      }
+    } finally {
+      out.end();
+      await new Promise((resolve) => out.on('close', resolve));
+    }
+
+    // Размер кадра спрашиваем у самого файла: заголовок и расширение задаёт
+    // браузер, а ролик потом уезжает на чужие площадки. Заодно это и проверка,
+    // что перед нами вообще видео.
+    const frame = await probeFrameSize(full);
+    if (!frame) {
+      await rm(full, { force: true });
+      throw new PublicError('Это не видео — принимается mp4', 415);
+    }
+    if (frame.width > frame.height) {
+      await rm(full, { force: true });
+      throw new PublicError(
+        `Ролик горизонтальный (${frame.width}×${frame.height}). ` +
+          'Площадки коротких видео такой не примут, а в канале он выйдет узкой полосой',
+        415
+      );
+    }
+
+    await forgetAssetByPath(pool, { shortId: short.id, path: relative });
+    const asset = await registerAsset(pool, config, {
+      shortId: short.id,
+      kind: 'vertical',
+      relativePath: relative,
+      bytes: size
+    });
+
+    // Кадр-заставка: без неё в списке чёрный прямоугольник, а мессенджеру
+    // нечего показать в превью ссылки. Берём с первой секунды — на нулевой
+    // кадре у многих роликов ещё затемнение.
+    let coverUrl = null;
+    try {
+      const coverPath = `${dir}/cover.jpg`;
+      await runFfmpeg(
+        ffmpegArgsForCover({ input: full, atSeconds: 1, output: mediaPath(config, coverPath) })
+      );
+      await forgetAssetByPath(pool, { shortId: short.id, path: coverPath });
+      const cover = await registerAsset(pool, config, {
+        shortId: short.id,
+        kind: 'cover',
+        relativePath: coverPath,
+        bytes: (await stat(mediaPath(config, coverPath))).size
+      });
+      coverUrl = `/media/asset/${cover.id}`;
+    } catch (error) {
+      // Заставка — довесок: без неё ролик всё равно можно смотреть и
+      // отправлять. Ронять из-за неё загрузку значит терять уже принятый файл.
+      console.error(`Кадр-заставка не снялась: ${error.message}`);
+    }
+
+    await setShortFile(pool, short.id, { assetId: asset.id, coverUrl });
+    res.json({ assetId: asset.id, bytes: size, frame, coverUrl });
   });
 
   router.put('/:uploadId/:index', async (req, res) => {

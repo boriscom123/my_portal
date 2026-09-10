@@ -8,7 +8,8 @@
 // Вызывается воркером по именам JOBS.publishTelegram и JOBS.publishMax.
 import { getLessonById } from '../services/lessons.js';
 import { getNewsById } from '../services/news.js';
-import { assetsOfLesson, assetsOfNews, mediaPath } from '../services/media.js';
+import { getShortById } from '../services/shorts.js';
+import { assetsOfLesson, assetsOfNews, assetById, mediaPath } from '../services/media.js';
 import {
   markPublicationState,
   publicationsFor,
@@ -69,13 +70,61 @@ async function newsPost(config, pool, newsId) {
   };
 }
 
+// Сколько весит файл, который площадка возьмёт от бота. У Telegram это её
+// собственный предел, у MAX — свой, больший. Проверяем до отправки: ответ на
+// превышение приходит после того, как файл уже уехал по сети, а на мобильном
+// исходящем канале это минуты впустую.
+const VIDEO_LIMITS = { telegram: 50 * 1024 * 1024, max: 250 * 1024 * 1024 };
+
+/**
+ * Собирает пост о вертикальном ролике.
+ * Ролик уходит файлом, а не ссылкой: подписчик смотрит его в ленте канала, а не
+ * уходит на сайт.
+ */
+async function shortPost(config, pool, shortId, platform) {
+  const short = await getShortById(pool, shortId);
+  if (!short) throw new Error('Ролик не найден');
+  if (short.status !== 'published') {
+    throw new Error('Ролик ещё черновик — сначала опубликуйте его');
+  }
+  if (!short.assetId) throw new Error('У ролика нет файла — загрузите его');
+
+  const asset = await assetById(pool, short.assetId);
+  if (!asset) throw new Error('Файл ролика не найден в буфере — загрузите его заново');
+
+  const limit = VIDEO_LIMITS[platform];
+  if (limit && asset.bytes > limit) {
+    const mb = (bytes) => Math.round(bytes / (1024 * 1024));
+    throw new Error(
+      `Ролик весит ${mb(asset.bytes)} МБ, а ${platform} берёт от бота не больше ${mb(limit)} МБ`
+    );
+  }
+
+  const links = [`${config.publicBaseUrl}/short/${short.slug}`];
+  // Ссылка на полный урок — то, ради чего короткий ролик и режется. У снятого
+  // отдельно её нет, и придумывать нечего.
+  if (short.lesson) links.push(`Урок целиком: ${config.publicBaseUrl}/lesson/${short.lesson.slug}`);
+
+  return {
+    video: true,
+    filePath: mediaPath(config, asset.path),
+    caption: buildNewsAnnouncement({
+      item: { slug: short.slug, title: short.title, body: short.description },
+      publicBaseUrl: config.publicBaseUrl,
+      // Подпись собирается тем же сборщиком, что у новости, но хвост свой:
+      // ссылок здесь две, и вторая важнее описания.
+      tail: links.join('\n')
+    })
+  };
+}
+
 /**
  * Собирает шаг для одной площадки.
  * adapter — две функции площадки: post и edit. Приходит доводом, а не импортом:
  * так шаг проверяется тестом без сети.
  */
 export function makePublishChannel(config, pool, platform, adapter) {
-  return async ({ lessonId = null, newsId = null, publicationId }) => {
+  return async ({ lessonId = null, newsId = null, shortId = null, publicationId }) => {
     // Подготовка внутри try вместе с отправкой: отказ на ней — тоже отказ
     // публикации. Оставь его снаружи — и строка навсегда застрянет в «в
     // очереди»: кнопка отправки при таком состоянии не показывается, и автор
@@ -86,19 +135,23 @@ export function makePublishChannel(config, pool, platform, adapter) {
         throw new Error(`Канал ${platform} не настроен — заполните его в настройках`);
       }
 
-      // Урок или новость: отправка у них одна и та же, разное — только то, из
-      // чего собирается пост. Развести это по двум шагам значило бы чинить
-      // каждую правку отправки дважды.
-      const post = newsId
-        ? await newsPost(config, pool, newsId)
-        : await lessonPost(config, pool, lessonId, platform);
+      // Урок, новость или ролик: отправка у них одна и та же, разное — только
+      // то, из чего собирается пост. Развести это по трём шагам значило бы
+      // чинить каждую правку отправки трижды.
+      const post = shortId
+        ? await shortPost(config, pool, shortId, platform)
+        : newsId
+          ? await newsPost(config, pool, newsId)
+          : await lessonPost(config, pool, lessonId, platform);
 
       await markPublicationState(pool, publicationId, { state: 'uploading' });
 
-      const { messageId, url } = await adapter.post({
+      const { video, ...payload } = post;
+      const send = video ? adapter.postVideo : adapter.post;
+      const { messageId, url } = await send({
         token: app.token,
         channel: app.channel,
-        ...post
+        ...payload
       });
       await markPublicationState(pool, publicationId, {
         // Пост в канале виден сразу: приватного состояния у него нет.

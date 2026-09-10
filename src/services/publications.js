@@ -19,9 +19,18 @@
  */
 export async function startPublication(
   pool,
-  { lessonId = null, newsId = null, platform, assetId = null, mode }
+  { lessonId = null, newsId = null, shortId = null, platform, assetId = null, mode }
 ) {
-  const { rows } = newsId
+  const { rows } = shortId
+    ? await pool.query(
+        `INSERT INTO publications (short_id, platform, state, mode, error, updated_at)
+         VALUES ($1, $2, 'queued', $3, NULL, now())
+         ON CONFLICT (short_id, platform) WHERE short_id IS NOT NULL
+           DO UPDATE SET state = 'queued', mode = EXCLUDED.mode, error = NULL, updated_at = now()
+         RETURNING id`,
+        [shortId, platform, mode]
+      )
+    : newsId
     ? await pool.query(
         `INSERT INTO publications (news_id, platform, state, mode, error, updated_at)
          VALUES ($1, $2, 'queued', $3, NULL, now())
@@ -92,6 +101,11 @@ export async function publicationsFor(pool, lessonId) {
 /** Посты новости в каналах — для её страницы. */
 export async function newsPublications(pool, newsId) {
   return byOwner(pool, 'news_id', newsId);
+}
+
+/** Выкладки вертикального ролика — для его страницы правки. */
+export async function shortPublications(pool, shortId) {
+  return byOwner(pool, 'short_id', shortId);
 }
 
 async function byOwner(pool, column, id) {

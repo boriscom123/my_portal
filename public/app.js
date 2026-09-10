@@ -604,6 +604,161 @@ function initPage() {
     }
   });
 
+  /* --- Короткие ролики ----------------------------------------------------- */
+
+  /**
+   * Загрузка файла ролика. Одним запросом: вертикалка весит десятки мегабайт,
+   * и продолжение после обрыва здесь не окупается.
+   * Отдельной функцией — её зовут две страницы: заведение и замена файла.
+   */
+  async function uploadShortFile(slug, file, note) {
+    const wasText = note?.textContent;
+    if (note) note.textContent = 'Загружаю…';
+    const response = await fetch(`/api/upload/short/${slug}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'video/mp4' },
+      body: file
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      if (note) note.textContent = wasText;
+      throw new Error(body.error ?? 'файл не принят');
+    }
+    return response.json();
+  }
+
+  // Заведение ролика: сначала карточка, потом файл. Порядок важен — файл
+  // кладётся в папку ролика, а её имя знает только заведённая строка.
+  const shortNew = document.querySelector('[data-short-new]');
+  shortNew?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const fields = new FormData(shortNew);
+    const file = shortNew.querySelector('#short-file').files[0];
+    if (!file) {
+      toast('Сначала выберите файл ролика.', true);
+      return;
+    }
+
+    const button = shortNew.querySelector('button[type=submit]');
+    const note = shortNew.querySelector('[data-short-file-name]');
+    button.disabled = true;
+    try {
+      const short = await request('/api/admin/shorts', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: fields.get('title'),
+          description: fields.get('description')
+        })
+      });
+      if (!short) return;
+      await uploadShortFile(short.slug, file, note);
+      toast('Ролик загружен.');
+      location.href = `/short/${short.slug}/edit`;
+    } catch (error) {
+      toast(`Не загрузилось: ${error.message}`, true);
+      button.disabled = false;
+    }
+  });
+
+  // Имя выбранного файла: без него человек не знает, выбрал он что-нибудь или
+  // промахнулся мимо диалога.
+  const shortFileInput = document.querySelector('#short-file');
+  shortFileInput?.addEventListener('change', async () => {
+    const file = shortFileInput.files[0];
+    const note = document.querySelector('[data-short-file-name]');
+    if (note && file) note.textContent = file.name;
+
+    // На странице правки файл заменяется сразу: заводить нечего, ролик уже есть.
+    const slug = shortFileInput.dataset.shortFile;
+    if (!slug || !file) return;
+    try {
+      await uploadShortFile(slug, file, note);
+      toast('Файл заменён.');
+      setTimeout(() => location.reload(), 900);
+    } catch (error) {
+      toast(`Не загрузилось: ${error.message}`, true);
+    }
+  });
+
+  const shortForm = document.querySelector('[data-short-form]');
+  shortForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const fields = new FormData(shortForm);
+    const button = shortForm.querySelector('button[type=submit]');
+    button.disabled = true;
+    try {
+      const answer = await request('/api/admin/shorts', {
+        method: 'POST',
+        body: JSON.stringify({
+          slug: shortForm.dataset.shortForm,
+          title: fields.get('title'),
+          description: fields.get('description')
+        })
+      });
+      if (!answer) return;
+      toast('Ролик сохранён.');
+    } catch (error) {
+      toast(`Не сохранилось: ${error.message}`, true);
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  const shortPublish = document.querySelector('[data-short-publish]');
+  shortPublish?.addEventListener('click', async () => {
+    const publish = shortPublish.value === 'yes';
+    shortPublish.disabled = true;
+    try {
+      const answer = await request(
+        `/api/admin/shorts/${shortPublish.dataset.shortPublish}/publish`,
+        { method: 'POST', body: JSON.stringify({ publish }) }
+      );
+      if (!answer) return;
+      toast(publish ? 'Ролик опубликован.' : 'Ролик вернулся в черновики.');
+      setTimeout(() => location.reload(), 900);
+    } catch (error) {
+      toast(`Не получилось: ${error.message}`, true);
+      shortPublish.disabled = false;
+    }
+  });
+
+  for (const button of document.querySelectorAll('[data-short-post]')) {
+    button.addEventListener('click', async () => {
+      const wasText = button.textContent;
+      button.disabled = true;
+      button.textContent = 'Отправляю…';
+      try {
+        const answer = await request(
+          `/api/admin/shorts/${button.value}/publish/${button.dataset.shortPost}`,
+          { method: 'POST' }
+        );
+        if (!answer) return;
+        toast('Ролик поехал в канал. Файл идёт минуту-другую.');
+        setTimeout(() => location.reload(), 2000);
+      } catch (error) {
+        toast(`Не отправилось: ${error.message}`, true);
+        button.disabled = false;
+        button.textContent = wasText;
+      }
+    });
+  }
+
+  const shortDelete = document.querySelector('[data-short-delete]');
+  shortDelete?.addEventListener('click', async () => {
+    if (!confirm('Удалить ролик? Нарезка урока, если он из урока, останется на месте.')) return;
+    shortDelete.disabled = true;
+    try {
+      const answer = await request(`/api/admin/shorts/${shortDelete.dataset.shortDelete}`, {
+        method: 'DELETE'
+      });
+      if (!answer) return;
+      location.href = '/shorts';
+    } catch (error) {
+      toast(`Не удалилось: ${error.message}`, true);
+      shortDelete.disabled = false;
+    }
+  });
+
   /* --- Серия уроков ------------------------------------------------------- */
 
   // Правка названия и описания серии. Форма живёт на самой странице серии:

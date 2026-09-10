@@ -20,7 +20,9 @@ const TTL_SHARE = { source: 1, audio: 0.5, clip: 1, subtitles: 10 };
 
 // Виды файлов, которые живут, пока на них ссылаются. Это то, что видит
 // зритель: удалить их по сроку — значит показать битую картинку на витрине.
-const KEPT_KINDS = new Set(['cover', 'image']);
+// Вертикальный ролик здесь по той же причине: он и есть содержимое своей
+// страницы, а не рабочий файл конвейера.
+const KEPT_KINDS = new Set(['cover', 'image', 'vertical']);
 
 /**
  * Абсолютный путь к файлу буфера.
@@ -40,7 +42,7 @@ export function mediaPath(config, relative) {
 export async function registerAsset(
   pool,
   config,
-  { lessonId = null, newsId = null, kind, relativePath, bytes, position = 0 }
+  { lessonId = null, newsId = null, shortId = null, kind, relativePath, bytes, position = 0 }
 ) {
   // Пустой срок — «храним, пока используется». Уборщик такие файлы не трогает
   // по времени и удаляет только когда на них перестали ссылаться.
@@ -49,9 +51,9 @@ export async function registerAsset(
   // учёте должна обновиться, а не удвоиться. Иначе уборка удаляла бы один
   // файл дважды, а размер буфера считался вдвое больше настоящего.
   const { rows } = await pool.query(
-    `INSERT INTO assets (lesson_id, news_id, kind, path, bytes, position, expires_at)
-     VALUES ($1, $2, $3, $4, $5, $6,
-             CASE WHEN $7::text IS NULL THEN NULL ELSE now() + ($7 || ' hours')::interval END)
+    `INSERT INTO assets (lesson_id, news_id, short_id, kind, path, bytes, position, expires_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7,
+             CASE WHEN $8::text IS NULL THEN NULL ELSE now() + ($8 || ' hours')::interval END)
      ON CONFLICT (lesson_id, path) DO UPDATE SET kind = EXCLUDED.kind,
                                                  bytes = EXCLUDED.bytes,
                                                  position = EXCLUDED.position,
@@ -60,6 +62,7 @@ export async function registerAsset(
     [
       lessonId,
       newsId,
+      shortId,
       kind,
       relativePath,
       bytes,
@@ -82,6 +85,19 @@ export async function listExpired(pool) {
     path: row.path,
     bytes: Number(row.bytes)
   }));
+}
+
+/**
+ * Убирает из учёта прежнюю запись о том же файле того же хозяина.
+ *
+ * Имя файла у ролика постоянное — второй загруженный заменяет первый на диске.
+ * В учёте же вторая загрузка завела бы вторую строку: защита от повторов стоит
+ * на паре «урок и путь», а у ролика урока нет. Две строки на один файл означают
+ * двойной счёт буфера и запись, на которую никто не смотрит.
+ * Вызывается из src/routes/upload.js перед регистрацией нового файла.
+ */
+export async function forgetAssetByPath(pool, { shortId, path: relative }) {
+  await pool.query('DELETE FROM assets WHERE short_id = $1 AND path = $2', [shortId, relative]);
 }
 
 /** Убирает файл из учёта. Сам файл удаляет вызывающий. */
