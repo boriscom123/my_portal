@@ -24,7 +24,9 @@ function lessonCard(lesson, isAdmin) {
   // Состояние обработки видит только автор: зрителю оно ничего не говорит, а
   // на главной автор оказывается чаще, чем в кабинете.
   const state = isAdmin ? stateLabel(lesson) : '';
-  return `<article class="lesson-card">
+  // wide: урок занимает всю ширину ленты. Урок — то, ради чего портал, и
+  // ставить его в один ряд с заметкой значит уравнять час работы и три абзаца.
+  return `<article class="lesson-card wide">
   <a href="/lesson/${encodeURIComponent(lesson.slug)}">${cover(lesson)}</a>
   <div class="card-body">
     <p class="meta">${escapeHtml(date)}${
@@ -85,11 +87,22 @@ export function feedPage({ config, lessons, news = [], user, tag = null }) {
   // разложенные по разным разделам они читались бы как два несвязанных сайта.
   const feed = [
     ...lessons.map((lesson) => ({
+      kind: 'lesson',
       at: lesson.publishedAt ?? lesson.createdAt ?? new Date(0),
       html: lessonCard(lesson, user?.role === 'admin')
     })),
-    ...news.map((item) => ({ at: item.publishedAt, html: newsCard(item) }))
+    ...news.map((item) => ({ kind: 'news', at: item.publishedAt, html: newsCard(item) }))
   ].sort((first, second) => new Date(second.at) - new Date(first.at));
+
+  // Идущие подряд новости собираются в один ряд — по две, не больше. Урок
+  // разрывает ряд и встаёт во всю ширину. Порядок по дате при этом цел: ряд
+  // собирается только из соседей по ленте, а не из всех новостей подряд.
+  const rows = [];
+  for (const item of feed) {
+    const last = rows.at(-1);
+    if (item.kind === 'news' && last?.kind === 'news') last.items.push(item.html);
+    else rows.push({ kind: item.kind, items: [item.html] });
+  }
 
   const heading = tag ? `Уроки по теме «${tag}»` : 'Solo AI Journey';
 
@@ -110,7 +123,13 @@ ${
 <section>
   ${
     feed.length
-      ? `<div class="lessons-grid">${feed.map((item) => item.html).join('')}</div>`
+      ? `<div class="feed">${rows
+          .map((row) =>
+            row.kind === 'news'
+              ? `<div class="news-grid">${row.items.join('')}</div>`
+              : row.items.join('')
+          )
+          .join('')}</div>`
       : '<p class="hint">Пока ни одного урока. Первый уже собирается.</p>'
   }
 </section>`

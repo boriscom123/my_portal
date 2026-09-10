@@ -90,7 +90,11 @@ export function pageRoutes(config, pool) {
 
   router.get('/', async (req, res) => {
     const user = await currentUser(pool, req);
-    const lessons = await listLessons(pool, { includeDrafts: user?.role === 'admin' });
+    // Черновиков на главной нет ни у кого, включая автора. Главная — витрина, а
+    // не рабочий стол: недоделанный урок среди вышедших сбивает и самого
+    // автора — он смотрит на витрину, чтобы увидеть её глазами зрителя.
+    // Незаконченное лежит в разделе «Уроки», там оно к месту.
+    const lessons = await listLessons(pool, {});
     // Пока уроков нет вовсе, показываем заглушку с рассказом о проекте:
     // пустая лента на новом сайте читается как сломанная страница.
     if (!lessons.length) {
