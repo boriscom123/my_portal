@@ -119,9 +119,11 @@ test('файл обязан принадлежать ровно одному х�
 test('новости отдаются свежими сверху', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
     await pool.query(
-      `INSERT INTO news (slug, title, body, published_at) VALUES
-       ('staraya', 'Старая', 'текст', '2026-07-01'),
-       ('svezhaya', 'Свежая', 'текст', '2026-08-20')`
+      // status обязателен: с появлением черновиков лента показывает только
+      // вышедшее, и «просто строка в таблице» больше не значит «на витрине».
+      `INSERT INTO news (slug, title, body, status, published_at) VALUES
+       ('staraya', 'Старая', 'текст', 'published', '2026-07-01'),
+       ('svezhaya', 'Свежая', 'текст', 'published', '2026-08-20')`
     );
     const news = await listNews(pool, {});
     assert.deepEqual(

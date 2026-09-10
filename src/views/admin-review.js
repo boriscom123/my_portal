@@ -10,6 +10,7 @@ import { escapeHtml } from '../lib/html.js';
 import { assetUrl } from '../lib/assets.js';
 import { layout } from './layout.js';
 import { stateLabel } from './lesson-state.js';
+import { PUBLICATION_STATES } from './publication-state.js';
 import { readSettings } from '../lib/settings.js';
 import { chaptersBlock, validChapters } from '../lib/chapters.js';
 import { timeLabel } from './search.js';
@@ -37,15 +38,6 @@ function assetRow(asset) {
 </li>`;
 }
 
-// Состояние публикации человеку. «ready» на экране не объясняет ничего, а
-// «опубликован» на приватном ролике — прямая ложь.
-const PUBLICATION_STATES = {
-  queued: 'в очереди',
-  uploading: 'заливается',
-  ready: 'лежит приватным, ждёт вашего нажатия',
-  published: 'опубликован',
-  failed: 'не уехал'
-};
 
 export function adminReviewPage({
   config,

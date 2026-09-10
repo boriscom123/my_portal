@@ -24,11 +24,20 @@ function postUrl(channel, messageId) {
   return /^-?\d+$/.test(name) ? null : `https://t.me/${name}/${messageId}`;
 }
 
+/**
+ * Отправляет пост.
+ * Без картинки — обычным сообщением: новость бывает и без неё, а sendPhoto без
+ * фотографии площадка не принимает.
+ */
 export async function postToTelegram({ token, channel, photoUrl, caption, fetchImpl = fetch }) {
-  const response = await fetchImpl(`${API}${token}/sendPhoto`, {
+  const [method, payload] = photoUrl
+    ? ['sendPhoto', { chat_id: channel, photo: photoUrl, caption }]
+    : ['sendMessage', { chat_id: channel, text: caption }];
+
+  const response = await fetchImpl(`${API}${token}/${method}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: channel, photo: photoUrl, caption })
+    body: JSON.stringify(payload)
   });
   if (!response.ok) await failure(response);
 

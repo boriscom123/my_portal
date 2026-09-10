@@ -6,6 +6,7 @@
 // Подключается из src/routes/pages.js.
 import { escapeHtml } from '../lib/html.js';
 import { layout } from './layout.js';
+import { publicationLabel } from './publication-state.js';
 
 /** Дата человеку: «8 сентября 2026». */
 function formatDate(value) {
@@ -92,7 +93,11 @@ ${
     ? news
         .map(
           (item) => `<article class="card news-card">
-  <p class="meta">${escapeHtml(formatDate(item.publishedAt))}</p>
+  <p class="meta">${
+    item.status === 'published'
+      ? escapeHtml(formatDate(item.publishedAt))
+      : '<span class="badge">черновик</span>'
+  }</p>
   <h2><a href="/news/${encodeURIComponent(item.slug)}">${escapeHtml(item.title)}</a>${
             isAdmin
               ? ` <a class="edit" href="/news/${encodeURIComponent(item.slug)}/edit"
@@ -110,7 +115,7 @@ ${
 }
 
 /** Страница одной новости. */
-export function newsPage({ config, user, item }) {
+export function newsPage({ config, user, item, publications = [], platforms = [] }) {
   const isAdmin = user?.role === 'admin';
   return layout({
     config,
@@ -120,19 +125,17 @@ export function newsPage({ config, user, item }) {
     description: item.body.slice(0, 160),
     body: `
 <article class="card">
-  <p class="meta">${escapeHtml(formatDate(item.publishedAt))}</p>
+  <p class="meta">${
+    item.status === 'published'
+      ? escapeHtml(formatDate(item.publishedAt))
+      : '<span class="badge">черновик — виден только вам</span>'
+  }</p>
   <h1>${escapeHtml(item.title)}</h1>
   ${newsImages(item.images)}
   <div class="news-body">${linkify(item.body)}</div>
 </article>
 
-${
-  isAdmin
-    ? `<p class="form-row">
-         <a class="button" href="/news/${encodeURIComponent(item.slug)}/edit">Править новость</a>
-       </p>`
-    : ''
-}`
+${isAdmin ? newsAdminBlock(item, publications, platforms) : ''}`
   });
 }
 
@@ -186,4 +189,86 @@ ${
     : '<p class="hint">Картинки добавляются после сохранения — на этой же странице.</p>'
 }`
   });
+}
+
+/**
+ * Выпуск новости и посты в каналах — блок для автора под самой новостью.
+ *
+ * Здесь, а не на странице правки: решение «выпускать» принимается, когда
+ * новость видна целиком, глазами читателя, а не когда она разложена по полям
+ * формы.
+ */
+function newsAdminBlock(item, publications, platforms) {
+  const published = item.status === 'published';
+  const slug = encodeURIComponent(item.slug);
+
+  return `<section class="card">
+  <h2>Выпуск</h2>
+  <p class="hint">
+    ${
+      published
+        ? `Новость вышла ${escapeHtml(formatDate(item.publishedAt))} — она в ленте и на витрине.
+           Возврат в черновик убирает её у читателей; дата выхода при этом
+           сохраняется, и повторный выпуск не поднимет старую новость наверх.`
+        : `Пока черновик: в ленте и в списке её видите только вы. Выпуск ставит
+           дату — ту самую, что увидят читатели.`
+    }
+  </p>
+  <p class="form-row">
+    <a class="button" href="/news/${slug}/edit">Править новость</a>
+    <button class="${published ? 'button' : 'button-brand'}" type="button"
+      data-news-publish="${escapeHtml(item.slug)}" value="${published ? 'no' : 'yes'}">
+      ${published ? 'Вернуть в черновик' : 'Опубликовать'}
+    </button>
+  </p>
+</section>
+
+<section class="card">
+  <h2>Каналы</h2>
+  ${
+    platforms.length
+      ? platforms
+          .map((platform) => {
+            const publication = publications.find((post) => post.platform === platform.name);
+            // Кнопка остаётся там, где ей есть что делать: пост, который уже
+            // ушёл, вторым нажатием не обновится — уедет вторая копия, и
+            // убирать её придётся руками в самом канале.
+            const sendable = !publication || publication.state === 'failed';
+
+            return `<div class="platform-row">
+              <p><strong>${escapeHtml(platform.title)}</strong>: ${
+                publication ? escapeHtml(publicationLabel(publication.state)) : 'не отправляли'
+              }${
+                publication?.url && publication.state !== 'failed'
+                  ? ` — <a href="${escapeHtml(publication.url)}" rel="noopener" target="_blank">открыть</a>`
+                  : ''
+              }</p>
+              ${
+                publication?.error
+                  ? `<p class="hint danger">${escapeHtml(publication.error)}</p>`
+                  : ''
+              }
+              ${
+                sendable
+                  ? `<p class="form-row">
+                       <button class="button" type="button"
+                         data-news-post="${escapeHtml(platform.name)}"
+                         value="${escapeHtml(item.slug)}"
+                         ${published ? '' : 'disabled title="Сначала опубликуйте новость"'}>
+                         ${publication?.state === 'failed' ? 'Отправить заново' : 'Отправить пост'}
+                       </button>
+                     </p>`
+                  : ''
+              }
+            </div>`;
+          })
+          .join('')
+      : `<p class="hint">Ни один канал не настроен. Токен и адрес канала заводятся в
+           <a href="/settings">настройках</a>.</p>`
+  }
+  <p class="hint">
+    В пост уходит заголовок, начало текста и ссылка на эту страницу. Картинка —
+    первая из тех, что здесь стоят; без неё пост уйдёт текстом.
+  </p>
+</section>`;
 }

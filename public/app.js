@@ -604,6 +604,55 @@ function initPage() {
     }
   });
 
+  // Выпуск новости и возврат её в черновики — одна кнопка: что она сделает,
+  // написано на ней самой и лежит в value.
+  const newsPublish = document.querySelector('[data-news-publish]');
+  newsPublish?.addEventListener('click', async () => {
+    const publish = newsPublish.value === 'yes';
+    const wasText = newsPublish.textContent;
+    newsPublish.disabled = true;
+    newsPublish.textContent = publish ? 'Публикую…' : 'Убираю…';
+    try {
+      const answer = await request(`/api/admin/news/${newsPublish.dataset.newsPublish}/publish`, {
+        method: 'POST',
+        body: JSON.stringify({ publish })
+      });
+      if (!answer) return;
+      toast(publish ? 'Новость опубликована.' : 'Новость вернулась в черновики.');
+      // Кнопки каналов зависят от состояния новости — перечитываем страницу.
+      setTimeout(() => location.reload(), 900);
+    } catch (error) {
+      toast(`Не получилось: ${error.message}`, true);
+      newsPublish.disabled = false;
+      newsPublish.textContent = wasText;
+    }
+  });
+
+  // Пост о новости в канал. Кнопки перебираются списком: площадок будет
+  // больше, и обработчик на каждую значит однажды забыть про новую.
+  for (const button of document.querySelectorAll('[data-news-post]')) {
+    button.addEventListener('click', async () => {
+      const wasText = button.textContent;
+      button.disabled = true;
+      button.textContent = 'Отправляю…';
+      try {
+        const answer = await request(
+          `/api/admin/news/${button.value}/publish/${button.dataset.newsPost}`,
+          { method: 'POST' }
+        );
+        if (!answer) return;
+        toast('Пост поехал в канал.');
+        // Отправку ведёт воркер, а не браузер: состояние покажет перечитанная
+        // страница.
+        setTimeout(() => location.reload(), 1500);
+      } catch (error) {
+        toast(`Не отправилось: ${error.message}`, true);
+        button.disabled = false;
+        button.textContent = wasText;
+      }
+    });
+  }
+
   const newsDelete = document.querySelector('[data-news-delete]');
   newsDelete?.addEventListener('click', async () => {
     // Спрашиваем: удаление новости необратимо, а кнопка стоит рядом с

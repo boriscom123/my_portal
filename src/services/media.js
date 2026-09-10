@@ -108,6 +108,26 @@ export async function assetsOfLesson(pool, lessonId) {
   }));
 }
 
+/**
+ * Картинки новости в порядке, заданном автором.
+ * Первая — та, что уедет в канал: пост берёт одну, а какую именно, решает не
+ * случай, а порядок на странице новости.
+ * Вызывается из src/jobs/publish-channel.js.
+ */
+export async function assetsOfNews(pool, newsId) {
+  const { rows } = await pool.query(
+    `SELECT id, kind, path, bytes FROM assets
+      WHERE news_id = $1 AND kind = 'image' ORDER BY position, id`,
+    [newsId]
+  );
+  return rows.map((row) => ({
+    id: Number(row.id),
+    kind: row.kind,
+    path: row.path,
+    bytes: Number(row.bytes)
+  }));
+}
+
 export async function assetById(pool, id) {
   const { rows } = await pool.query(
     'SELECT id, lesson_id, kind, path, bytes, expires_at FROM assets WHERE id = $1',

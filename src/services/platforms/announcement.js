@@ -67,6 +67,23 @@ export function buildAnnouncement({
 }
 
 /**
+ * Текст поста о новости: заголовок, начало текста и ссылка на страницу.
+ *
+ * Начало, а не весь текст: новость бывает длиннее подписи к картинке, и
+ * дописать её в канале уже нечем. Обрывать посреди слова нельзя — читатель
+ * решит, что пост сломался, — поэтому режем по концу предложения, а ссылка
+ * остаётся всегда: ради неё пост и отправляется.
+ */
+export function buildNewsAnnouncement({ item, publicBaseUrl, limit = TELEGRAM_CAPTION_LIMIT }) {
+  const link = `${publicBaseUrl}/news/${item.slug}`;
+  const head = `${item.title}\n\n`;
+  const room = limit - head.length - link.length - 2;
+  const body = room > 40 ? trimToSentence(item.body ?? '', room) : '';
+
+  return `${head}${body ? `${body}\n\n` : ''}${link}`;
+}
+
+/**
  * Приводит адрес канала к тому виду, который понимает площадка.
  * null — адрес не годится, и сказать об этом надо сразу: ссылка-приглашение
  * выглядит как адрес, но постить по ней нельзя.

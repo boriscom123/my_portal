@@ -16,7 +16,11 @@ function toNews(row) {
     slug: row.slug,
     title: row.title,
     body: row.body,
+    status: row.status,
     publishedAt: row.published_at,
+    // Черновику дата выхода не положена, а показать в кабинете что-то надо:
+    // показываем день, когда его завели.
+    createdAt: row.created_at,
     images: []
   };
 }
@@ -38,21 +42,37 @@ async function attachImages(pool, items) {
   return items;
 }
 
-/** Лента новостей, свежие сверху. */
-export async function listNews(pool, { limit = DEFAULT_LIMIT } = {}) {
+const FIELDS = 'id, slug, title, body, status, published_at, created_at';
+
+/**
+ * Лента новостей, свежие сверху.
+ * includeDrafts — только для кабинета: черновик читателю не показывается, и
+ * решает это запрос, а не шаблон. Забыть проверку в шаблоне легко, и тогда
+ * недописанная новость окажется на витрине.
+ */
+export async function listNews(pool, { limit = DEFAULT_LIMIT, includeDrafts = false } = {}) {
   const { rows } = await pool.query(
-    'SELECT id, slug, title, body, published_at FROM news ORDER BY published_at DESC LIMIT $1',
-    [limit]
+    `SELECT ${FIELDS} FROM news
+      WHERE $2::boolean OR status = 'published'
+      -- Черновик сортируется по дню заведения: даты выхода у него ещё нет, а
+      -- проваливаться в конец списка он не должен — автор пишет его сейчас.
+      ORDER BY COALESCE(published_at, created_at) DESC LIMIT $1`,
+    [limit, includeDrafts]
   );
   return attachImages(pool, rows.map(toNews));
 }
 
+/** Одна новость по номеру: шаг очереди знает только его. */
+export async function getNewsById(pool, id) {
+  const { rows } = await pool.query(`SELECT ${FIELDS} FROM news WHERE id = $1`, [id]);
+  if (!rows.length) return null;
+  const [item] = await attachImages(pool, [toNews(rows[0])]);
+  return item;
+}
+
 /** Одна новость по адресу. null, если её нет. */
 export async function getNewsBySlug(pool, slug) {
-  const { rows } = await pool.query(
-    'SELECT id, slug, title, body, published_at FROM news WHERE slug = $1',
-    [slug]
-  );
+  const { rows } = await pool.query(`SELECT ${FIELDS} FROM news WHERE slug = $1`, [slug]);
   if (!rows.length) return null;
   const [item] = await attachImages(pool, [toNews(rows[0])]);
   return item;
@@ -70,7 +90,7 @@ export async function saveNews(pool, { slug = null, title, body = '' }) {
   if (slug) {
     const { rows } = await pool.query(
       `UPDATE news SET title = $2, body = $3 WHERE slug = $1
-       RETURNING id, slug, title, body, published_at`,
+       RETURNING ${FIELDS}`,
       [slug, name, String(body ?? '')]
     );
     return rows.length ? toNews(rows[0]) : null;
@@ -82,10 +102,34 @@ export async function saveNews(pool, { slug = null, title, body = '' }) {
   const stamp = new Date().toISOString().slice(0, 10);
   const { rows } = await pool.query(
     `INSERT INTO news (slug, title, body) VALUES ($1, $2, $3)
-     RETURNING id, slug, title, body, published_at`,
+     RETURNING ${FIELDS}`,
     [`${slugify(name)}-${stamp}`, name, String(body ?? '')]
   );
   return toNews(rows[0]);
+}
+
+/**
+ * Выпускает новость в свет или возвращает её в черновики.
+ *
+ * Дата выхода ставится один раз, при первом выпуске: вернуть новость в
+ * черновик и выпустить снова — обычное дело, и если каждый раз обновлять дату,
+ * старая новость прыгнет в начало ленты, будто её только что написали.
+ */
+export async function publishNews(pool, slug, publish = true) {
+  const { rows } = await pool.query(
+    `UPDATE news
+        SET status = $2,
+            -- ELSE published_at, а не пустота: вернуть новость в черновик и
+            -- выпустить снова — обычное дело, и стирать дату значит поднять
+            -- старую новость в начало ленты, будто её только что написали.
+            published_at = CASE WHEN $2 = 'published'
+                                THEN COALESCE(published_at, now())
+                                ELSE published_at END
+      WHERE slug = $1
+      RETURNING ${FIELDS}`,
+    [slug, publish ? 'published' : 'draft']
+  );
+  return rows.length ? toNews(rows[0]) : null;
 }
 
 /** Убирает новость вместе с её картинками: их удалит уборщик буфера. */

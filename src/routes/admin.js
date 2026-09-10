@@ -18,7 +18,7 @@ import { startPublication, publicationsFor, markPublicationState } from '../serv
 import { assetsOfLesson } from '../services/media.js';
 import { pickVideoAsset } from '../services/platforms/youtube-fields.js';
 import { parseChaptersText } from '../lib/chapters.js';
-import { saveNews, deleteNews } from '../services/news.js';
+import { saveNews, deleteNews, publishNews, getNewsBySlug } from '../services/news.js';
 import { createTexts } from '../services/texts.js';
 import { collectAnnouncements, forgetAnnouncements } from '../services/announcements.js';
 import { listSources, addSource, removeSource, toggleSource } from '../services/news-sources.js';
@@ -283,6 +283,45 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
       throw new PublicError(`Модель не ответила: ${error.message}`, 502);
     }
   });
+
+  // Выпуск новости в свет. Отдельным нажатием, а не при сохранении: автор
+  // пишет её в несколько заходов, и каждое «сохранить» не должно звать читателя.
+  router.post('/news/:slug/publish', async (req, res) => {
+    const item = await publishNews(pool, req.params.slug, req.body?.publish !== false);
+    if (!item) throw new PublicError('Новость не найдена', 404);
+    res.json({ slug: item.slug, status: item.status, publishedAt: item.publishedAt });
+  });
+
+  // Пост о новости в канал. Кнопка на площадку своя — как и у урока: у Telegram
+  // и MAX разные настройки и разные отказы.
+  for (const [platform, job] of [
+    ['telegram', JOBS.publishTelegram],
+    ['max', JOBS.publishMax]
+  ]) {
+    router.post(`/news/:slug/publish/${platform}`, async (req, res) => {
+      const item = await getNewsBySlug(pool, req.params.slug);
+      if (!item) throw new PublicError('Новость не найдена', 404);
+      if (item.status !== 'published') {
+        throw new PublicError('Новость ещё черновик — сначала опубликуйте её', 400);
+      }
+
+      const app = await channelApp(pool, config, platform);
+      if (!app.configured) {
+        throw new PublicError(`Канал ${platform} не настроен — заполните его в настройках`, 400);
+      }
+
+      const publication = await startPublication(pool, {
+        newsId: item.id,
+        platform,
+        mode: 'auto'
+      });
+      await addJob(req.app.locals.queue, job, {
+        newsId: item.id,
+        publicationId: publication.id
+      });
+      res.json({ publicationId: publication.id, state: 'queued' });
+    });
+  }
 
   router.delete('/news/:slug', async (req, res) => {
     if (!(await deleteNews(pool, req.params.slug))) {

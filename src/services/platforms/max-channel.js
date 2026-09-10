@@ -76,6 +76,11 @@ async function uploadImage({ token, filePath, fetchImpl, uploadFetch }) {
   return photo.token;
 }
 
+/**
+ * Отправляет пост.
+ * Без файла — просто текстом: у новости картинки может и не быть, а пустое
+ * вложение площадка считает ошибкой запроса.
+ */
 export async function postToMax({
   token,
   channel,
@@ -84,14 +89,16 @@ export async function postToMax({
   fetchImpl = maxFetch,
   uploadFetch = fetch
 }) {
-  const photoToken = await uploadImage({ token, filePath, fetchImpl, uploadFetch });
+  const photoToken = filePath
+    ? await uploadImage({ token, filePath, fetchImpl, uploadFetch })
+    : null;
 
   const response = await fetchImpl(`${API}/messages?chat_id=${encodeURIComponent(channel)}`, {
     method: 'POST',
     headers: { Authorization: token, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       text: caption,
-      attachments: [{ type: 'image', payload: { token: photoToken } }]
+      ...(photoToken ? { attachments: [{ type: 'image', payload: { token: photoToken } }] } : {})
     })
   });
   if (!response.ok) await failure(response, token);

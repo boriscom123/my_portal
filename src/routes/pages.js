@@ -15,7 +15,7 @@ import { listNews, getNewsBySlug } from '../services/news.js';
 import { privacyPage, termsPage } from '../views/legal.js';
 import { adminReviewPage } from '../views/admin-review.js';
 import { adminPreviewPage } from '../views/admin-preview.js';
-import { publicationsFor } from '../services/publications.js';
+import { publicationsFor, newsPublications } from '../services/publications.js';
 import { youtubeApp, channelApp, loadPlatformApp } from '../services/platform-apps.js';
 import { listSources } from '../services/news-sources.js';
 import { mediaLink } from '../lib/media-token.js';
@@ -389,7 +389,10 @@ export function pageRoutes(config, pool) {
   // страницы однажды разойдутся.
   router.get('/news', async (req, res) => {
     const user = await currentUser(pool, req);
-    res.type('html').send(newsListPage({ config, user, news: await listNews(pool, {}) }));
+    // Черновики видит только автор: недописанная новость на витрине хуже, чем
+    // её отсутствие.
+    const news = await listNews(pool, { includeDrafts: user?.role === 'admin' });
+    res.type('html').send(newsListPage({ config, user, news }));
   });
 
   // Создание и правка — отдельными страницами: форма посреди списка мешает
@@ -408,8 +411,39 @@ export function pageRoutes(config, pool) {
   router.get('/news/:slug', async (req, res) => {
     const user = await currentUser(pool, req);
     const item = await getNewsBySlug(pool, req.params.slug);
-    if (!item) throw new PublicError('Новость не найдена', 404);
-    res.type('html').send(newsPage({ config, user, item }));
+    const isAdmin = user?.role === 'admin';
+    // Черновик по прямой ссылке — тоже «не найдено»: сказать «есть, но не для
+    // вас» значит показать чужому и заголовок, и то, что он существует.
+    if (!item || (item.status !== 'published' && !isAdmin)) {
+      throw new PublicError('Новость не найдена', 404);
+    }
+
+    res.type('html').send(
+      newsPage({
+        config,
+        user,
+        item,
+        publications: isAdmin ? await newsPublications(pool, item.id) : [],
+        // Каналы, у которых есть настройки: без токена кнопка отправки была бы
+        // кнопкой, которая всегда отвечает отказом.
+        platforms: isAdmin
+          ? (
+              await Promise.all(
+                [
+                  ['telegram', 'Канал Telegram'],
+                  ['max', 'Канал MAX']
+                ].map(([name, title]) =>
+                  channelApp(pool, config, name).then((app) => ({
+                    name,
+                    title,
+                    configured: app.configured
+                  }))
+                )
+              )
+            ).filter((platform) => platform.configured)
+          : []
+      })
+    );
   });
 
   router.get('/search', async (req, res) => {

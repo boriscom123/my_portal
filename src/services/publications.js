@@ -12,16 +12,32 @@
  * Ставит публикацию в очередь. Повтор переписывает ту же строку.
  * assetId — файл, который уезжает: у урока их несколько, и публикация привязана
  * к файлу, а не к уроку.
+ *
+ * Хозяин один: либо урок, либо новость. У новости своя защита от двойной
+ * отправки — один пост на площадку, — и обойтись общим запросом нельзя:
+ * уникальные ключи у них разные, а ON CONFLICT называет ключ поимённо.
  */
-export async function startPublication(pool, { lessonId, platform, assetId = null, mode }) {
-  const { rows } = await pool.query(
-    `INSERT INTO publications (lesson_id, platform, asset_id, state, mode, error, updated_at)
-     VALUES ($1, $2, $3, 'queued', $4, NULL, now())
-     ON CONFLICT (lesson_id, platform, asset_id)
-       DO UPDATE SET state = 'queued', mode = EXCLUDED.mode, error = NULL, updated_at = now()
-     RETURNING id`,
-    [lessonId, platform, assetId, mode]
-  );
+export async function startPublication(
+  pool,
+  { lessonId = null, newsId = null, platform, assetId = null, mode }
+) {
+  const { rows } = newsId
+    ? await pool.query(
+        `INSERT INTO publications (news_id, platform, state, mode, error, updated_at)
+         VALUES ($1, $2, 'queued', $3, NULL, now())
+         ON CONFLICT (news_id, platform) WHERE news_id IS NOT NULL
+           DO UPDATE SET state = 'queued', mode = EXCLUDED.mode, error = NULL, updated_at = now()
+         RETURNING id`,
+        [newsId, platform, mode]
+      )
+    : await pool.query(
+        `INSERT INTO publications (lesson_id, platform, asset_id, state, mode, error, updated_at)
+         VALUES ($1, $2, $3, 'queued', $4, NULL, now())
+         ON CONFLICT (lesson_id, platform, asset_id) WHERE lesson_id IS NOT NULL
+           DO UPDATE SET state = 'queued', mode = EXCLUDED.mode, error = NULL, updated_at = now()
+         RETURNING id`,
+        [lessonId, platform, assetId, mode]
+      );
   return { id: Number(rows[0].id) };
 }
 
@@ -70,10 +86,19 @@ export async function publicationById(pool, id) {
 
 /** Публикации урока — для кабинета и для карточки. */
 export async function publicationsFor(pool, lessonId) {
+  return byOwner(pool, 'lesson_id', lessonId);
+}
+
+/** Посты новости в каналах — для её страницы. */
+export async function newsPublications(pool, newsId) {
+  return byOwner(pool, 'news_id', newsId);
+}
+
+async function byOwner(pool, column, id) {
   const { rows } = await pool.query(
     `SELECT id, platform, asset_id, state, mode, external_id, url, error
-       FROM publications WHERE lesson_id = $1 ORDER BY platform, id`,
-    [lessonId]
+       FROM publications WHERE ${column} = $1 ORDER BY platform, id`,
+    [id]
   );
   return rows.map((row) => ({
     id: Number(row.id),
