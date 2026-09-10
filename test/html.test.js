@@ -180,6 +180,25 @@ test('летающий знак лежит отдельным слоем и не
   assert.match(layer.slice(0, 400), /position: fixed/);
 });
 
+test('картинка не растягивает страницу шире экрана', async () => {
+  // У обложки урока в разметке стоит width="1280": размер нужен браузеру, чтобы
+  // не дёргать вёрстку, пока картинка грузится. Без общего правила он же
+  // растягивал страницу на телефоне до 1280 точек, унося за край все блоки
+  // урока, — заказчик увидел это на своём телефоне.
+  const styles = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
+  const rule = styles.slice(styles.indexOf('\nimg {'));
+  assert.match(rule.slice(0, 120), /max-width: 100%/);
+  // Без height: auto остаётся высота из разметки, и картинка сплющивается.
+  assert.match(rule.slice(0, 120), /height: auto/);
+});
+
+test('обложка урока показывается целиком: на ней написан сам урок', async () => {
+  const styles = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
+  const rule = styles.slice(styles.indexOf('.lesson-cover {'));
+  assert.ok(rule, 'правило обложки урока пропало');
+  assert.match(rule.slice(0, 300), /object-fit: contain/);
+});
+
 test('шапка закреплена, иначе ракете некуда лететь', async () => {
   const styles = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
   // Ракета летит к разделу навигации, а для этого раздел обязан оставаться на
