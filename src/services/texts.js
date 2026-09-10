@@ -40,8 +40,11 @@ const TIMEOUT_MS = 180_000;
 // Раздельно потому, что модели разной прыти: медленная не должна хоронить
 // запрос, когда следующая в списке отвечает за три секунды — так и вышло на
 // первом же длинном тексте.
-const NEWS_MODEL_TIMEOUT_MS = 20_000;
-const NEWS_TOTAL_MS = 45_000;
+// Сколько ждём одну модель и все вместе. Человек стоит у экрана, поэтому срок
+// общий и не бесконечный; 55 секунд — с запасом под предел nginx в минуту,
+// после которого он оборвёт запрос сам и человек увидит чужую ошибку.
+const NEWS_MODEL_TIMEOUT_MS = 25_000;
+const NEWS_TOTAL_MS = 55_000;
 
 /**
  * Что просим у модели.
@@ -300,9 +303,19 @@ export function createTexts(config, fetchImpl = fetch) {
     const startedAt = Date.now();
 
     for (const name of models) {
-      // Общий срок кончился — пробовать следующую значит гарантированно
-      // упереться в обрыв соединения вместо внятного отказа.
-      if (totalMs && Date.now() - startedAt > totalMs - timeoutMs) break;
+      // Сколько времени осталось на эту попытку. Считаем остаток, а не «хватит
+      // ли на полный срок»: прежняя проверка отказывалась пробовать модель,
+      // когда до конца оставалось меньше одного полного срока, — и до третьей,
+      // РАБОТАЮЩЕЙ модели очередь не доходила никогда. Заказчик увидел это как
+      // «текст новости не генерируется»: первая молчала до конца своего срока,
+      // вторая отвечала «перегружена», а третья отвечает за две секунды, и
+      // именно её мы и не спрашивали.
+      const left = totalMs ? totalMs - (Date.now() - startedAt) : Infinity;
+      // На заведомо безнадёжную попытку не тратимся: обрыв на середине
+      // выглядит как отказ модели, хотя это наш собственный срок. Порог не
+      // константа, а доля от срока попытки: сроки бывают и короткими.
+      if (left < Math.min(3000, timeoutMs)) break;
+      const attemptMs = Math.min(timeoutMs, left);
 
       let response;
       try {
@@ -314,7 +327,7 @@ export function createTexts(config, fetchImpl = fetch) {
             // посредников целиком, а заголовки — нет.
             'x-goog-api-key': apiKey
           },
-          signal: AbortSignal.timeout(timeoutMs),
+          signal: AbortSignal.timeout(attemptMs),
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: {
@@ -384,12 +397,15 @@ export function createTexts(config, fetchImpl = fetch) {
      * и просить у модели поля, которых не будет, — верный способ получить
      * выдуманное.
      */
-    async suggestNews(title, source = {}) {
+    async suggestNews(title, source = {}, limits = {}) {
       // Свой срок, короче общего: этот запрос идёт синхронно, а nginx рвёт
-      // соединение на шестидесяти секундах. Лучше отказать самим на сороковой и
-      // сказать словами, чем оставить человека смотреть на «Пишу…» до обрыва,
-      // который он не поймёт. Измерено: первая модель отвечает секунд за
-      // тридцать.
+      // соединение на шестидесяти секундах. Лучше отказать самим и сказать
+      // словами, чем оставить человека смотреть на «Пишу…» до обрыва, который
+      // он не поймёт.
+      //
+      // Сроки доводом, а не только константой: проверять перебор моделей,
+      // просиживая на каждой проверке настоящие двадцать пять секунд, — это
+      // минута прогона тестов ради одной ветки.
       const { body, model: name } = await ask(
         buildNewsPrompt(title, source),
         {
@@ -397,7 +413,10 @@ export function createTexts(config, fetchImpl = fetch) {
           properties: { body: { type: 'string' } },
           required: ['body']
         },
-        { timeoutMs: NEWS_MODEL_TIMEOUT_MS, totalMs: NEWS_TOTAL_MS }
+        {
+          timeoutMs: limits.timeoutMs ?? NEWS_MODEL_TIMEOUT_MS,
+          totalMs: limits.totalMs ?? NEWS_TOTAL_MS
+        }
       );
       return { body: parseNewsResponse(body), model: name };
     },

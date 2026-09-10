@@ -379,6 +379,45 @@ test('медленная модель уступает следующей, а н
   assert.deepEqual(tried, ['medlennaya', 'bystraya']);
 });
 
+test('до третьей модели очередь доходит, даже когда две первые съели время', async () => {
+  // Ровно то, на чём заказчик не смог сделать новость вечером: первая молчала
+  // весь свой срок, вторая ответила «перегружена», а третья отвечает за две
+  // секунды — и её-то и не спрашивали, потому что «на полный срок уже не
+  // хватает». Считать надо остаток, а не полный срок.
+  const tried = [];
+  const texts = createTexts(
+    { gemini: { apiKey: 'k', model: 'medlennaya,peregruzhena,bystraya' } },
+    async (url, options) => {
+      const name = String(url).match(/models\/([^:]+):/)[1];
+      tried.push(name);
+      if (name === 'medlennaya') {
+        // Ждём столько, сколько ей отвели, и падаем по сроку — как в жизни.
+        await new Promise((resolve) => {
+          options.signal.addEventListener('abort', resolve, { once: true });
+        });
+        const error = new Error('timeout');
+        error.name = 'TimeoutError';
+        throw error;
+      }
+      if (name === 'peregruzhena') {
+        return { ok: false, status: 503, text: async () => 'high demand' };
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          candidates: [{ content: { parts: [{ text: JSON.stringify({ body: 'Текст готов.' }) }] } }]
+        })
+      };
+    }
+  );
+
+  // Сроки короткие, чтобы проверка шла секунду, а не полминуты: важна не их
+  // величина, а то, что остаток считается правильно.
+  const { body } = await texts.suggestNews('Заголовок', {}, { timeoutMs: 300, totalMs: 700 });
+  assert.equal(body, 'Текст готов.');
+  assert.deepEqual(tried, ['medlennaya', 'peregruzhena', 'bystraya']);
+});
+
 test('когда не ответила ни одна, причина называет последнюю', async () => {
   const texts = createTexts({ gemini: { apiKey: 'k', model: 'odna' } }, async () => {
     const error = new Error('timeout');
