@@ -604,6 +604,83 @@ function initPage() {
     }
   });
 
+  /* --- Серия уроков ------------------------------------------------------- */
+
+  // Правка названия и описания серии. Форма живёт на самой странице серии:
+  // отдельного экрана у неё нет, и заводить его ради двух полей незачем.
+  const seriesForm = document.querySelector('[data-series-form]');
+  seriesForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const fields = new FormData(seriesForm);
+    const button = seriesForm.querySelector('button[type=submit]');
+    const wasText = button.textContent;
+    button.disabled = true;
+    button.textContent = 'Сохраняю…';
+    try {
+      const answer = await request('/api/admin/series', {
+        method: 'POST',
+        body: JSON.stringify({
+          slug: seriesForm.dataset.seriesForm,
+          title: fields.get('title'),
+          description: fields.get('description')
+        })
+      });
+      if (!answer) return;
+      toast('Серия сохранена.');
+      setTimeout(() => location.reload(), 900);
+    } catch (error) {
+      toast(`Не сохранилось: ${error.message}`, true);
+      button.disabled = false;
+      button.textContent = wasText;
+    }
+  });
+
+  const seriesDelete = document.querySelector('[data-series-delete]');
+  seriesDelete?.addEventListener('click', async () => {
+    // Спрашиваем, но говорим и то, что уроки останутся: без этого кнопка рядом
+    // со списком уроков выглядит так, будто удалит и их.
+    if (!confirm('Удалить серию? Уроки останутся, они просто перестанут быть связанными.')) {
+      return;
+    }
+    seriesDelete.disabled = true;
+    try {
+      const answer = await request(`/api/admin/series/${seriesDelete.dataset.seriesDelete}`, {
+        method: 'DELETE'
+      });
+      if (!answer) return;
+      location.href = '/lessons';
+    } catch (error) {
+      toast(`Не удалилось: ${error.message}`, true);
+      seriesDelete.disabled = false;
+    }
+  });
+
+  // Порядок уроков — стрелками. Обе кнопки перебираются одним обработчиком:
+  // разница между ними в одном слове, и два почти одинаковых куска однажды
+  // разойдутся.
+  for (const button of document.querySelectorAll('[data-series-move]')) {
+    button.addEventListener('click', async () => {
+      const form = document.querySelector('[data-series-form]');
+      button.disabled = true;
+      try {
+        const answer = await request(`/api/admin/series/${form?.dataset.seriesForm}/move`, {
+          method: 'POST',
+          body: JSON.stringify({
+            lessonSlug: button.value,
+            direction: button.dataset.seriesMove
+          })
+        });
+        if (!answer) return;
+        // Порядок ведёт сервер: перечитываем, а не переставляем строки сами —
+        // иначе список на экране разойдётся с тем, что в базе.
+        location.reload();
+      } catch (error) {
+        toast(`Не переставилось: ${error.message}`, true);
+        button.disabled = false;
+      }
+    });
+  }
+
   // Выпуск новости и возврат её в черновики — одна кнопка: что она сделает,
   // написано на ней самой и лежит в value.
   const newsPublish = document.querySelector('[data-news-publish]');

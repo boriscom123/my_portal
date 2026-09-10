@@ -16,6 +16,13 @@ import { privacyPage, termsPage } from '../views/legal.js';
 import { adminReviewPage } from '../views/admin-review.js';
 import { adminPreviewPage } from '../views/admin-preview.js';
 import { publicationsFor, newsPublications } from '../services/publications.js';
+import {
+  listSeries,
+  getSeriesBySlug,
+  seriesNavigation,
+  relatedLessons
+} from '../services/series.js';
+import { seriesPage } from '../views/series.js';
 import { youtubeApp, channelApp, loadPlatformApp } from '../services/platform-apps.js';
 import { listSources } from '../services/news-sources.js';
 import { mediaLink } from '../lib/media-token.js';
@@ -119,7 +126,22 @@ export function pageRoutes(config, pool) {
       ...object,
       userId: req.user?.id ?? null
     });
-    res.type('html').send(lessonPage({ config, lesson, comments, user, viewerReaction, rating }));
+    res.type('html').send(
+      lessonPage({
+        config,
+        lesson,
+        comments,
+        user,
+        viewerReaction,
+        rating,
+        // Связи урока: серия по порядку и похожие по общим тегам. Черновики
+        // видит только автор — зрителю они и в блоке связей не показываются.
+        seriesNav: await seriesNavigation(pool, lesson, {
+          includeDrafts: user?.role === 'admin'
+        }),
+        related: await relatedLessons(pool, lesson)
+      })
+    );
   });
 
   /**
@@ -157,6 +179,9 @@ export function pageRoutes(config, pool) {
         config,
         user,
         lessons: await listLessons(pool, { includeDrafts: isAdmin }),
+        // Серии впереди списка: курс из восьми уроков человеку полезнее
+        // восьми отдельных строк, между которыми он выбирает наугад.
+        series: await listSeries(pool, { includeDrafts: isAdmin }),
         diskConnected: isAdmin ? await diskConnected() : false
       })
     );
@@ -280,6 +305,8 @@ export function pageRoutes(config, pool) {
         // Публикации целиком, с причиной отказа: карточке урока хватает ссылки
         // и состояния, а кабинету нужно ещё и объяснение.
         publications: await publicationsFor(pool, lesson.id),
+        // Серии для выбора: в какую поставить этот урок.
+        series: await listSeries(pool, { includeDrafts: true }),
         // Площадки, у которых есть настройки: без ключей кнопка выкладки была бы
         // кнопкой, которая всегда отвечает отказом.
         platforms: (
@@ -387,6 +414,17 @@ export function pageRoutes(config, pool) {
   // Новости: список для всех, форма для автора. Отдельной админской страницы
   // нет намеренно — она отличалась бы только кнопками, а две почти одинаковые
   // страницы однажды разойдутся.
+  // Серия целиком: все её уроки по порядку. Отдельным адресом, чтобы ссылкой
+  // на курс можно было поделиться так же, как на урок.
+  router.get('/series/:slug', async (req, res) => {
+    const user = await currentUser(pool, req);
+    const series = await getSeriesBySlug(pool, req.params.slug, {
+      includeDrafts: user?.role === 'admin'
+    });
+    if (!series) throw new PublicError('Серия не найдена', 404);
+    res.type('html').send(seriesPage({ config, user, series }));
+  });
+
   router.get('/news', async (req, res) => {
     const user = await currentUser(pool, req);
     // Черновики видит только автор: недописанная новость на витрине хуже, чем

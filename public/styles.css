@@ -1749,3 +1749,48 @@ label[for='cover-file'] {
     font-size: max(16px, 1em) !important;
   }
 }
+
+/* --- Связи между уроками -------------------------------------------------- */
+
+/* Блок связей отделён от урока воздухом и чертой, а не рамкой: рамка сделала бы
+   из него ещё одну карточку, а он не карточка, а указатель — куда идти
+   дальше. */
+.series-block {
+  margin: 40px 0 0;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+.series-block h2 {
+  margin: 0 0 4px;
+}
+.series-block .meta {
+  margin: 0 0 16px;
+}
+.series-block .lessons-grid {
+  margin-top: 16px;
+}
+
+/* Список серий: название и число уроков в строку, без маркеров — маркер здесь
+   добавляет шум, а не смысл. */
+.series-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.series-list li {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+/* Номер урока в серии: приглушён, чтобы не спорить с названием, но виден —
+   ради него список и пронумерован. */
+.series-number {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  margin-right: 6px;
+}

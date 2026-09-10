@@ -50,6 +50,7 @@ export function adminReviewPage({
   sideError = null,
   publications = [],
   platforms = [],
+  series = [],
   links
 }) {
   const state = stateLabel(lesson);
@@ -269,6 +270,43 @@ ${
       Открыть страницу урока
     </a>
   </p>
+</section>
+
+<section class="card">
+  <h2>Серия</h2>
+  <p class="hint">
+    Уроки, идущие курсом, связываются серией: под уроком появятся предыдущий и
+    следующий, а у серии будет своя страница со всем порядком. Урок встаёт в
+    конец серии — переставить его можно стрелками там же.
+  </p>
+  <form data-lesson-series="${escapeHtml(lesson.slug)}">
+    <label>Серия
+      <select name="seriesSlug">
+        <option value="">— вне серии —</option>
+        ${series
+          .map(
+            (item) =>
+              `<option value="${escapeHtml(item.slug)}"${
+                item.id === lesson.seriesId ? ' selected' : ''
+              }>${escapeHtml(item.title)}</option>`
+          )
+          .join('')}
+      </select>
+    </label>
+    <label>…или новая серия — впишите название
+      <input name="title" maxlength="200" placeholder="Портал с нуля">
+    </label>
+    <div class="form-row">
+      <button class="button-brand" type="submit">Сохранить серию</button>
+      ${
+        lesson.seriesId
+          ? `<a class="button" href="/series/${escapeHtml(
+              series.find((item) => item.id === lesson.seriesId)?.slug ?? ''
+            )}">Открыть серию</a>`
+          : ''
+      }
+    </div>
+  </form>
 </section>
 
 <section class="card">

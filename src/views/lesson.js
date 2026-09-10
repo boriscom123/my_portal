@@ -6,6 +6,7 @@ import { escapeHtml } from '../lib/html.js';
 import { platformLinks } from './platform-links.js';
 import { layout } from './layout.js';
 import { formatDate } from './feed.js';
+import { seriesBlock, relatedBlock } from './series.js';
 import { SCALE } from '../lib/reactions.js';
 
 // Как называются площадки на кнопках. Слаг площадки для человека не годится.
@@ -39,7 +40,9 @@ export function lessonPage({
   comments,
   user,
   viewerReaction = null,
-  rating = { total: 0, average: null }
+  rating = { total: 0, average: null },
+  seriesNav = null,
+  related = []
 }) {
   const platformButtons = platformLinks(lesson.publications);
 
@@ -93,6 +96,9 @@ export function lessonPage({
     <div class="rating-scale">${ratingScaleHtml}</div>
     ${ratingSummaryHtml}
   </div>
+
+  ${seriesBlock(seriesNav)}
+  ${relatedBlock(related)}
 
   <section class="comments">
     <h2>Отзывы</h2>

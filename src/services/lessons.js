@@ -40,7 +40,11 @@ function toLesson(row) {
     // Есть ли у урока запись. Нужен странице загрузки: по нему она понимает,
     // копирование ещё идёт или уже кончилось.
     sourceAssetId: row.source_asset_id ? Number(row.source_asset_id) : null,
-    tags: row.tags ?? []
+    tags: row.tags ?? [],
+    // Серия, в которой стоит урок. Номер здесь — тот, что в базе; зрителю
+    // показывается место в списке вышедших, см. seriesNavigation.
+    seriesId: row.series_id ? Number(row.series_id) : null,
+    seriesPosition: row.series_position === null ? null : Number(row.series_position)
   };
 }
 

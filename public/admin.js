@@ -375,6 +375,41 @@ export function initPage() {
   // запроса, страница перечитывается из базы — и только что заполненные
   // заголовок с описанием выглядят стёртыми, хотя стирать их никто не просил.
   // Заказчик так и потерял заготовку, полученную из расшифровки.
+  // Серия урока. Отдельной формой от карточки: «сохранить черновик» не должно
+  // ни ставить урок в серию, ни вынимать его оттуда нечаянно.
+  const seriesForm = document.querySelector('[data-lesson-series]');
+  seriesForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const fields = new FormData(seriesForm);
+    const button = seriesForm.querySelector('button[type=submit]');
+
+    try {
+      await withButtonState(button, 'Сохраняю…', 'Сохранено', async () => {
+        const answer = await request(
+          `/api/admin/lessons/${seriesForm.dataset.lessonSeries}/series`,
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              seriesSlug: fields.get('seriesSlug') ?? '',
+              title: fields.get('title') ?? ''
+            })
+          }
+        );
+        if (!answer) return;
+        toast(
+          answer.series
+            ? `Урок ${answer.position}-й в серии «${answer.series.title}».`
+            : 'Урок вне серии.'
+        );
+        // Название новой серии на странице ещё не показано, а список выбора
+        // без неё выглядит так, будто её не завели.
+        setTimeout(() => location.reload(), 1200);
+      });
+    } catch (error) {
+      toast(`Не сохранилось: ${error.message}`, true);
+    }
+  });
+
   const reviewForm = document.querySelector('[data-approve]');
   reviewForm?.addEventListener('submit', async (event) => {
     event.preventDefault();

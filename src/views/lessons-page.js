@@ -11,6 +11,16 @@ import { stateLabel } from './lesson-state.js';
 import { formatDate } from './feed.js';
 import { assetUrl } from '../lib/assets.js';
 
+/** Русское склонение после числа: 1 урок, 2 урока, 5 уроков. */
+function plural(n, [one, few, many]) {
+  const hundreds = n % 100;
+  if (hundreds >= 11 && hundreds <= 14) return many;
+  const ones = n % 10;
+  if (ones === 1) return one;
+  if (ones >= 2 && ones <= 4) return few;
+  return many;
+}
+
 function lessonRow(lesson, isAdmin) {
   const state = stateLabel(lesson);
   const published = lesson.status === 'published';
@@ -47,7 +57,7 @@ function lessonRow(lesson, isAdmin) {
 </li>`;
 }
 
-export function lessonsPage({ config, user, lessons, diskConnected = false }) {
+export function lessonsPage({ config, user, lessons, series = [], diskConnected = false }) {
   const isAdmin = user?.role === 'admin';
   // Пока что-то считается, страница перечитывается сама: иначе автор смотрит
   // на «обрабатывается» и жмёт перезагрузку вручную каждые полминуты. Форма
@@ -82,6 +92,27 @@ ${
 }
 
 
+
+${
+  series.length
+    ? `<section class="series-block">
+  <h2>Серии</h2>
+  <p class="hint">Уроки, которые идут по порядку: с первого до последнего.</p>
+  <ul class="series-list">${series
+    .map(
+      (item) => `<li>
+    <a href="/series/${encodeURIComponent(item.slug)}">${escapeHtml(item.title)}</a>
+    <span class="meta">${item.lessonCount} ${plural(item.lessonCount, [
+      'урок',
+      'урока',
+      'уроков'
+    ])}</span>
+  </li>`
+    )
+    .join('')}</ul>
+</section>`
+    : ''
+}
 
 ${
   lessons.length

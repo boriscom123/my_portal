@@ -19,6 +19,13 @@ import { assetsOfLesson } from '../services/media.js';
 import { pickVideoAsset } from '../services/platforms/youtube-fields.js';
 import { parseChaptersText } from '../lib/chapters.js';
 import { saveNews, deleteNews, publishNews, getNewsBySlug } from '../services/news.js';
+import {
+  saveSeries,
+  deleteSeries,
+  setLessonSeries,
+  moveLessonInSeries,
+  getSeriesBySlug
+} from '../services/series.js';
 import { createTexts } from '../services/texts.js';
 import { collectAnnouncements, forgetAnnouncements } from '../services/announcements.js';
 import { listSources, addSource, removeSource, toggleSource } from '../services/news-sources.js';
@@ -176,6 +183,65 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
       await addJob(req.app.locals.queue, JOBS.refreshChannels, { lessonId: lesson.id });
     }
     res.json({ state, privacy });
+  });
+
+  /**
+   * Ставит урок в серию, заводя её на ходу, или вынимает оттуда.
+   *
+   * Заведение серии здесь, а не отдельным экраном: автор думает о серии ровно
+   * в тот миг, когда готовит очередной урок, и уводить его за этим на другую
+   * страницу значит прервать работу ради одной строки.
+   */
+  router.post('/lessons/:slug/series', async (req, res) => {
+    const lesson = await getLessonBySlug(pool, req.params.slug, { includeDrafts: true });
+    if (!lesson) throw new PublicError('Урок не найден', 404);
+
+    const title = String(req.body?.title ?? '').trim();
+    const wanted = String(req.body?.seriesSlug ?? '').trim();
+
+    let series = null;
+    if (title) {
+      // Название важнее выбора из списка: человек вписал его последним.
+      series = await saveSeries(pool, { title });
+    } else if (wanted) {
+      series = await getSeriesBySlug(pool, wanted, { includeDrafts: true });
+      if (!series) throw new PublicError('Серия не найдена', 404);
+    }
+
+    const position = await setLessonSeries(pool, lesson.id, series?.id ?? null);
+    res.json({ series: series ? { slug: series.slug, title: series.title } : null, position });
+  });
+
+  router.post('/series', async (req, res) => {
+    try {
+      const series = await saveSeries(pool, {
+        slug: req.body?.slug ? String(req.body.slug) : null,
+        title: String(req.body?.title ?? ''),
+        description: String(req.body?.description ?? '')
+      });
+      if (!series) throw new PublicError('Серия не найдена', 404);
+      res.json({ slug: series.slug, title: series.title });
+    } catch (error) {
+      if (error instanceof PublicError) throw error;
+      throw new PublicError(error.message, 400);
+    }
+  });
+
+  // Перестановка урока в серии. Стрелками: автор чаще всего у телефона, где
+  // перетаскивание строки пальцем мучительно, а промах не виден до перезагрузки.
+  router.post('/series/:slug/move', async (req, res) => {
+    const direction = req.body?.direction === 'up' ? 'up' : 'down';
+    const moved = await moveLessonInSeries(pool, String(req.body?.lessonSlug ?? ''), direction);
+    // Край списка — не ошибка: кнопка там просто ничего не делает.
+    res.json({ moved });
+  });
+
+  router.delete('/series/:slug', async (req, res) => {
+    if (!(await deleteSeries(pool, req.params.slug))) {
+      throw new PublicError('Серия не найдена', 404);
+    }
+    // Уроки остаются: серия — способ их разложить, а не хозяин записей.
+    res.json({ ok: true });
   });
 
   // Новости заводятся и правятся одним маршрутом: разделять их значило бы
