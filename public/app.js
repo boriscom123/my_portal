@@ -834,6 +834,25 @@ function initPage() {
     });
   }
 
+  // Возврат к боту портала: убрать свой токен иначе нечем — показать его
+  // нельзя, а пустое поле означает «не менять».
+  const channelReset = document.querySelector('[data-channel-reset]');
+  channelReset?.addEventListener('click', async () => {
+    channelReset.disabled = true;
+    try {
+      const answer = await request(
+        `/api/integrations/channel/${channelReset.dataset.channelReset}/reset`,
+        { method: 'POST' }
+      );
+      if (!answer) return;
+      toast('Постить будет бот портала.');
+      setTimeout(() => location.reload(), 1200);
+    } catch (error) {
+      toast(`Не получилось: ${error.message}`, true);
+      channelReset.disabled = false;
+    }
+  });
+
   const youtubeDisconnect = document.querySelector('[data-youtube-disconnect]');
   youtubeDisconnect?.addEventListener('click', async () => {
     youtubeDisconnect.disabled = true;

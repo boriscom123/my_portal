@@ -46,6 +46,18 @@ export async function savePlatformApp(
   );
 }
 
+/**
+ * Стирает свой токен площадки. Строка настроек остаётся: адрес канала в ней
+ * тот же, меняется только то, чьим ботом портал постит.
+ * Вызывается из src/routes/integrations.js.
+ */
+export async function forgetPlatformSecret(pool, name) {
+  await pool.query(
+    'UPDATE platform_apps SET client_secret = NULL, updated_at = now() WHERE name = $1',
+    [name]
+  );
+}
+
 /** Ключи приложения из базы. null — в кабинете их не заводили. */
 export async function loadPlatformApp(pool, config, name) {
   const { rows } = await pool.query(

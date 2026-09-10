@@ -5,7 +5,11 @@
 // подписчики не должны получать второе уведомление об одном уроке.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { postToTelegram, editTelegramPost } from '../src/services/platforms/telegram-channel.js';
+import {
+  postToTelegram,
+  editTelegramPost,
+  checkTelegramChannel
+} from '../src/services/platforms/telegram-channel.js';
 import { postToMax, editMaxPost, findMaxChat } from '../src/services/platforms/max-channel.js';
 
 test('в Telegram уходит картинка ссылкой и подпись', async () => {
@@ -217,4 +221,56 @@ test('номер канала MAX находится по ссылке и по �
     await findMaxChat({ token: 't', needle: 'https://max.ru/chuzhoy', fetchImpl: fetchStub }),
     null
   );
+});
+
+test('негодный токен Telegram виден сразу, а не при первой отправке', async () => {
+  // Заказчик вставил в поле Telegram токен от MAX. Портал принял его молча, и
+  // «Not Found» всплыло через два дня, на публикации новости.
+  const fetchStub = async () => ({ ok: false, status: 404, json: async () => ({}) });
+  await assert.rejects(
+    checkTelegramChannel({ token: 'chuzhoy', channel: '@kanal', fetchImpl: fetchStub }),
+    /токен неверный или отозван/
+  );
+});
+
+test('бот с верным токеном, но не в канале — это другая причина и другие слова', async () => {
+  // Иначе человек будет перевставлять верный токен, когда дело в правах бота.
+  const fetchStub = async (url) =>
+    String(url).includes('/getMe')
+      ? { ok: true, json: async () => ({ result: { username: 'portal_bot' } }) }
+      : { ok: false, status: 400, json: async () => ({ description: 'chat not found' }) };
+
+  await assert.rejects(
+    checkTelegramChannel({ token: 'nash', channel: '@kanal', fetchImpl: fetchStub }),
+    /не видит канал @kanal.*chat not found[\s\S]*администратором/
+  );
+});
+
+test('годная пара «токен и канал» проверку проходит', async () => {
+  const fetchStub = async (url) =>
+    String(url).includes('/getMe')
+      ? { ok: true, json: async () => ({ result: { username: 'portal_bot' } }) }
+      : { ok: true, json: async () => ({ result: { title: 'Канал', type: 'channel' } }) };
+
+  const { username } = await checkTelegramChannel({
+    token: 'nash',
+    channel: '@kanal',
+    fetchImpl: fetchStub
+  });
+  assert.equal(username, 'portal_bot');
+});
+
+test('пост без картинки уходит обычным сообщением', async () => {
+  // У новости картинки может не быть вовсе, а sendPhoto без фотографии
+  // площадка не принимает.
+  let sent = null;
+  const fetchStub = async (url, options) => {
+    sent = { url: String(url), body: JSON.parse(options.body) };
+    return { ok: true, json: async () => ({ ok: true, result: { message_id: 7 } }) };
+  };
+
+  await postToTelegram({ token: 't', channel: '@kanal', caption: 'Текст', fetchImpl: fetchStub });
+  assert.match(sent.url, /\/sendMessage$/);
+  assert.equal(sent.body.text, 'Текст');
+  assert.equal(sent.body.photo, undefined);
 });

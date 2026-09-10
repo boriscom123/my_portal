@@ -25,6 +25,40 @@ function postUrl(channel, messageId) {
 }
 
 /**
+ * Проверяет, что этим токеном можно писать в этот канал.
+ *
+ * Спрашивается у самой площадки и до сохранения. Без проверки ошибка в токене
+ * лежит незамеченной до первой отправки — а она бывает через дни: заказчик
+ * вставил в поле Telegram токен от MAX, портал молча его принял, и «Not Found»
+ * всплыло только на публикации новости.
+ *
+ * Два вопроса, а не один: getMe отвечает за токен, getChat — за канал и за то,
+ * что бота туда добавили. Разные причины — разные слова человеку, иначе он
+ * будет перевставлять верный токен, когда дело в правах бота.
+ * Вызывается из src/routes/integrations.js при сохранении настроек канала.
+ */
+export async function checkTelegramChannel({ token, channel, fetchImpl = fetch }) {
+  const me = await fetchImpl(`${API}${token}/getMe`);
+  if (!me.ok) {
+    throw new Error(
+      'Telegram не знает такого бота: токен неверный или отозван. ' +
+        'Возьмите его у @BotFather — он выглядит как 123456789:AA…'
+    );
+  }
+  const bot = (await me.json()).result ?? {};
+
+  const chat = await fetchImpl(`${API}${token}/getChat?chat_id=${encodeURIComponent(channel)}`);
+  if (!chat.ok) {
+    const body = await chat.json().catch(() => ({}));
+    throw new Error(
+      `Бот @${bot.username ?? '?'} не видит канал ${channel}: ${body.description ?? 'канал не найден'}. ` +
+        'Добавьте бота в канал администратором с правом писать и менять сообщения.'
+    );
+  }
+  return { username: bot.username ?? '' };
+}
+
+/**
  * Отправляет пост.
  * Без картинки — обычным сообщением: новость бывает и без неё, а sendPhoto без
  * фотографии площадка не принимает.

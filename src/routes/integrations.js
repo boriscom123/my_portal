@@ -18,9 +18,15 @@ import {
   youtubeConsentUrl,
   exchangeYoutubeCode
 } from '../services/platforms/youtube-auth.js';
-import { youtubeApp, savePlatformApp, channelApp } from '../services/platform-apps.js';
+import {
+  youtubeApp,
+  savePlatformApp,
+  channelApp,
+  forgetPlatformSecret
+} from '../services/platform-apps.js';
 import { normalizeChannel } from '../services/platforms/announcement.js';
 import { findMaxChat } from '../services/platforms/max-channel.js';
+import { checkTelegramChannel } from '../services/platforms/telegram-channel.js';
 import { signShortLived, verifyShortLived } from '../lib/jwt.js';
 
 // Куда возвращать, если страница отправления неизвестна.
@@ -175,23 +181,37 @@ export function integrationRoutes(config, pool, fetchImpl = fetch) {
       );
     }
 
-    await savePlatformApp(pool, config, {
-      name: platform,
-      clientId: '',
-      // Пустой токен означает «не менять»: показать сохранённый нельзя.
-      clientSecret: String(req.body?.token ?? ''),
-      mode: 'auto',
-      settings: { channel }
-    });
+    // Пустое поле токена означает «не менять»: показать сохранённый нельзя, и
+    // заставлять человека перевставлять его ради правки адреса канала незачем.
+    // Проверять при этом надо тот токен, которым портал будет постить.
+    const given = String(req.body?.token ?? '');
+    const current = await channelApp(pool, config, platform);
+    const token = given || current.token;
 
-    let app = await channelApp(pool, config, platform);
+    if (!token) {
+      throw new PublicError(
+        platform === 'telegram'
+          ? 'Нужен токен бота: своего бота у портала не настроено'
+          : 'Нужен токен бота MAX: постить нечем',
+        400
+      );
+    }
 
-    // MAX адресует канал числом, а вставляют в поле ссылку — она под рукой.
-    // Спрашиваем у площадки список каналов бота и находим номер сами: просить
-    // человека выяснять его вручную значит отправлять его читать чужую
-    // документацию из-за нашей лени.
-    if (platform === 'max' && app.token && !/^-?\d+$/.test(app.channel)) {
-      const found = await findMaxChat({ token: app.token, needle: app.channel });
+    // Проверка ДО сохранения, а не после. Иначе неподошедший токен остаётся в
+    // настройках и продолжает ломать отправку, хотя человеку показали отказ.
+    let settings = { channel };
+    if (platform === 'telegram') {
+      try {
+        await checkTelegramChannel({ token, channel });
+      } catch (error) {
+        throw new PublicError(error.message, 400);
+      }
+    } else if (!/^-?\d+$/.test(channel)) {
+      // MAX адресует канал числом, а вставляют в поле ссылку — она под рукой.
+      // Спрашиваем у площадки список каналов бота и находим номер сами: просить
+      // человека выяснять его вручную значит отправлять его читать чужую
+      // документацию из-за нашей лени.
+      const found = await findMaxChat({ token, needle: channel });
       if (!found?.chatId) {
         throw new PublicError(
           'Канал не найден среди каналов этого бота. Проверьте, что бот добавлен в канал, ' +
@@ -199,16 +219,48 @@ export function integrationRoutes(config, pool, fetchImpl = fetch) {
           400
         );
       }
-      await savePlatformApp(pool, config, {
-        name: platform,
-        clientId: '',
-        clientSecret: '',
-        mode: 'auto',
-        settings: { channel: found.chatId, link: found.link }
-      });
-      app = await channelApp(pool, config, platform);
+      settings = { channel: found.chatId, link: found.link };
     }
 
+    await savePlatformApp(pool, config, {
+      name: platform,
+      clientId: '',
+      clientSecret: given,
+      mode: 'auto',
+      settings
+    });
+
+    const app = await channelApp(pool, config, platform);
+    res.json({ channel: app.channel, configured: app.configured });
+  });
+
+  /**
+   * Убирает свой токен канала Telegram — постить снова будет бот портала.
+   *
+   * Отдельной кнопкой, потому что иначе убрать его нечем: показать сохранённый
+   * токен нельзя, а пустое поле означает «не менять». Заказчик вставил в это
+   * поле токен от MAX — и оказался заперт с настройкой, которая не работает и
+   * не стирается.
+   */
+  router.post('/channel/telegram/reset', async (req, res) => {
+    const token = config.telegram?.botToken ?? '';
+    if (!token) {
+      throw new PublicError('Своего бота у портала не настроено — токен нужен ваш', 400);
+    }
+
+    const { channel } = await channelApp(pool, config, 'telegram');
+    if (channel) {
+      // Прежде чем убрать чужой токен, убеждаемся, что бот портала канал видит:
+      // молча оставить площадку ненастроенной — не починка.
+      try {
+        await checkTelegramChannel({ token, channel });
+      } catch (error) {
+        throw new PublicError(error.message, 400);
+      }
+    }
+
+    await forgetPlatformSecret(pool, 'telegram');
+    const app = await channelApp(pool, config, 'telegram');
     res.json({ channel: app.channel, configured: app.configured });
   });
 

@@ -140,13 +140,25 @@ ${channels
     }
     <div class="form-row">
       <button class="button-brand" type="submit">Сохранить</button>
+      ${
+        channel.name === 'telegram' && channel.hasToken
+          ? `<button class="button" type="button" data-channel-reset="telegram">
+               Вернуть бота портала
+             </button>`
+          : ''
+      }
     </div>
   </form>
   <p class="hint">
     ${
       channel.configured
-        ? 'Канал настроен — анонс отправляется с экрана урока.'
+        ? 'Канал настроен — анонс отправляется с экрана урока, а пост о новости — с её страницы.'
         : 'Пока не настроен: анонс отправить не получится.'
+    }
+    ${
+      channel.hasToken
+        ? 'Сейчас постит ваш бот: его токен сохранён и на экране не показывается.'
+        : ''
     }
   </p>
 </section>`

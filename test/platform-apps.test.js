@@ -9,7 +9,8 @@ import {
   savePlatformApp,
   loadPlatformApp,
   youtubeApp,
-  channelApp
+  channelApp,
+  forgetPlatformSecret
 } from '../src/services/platform-apps.js';
 import { withTestDb, skipWithoutDb } from './helpers/db.js';
 
@@ -167,5 +168,29 @@ test('у MAX без своего токена канал не настроен',
     });
     const app = await channelApp(pool, config, 'max');
     assert.equal(app.configured, false);
+  });
+});
+
+test('свой токен канала можно убрать и вернуться к боту портала', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    // Иначе выхода нет: показать сохранённый токен нельзя, а пустое поле
+    // означает «не менять». Заказчик вставил в это поле токен от MAX и
+    // оказался заперт с настройкой, которая не работает и не стирается.
+    const withPortalBot = { ...config, telegram: { botToken: 'bot-portala' } };
+    await savePlatformApp(pool, withPortalBot, {
+      name: 'telegram',
+      clientId: '',
+      clientSecret: 'chuzhoy-token',
+      mode: 'auto',
+      settings: { channel: '@kanal' }
+    });
+    assert.equal((await channelApp(pool, withPortalBot, 'telegram')).token, 'chuzhoy-token');
+
+    await forgetPlatformSecret(pool, 'telegram');
+    const app = await channelApp(pool, withPortalBot, 'telegram');
+    assert.equal(app.token, 'bot-portala');
+    // Адрес канала при этом остаётся: меняется только то, чьим ботом постим.
+    assert.equal(app.channel, '@kanal');
+    assert.equal(app.configured, true);
   });
 });
