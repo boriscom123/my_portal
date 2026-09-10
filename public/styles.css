@@ -501,6 +501,11 @@ footer {
 .footer-links {
   display: flex;
   gap: 14px;
+  /* Ссылок стало четыре, и на телефоне они больше не помещаются в строку.
+     Перенос с выравниванием по центру: обрезанная ссылка в подвале выглядит
+     как поломка вёрстки. */
+  flex-wrap: wrap;
+  justify-content: center;
 }
 .footer-links a {
   color: var(--muted);

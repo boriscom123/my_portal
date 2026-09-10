@@ -120,6 +120,17 @@ ${
   <span>soloaijourney.online</span>
   <span class="tagline">от идеи до продукта</span>
   <span class="footer-links">
+    ${
+      // История переписки с ботом по дням — то, из чего портал вырос. Ссылка
+      // ведёт в открытый репозиторий, а не на страницу портала: там она
+      // хранится, там же лежит и код каждого дня, и одно от другого не
+      // отделить.
+      config.repoUrl
+        ? `<a href="${escapeHtml(config.repoUrl)}/tree/main/docs/history" rel="noopener"
+             target="_blank">Как это делалось</a>
+           <a href="${escapeHtml(config.repoUrl)}" rel="noopener" target="_blank">Исходный код</a>`
+        : ''
+    }
     <a href="/privacy">Конфиденциальность</a>
     <a href="/terms">Условия</a>
   </span>

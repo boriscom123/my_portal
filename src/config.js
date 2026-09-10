@@ -51,6 +51,10 @@ function parseAdminIdentities(raw) {
 export function loadConfig(env = process.env) {
   return {
     publicBaseUrl: required(env, 'PUBLIC_BASE_URL').replace(/\/+$/, ''),
+    // Открытый репозиторий портала. Он не просто ссылка на код: там же лежит
+    // переписка по дням — то, из чего портал вырос. Значение с умолчанием, а не
+    // обязательное: без него портал должен подниматься, просто без ссылки.
+    repoUrl: (env.REPO_URL ?? 'https://github.com/boriscom123/my_portal').replace(/\/+$/, ''),
     port: Number(env.PORT ?? DEFAULT_PORT),
     db: {
       host: required(env, 'DB_HOST'),

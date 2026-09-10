@@ -571,3 +571,26 @@ test('заглавный блок называет портал и не повт
   assert.match(html, /от идеи до продукта/);
   assert.doesNotMatch(html, /data-rotator/, 'пересменки уроков здесь больше нет');
 });
+
+test('из подвала ведут ссылки на код и на переписку по дням', () => {
+  // Заказчик просил: любой читатель должен суметь открыть историю того, как
+  // портал делался. Она лежит в открытом репозитории рядом с кодом каждого дня.
+  const html = layout({
+    config: { ...config, repoUrl: 'https://github.com/kto-to/portal' },
+    title: 'Т',
+    description: 'о',
+    path: '/',
+    body: ''
+  });
+  assert.match(html, /href="https:\/\/github\.com\/kto-to\/portal\/tree\/main\/docs\/history"/);
+  assert.match(html, /Как это делалось/);
+  assert.match(html, /href="https:\/\/github\.com\/kto-to\/portal"[^>]*>Исходный код/);
+});
+
+test('без адреса репозитория подвал остаётся целым', () => {
+  // Портал должен подниматься и без этой настройки: ссылка — украшение, а не
+  // условие работы.
+  const html = layout({ config, title: 'Т', description: 'о', path: '/', body: '' });
+  assert.doesNotMatch(html, /Как это делалось/);
+  assert.match(html, /href="\/privacy"/);
+});
