@@ -31,6 +31,7 @@ import {
 } from '../views/shorts.js';
 import { listShorts, getShortBySlug, shortsOfLesson } from '../services/shorts.js';
 import { youtubeApp, channelApp, loadPlatformApp } from '../services/platform-apps.js';
+import { loadIntegration } from '../services/disk.js';
 import { listSources } from '../services/news-sources.js';
 import { mediaLink } from '../lib/media-token.js';
 import { probeDuration } from '../lib/ffmpeg.js';
@@ -468,7 +469,14 @@ export function pageRoutes(config, pool) {
         user: await currentUser(pool, req),
         short,
         publications: await shortPublications(pool, short.id),
-        platforms: await configuredChannels()
+        // Каналы плюс Instagram: у него не канал, а подключённый аккаунт, и
+        // спрашивать о нём надо иначе.
+        platforms: [
+          ...(await configuredChannels()),
+          ...((await loadIntegration(pool, config, 'instagram'))
+            ? [{ name: 'instagram', title: 'Instagram Reels', configured: true }]
+            : [])
+        ]
       })
     );
   });
@@ -631,7 +639,9 @@ export function pageRoutes(config, pool) {
                 hint:
                   'Нужен профессиональный аккаунт и приложение Meta типа Business. ' +
                   'Страница в Facebook НЕ нужна. Порядок расписан в docs/instagram-setup.md.',
-                next: 'Заведите приложение по инструкции и вставьте ключи — они понадобятся выкладке.'
+                next: 'Заведите приложение по инструкции и вставьте ключи — они понадобятся выкладке.',
+                // Выкладка готова: остаётся подключить аккаунт.
+                connect: '/api/integrations/instagram/connect?from=/settings'
               },
               {
                 name: 'tiktok',
@@ -650,6 +660,7 @@ export function pageRoutes(config, pool) {
                 clientId: stored?.clientId ?? '',
                 // Сам секрет наружу не отдаём — только то, что он есть.
                 hasSecret: Boolean(stored?.clientSecret),
+                connected: Boolean(await loadIntegration(pool, config, item.name)),
                 redirectUri: `${config.publicBaseUrl}/api/integrations/${item.name}/callback`
               };
             })

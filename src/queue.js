@@ -37,6 +37,9 @@ export const JOBS = {
   // отдельный, как и у YouTube.
   publishTelegram: 'publishTelegram',
   publishMax: 'publishMax',
+  // Вертикальный ролик в Reels. Своё имя, как у остальных площадок: свой запуск
+  // и своя кнопка.
+  publishInstagram: 'publishInstagram',
   // Ролик где-то вышел — дописываем ссылку в уже отправленные посты.
   refreshChannels: 'refreshChannels',
   // Новость поправили — переписываем уже отправленный пост о ней.
@@ -138,7 +141,10 @@ const NO_RETRY_JOBS = new Set([
   // второй пост об одном уроке, и подписчики получат второе уведомление.
   // Обновление подписей (refreshChannels) повторять можно — правка одна и та же.
   JOBS.publishTelegram,
-  JOBS.publishMax
+  JOBS.publishMax,
+  // Instagram по той же причине, и ещё по одной: площадка обрабатывает ролик у
+  // себя минутами, и повтор поверх незаконченной обработки кладёт второй Reels.
+  JOBS.publishInstagram
 ]);
 
 /**

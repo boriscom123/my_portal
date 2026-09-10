@@ -46,6 +46,14 @@ import {
   editTelegramPost
 } from './services/platforms/telegram-channel.js';
 import { postToMax, postVideoToMax, editMaxPost } from './services/platforms/max-channel.js';
+import { makePublishInstagram } from './jobs/publish-instagram.js';
+import { instagramAccess } from './services/platforms/instagram-auth.js';
+import {
+  createReelContainer,
+  containerStatus,
+  publishContainer,
+  mediaPermalink
+} from './services/platforms/instagram.js';
 
 const config = loadConfig();
 const pool = createPool(config.db);
@@ -118,6 +126,13 @@ const handlers = {
     telegram: telegramAdapter,
     max: maxAdapter
   }),
+  [JOBS.publishInstagram]: makePublishInstagram(config, pool, {
+    access: instagramAccess,
+    createContainer: createReelContainer,
+    status: containerStatus,
+    publish: publishContainer,
+    permalink: mediaPermalink
+  }),
   [JOBS.refreshPost]: makeRefreshPost(config, pool, {
     telegram: telegramAdapter,
     max: maxAdapter
@@ -174,7 +189,8 @@ const DONE_MESSAGES = {
     body: 'Лежит приватным — откройте его в студии'
   },
   [JOBS.publishTelegram]: { title: 'Анонс в Telegram', body: 'Пост в канале опубликован' },
-  [JOBS.publishMax]: { title: 'Анонс в MAX', body: 'Пост в канале опубликован' }
+  [JOBS.publishMax]: { title: 'Анонс в MAX', body: 'Пост в канале опубликован' },
+  [JOBS.publishInstagram]: { title: 'Ролик в Instagram', body: 'Reels опубликован' }
 };
 
 worker.on('completed', async (job) => {

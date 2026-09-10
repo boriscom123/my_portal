@@ -146,12 +146,23 @@ ${shortPlatforms
     <code>${escapeHtml(platform.redirectUri)}</code>
   </p>
   <p class="hint">
-    ${
-      platform.hasSecret
-        ? 'Ключи сохранены. Подключение аккаунта и сама выкладка — следующий шаг работы.'
-        : escapeHtml(platform.next)
-    }
+    ${platform.hasSecret ? '' : escapeHtml(platform.next)}
   </p>
+  ${
+    platform.hasSecret && platform.connect
+      ? platform.connected
+        ? `<p class="form-row">
+             <span class="hint">Аккаунт подключён.</span>
+             <button class="button" type="button"
+               data-platform-disconnect="${escapeHtml(platform.name)}">Отключить</button>
+           </p>`
+        : `<p class="form-row">
+             <a class="button-brand" href="${escapeHtml(platform.connect)}">Подключить аккаунт</a>
+           </p>`
+      : platform.hasSecret
+        ? '<p class="hint">Ключи сохранены. Подключение аккаунта — следующий шаг работы.</p>'
+        : ''
+  }
 </section>`
   )
   .join('')}

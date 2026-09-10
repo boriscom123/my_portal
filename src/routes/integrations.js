@@ -28,6 +28,11 @@ import {
 import { normalizeChannel } from '../services/platforms/announcement.js';
 import { findMaxChat } from '../services/platforms/max-channel.js';
 import { checkTelegramChannel } from '../services/platforms/telegram-channel.js';
+import {
+  instagramApp,
+  instagramConsentUrl,
+  exchangeInstagramCode
+} from '../services/platforms/instagram-auth.js';
 import { signShortLived, verifyShortLived } from '../lib/jwt.js';
 
 // Куда возвращать, если страница отправления неизвестна.
@@ -155,6 +160,49 @@ export function integrationRoutes(config, pool, fetchImpl = fetch) {
 
     const app = await youtubeApp(pool, config);
     res.json({ clientId: app.clientId, mode: app.mode, configured: app.configured });
+  });
+
+  // Подключение аккаунта Instagram. Устроено как у YouTube, и отличие одно, но
+  // важное: обновляемого refresh-токена у площадки нет — есть долгий токен на
+  // 60 дней, который портал продлевает сам, пока хоть что-то выкладывает.
+  router.get('/instagram/connect', async (req, res) => {
+    const app = await instagramApp(pool, config);
+    if (!app.configured) {
+      throw new PublicError('Приложение Instagram не настроено — заполните его в настройках', 503);
+    }
+    const state = signShortLived(
+      { from: localPath(req.query.from) ?? localPath(req.get('referer')) ?? '/settings' },
+      config.jwtSecret,
+      STATE_SECONDS
+    );
+    res.redirect(instagramConsentUrl(app, state));
+  });
+
+  router.get('/instagram/callback', async (req, res) => {
+    if (req.query.error) {
+      throw new PublicError(`Instagram отказал: ${req.query.error_description ?? req.query.error}`, 400);
+    }
+    const code = String(req.query.code ?? '');
+    if (!code) throw new PublicError('Instagram не прислал код', 400);
+
+    const state = verifyShortLived(String(req.query.state ?? ''), config.jwtSecret);
+    if (!state) throw new PublicError('Подключение устарело — начните заново', 400);
+
+    const access = await exchangeInstagramCode(await instagramApp(pool, config), code, fetchImpl);
+    await saveIntegration(pool, config, {
+      name: 'instagram',
+      token: access.token,
+      // Номер аккаунта живёт в поле refresh-токена: своего refresh-токена у
+      // площадки нет, а номер нужен каждому запросу выкладки.
+      refreshToken: access.userId,
+      expiresAt: access.expiresAt
+    });
+    res.redirect(`${localPath(state.from) ?? '/settings'}?instagram=connected`);
+  });
+
+  router.post('/instagram/disconnect', async (req, res) => {
+    await pool.query(`DELETE FROM integrations WHERE name = 'instagram'`);
+    res.json({ ok: true });
   });
 
   /**

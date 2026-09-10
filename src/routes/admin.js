@@ -42,6 +42,7 @@ import { createTexts } from '../services/texts.js';
 import { collectAnnouncements, forgetAnnouncements } from '../services/announcements.js';
 import { listSources, addSource, removeSource, toggleSource } from '../services/news-sources.js';
 import { youtubeAccessToken } from '../services/platforms/youtube-auth.js';
+import { instagramAccess } from '../services/platforms/instagram-auth.js';
 import { youtubeApp, channelApp } from '../services/platform-apps.js';
 import { readVideoPrivacy } from '../services/platforms/youtube.js';
 
@@ -313,7 +314,8 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
 
   for (const [platform, job] of [
     ['telegram', JOBS.publishTelegram],
-    ['max', JOBS.publishMax]
+    ['max', JOBS.publishMax],
+    ['instagram', JOBS.publishInstagram]
   ]) {
     router.post(`/shorts/:slug/publish/${platform}`, async (req, res) => {
       const short = await getShortBySlug(pool, req.params.slug);
@@ -322,9 +324,20 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
         throw new PublicError('Ролик ещё черновик — сначала опубликуйте его', 400);
       }
 
-      const app = await channelApp(pool, config, platform);
-      if (!app.configured) {
-        throw new PublicError(`Канал ${platform} не настроен — заполните его в настройках`, 400);
+      if (platform === 'instagram') {
+        // Аккаунт, а не канал: у Instagram портал говорит от имени автора, и
+        // без подключения запрос ушёл бы без токена.
+        if (!(await instagramAccess(pool, config, fetchImpl))) {
+          throw new PublicError(
+            'Аккаунт Instagram не подключён — подключите его в настройках',
+            400
+          );
+        }
+      } else {
+        const app = await channelApp(pool, config, platform);
+        if (!app.configured) {
+          throw new PublicError(`Канал ${platform} не настроен — заполните его в настройках`, 400);
+        }
       }
 
       const publication = await startPublication(pool, {

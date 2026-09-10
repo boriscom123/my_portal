@@ -1061,6 +1061,21 @@ function initPage() {
     }
   });
 
+  const platformDisconnect = document.querySelector('[data-platform-disconnect]');
+  platformDisconnect?.addEventListener('click', async () => {
+    const platform = platformDisconnect.dataset.platformDisconnect;
+    platformDisconnect.disabled = true;
+    try {
+      const answer = await request(`/api/integrations/${platform}/disconnect`, { method: 'POST' });
+      if (!answer) return;
+      toast('Аккаунт отключён. Ключи приложения остались.');
+      setTimeout(() => location.reload(), 1200);
+    } catch (error) {
+      toast(`Не отключилось: ${error.message}`, true);
+      platformDisconnect.disabled = false;
+    }
+  });
+
   const youtubeDisconnect = document.querySelector('[data-youtube-disconnect]');
   youtubeDisconnect?.addEventListener('click', async () => {
     youtubeDisconnect.disabled = true;
