@@ -21,6 +21,7 @@ import {
 import {
   youtubeApp,
   savePlatformApp,
+  loadPlatformApp,
   channelApp,
   forgetPlatformSecret
 } from '../services/platform-apps.js';
@@ -155,6 +156,35 @@ export function integrationRoutes(config, pool, fetchImpl = fetch) {
     const app = await youtubeApp(pool, config);
     res.json({ clientId: app.clientId, mode: app.mode, configured: app.configured });
   });
+
+  /**
+   * Ключи приложений площадок коротких видео.
+   *
+   * Пока это только хранение: сама выкладка — следующие шаги. Заводится
+   * заранее не из любви к заготовкам, а потому что ключи автор получает в
+   * момент, когда проходит регистрацию на площадке, и складывать их до тех пор
+   * ему некуда.
+   */
+  for (const [platform, titles] of [
+    ['instagram', { id: 'Instagram App ID', secret: 'Instagram App Secret' }],
+    ['tiktok', { id: 'Client key', secret: 'Client secret' }]
+  ]) {
+    router.post(`/${platform}/app`, async (req, res) => {
+      const clientId = String(req.body?.clientId ?? '').trim();
+      if (!clientId) throw new PublicError(`${titles.id} пустой`, 400);
+
+      await savePlatformApp(pool, config, {
+        name: platform,
+        clientId,
+        // Пустое поле означает «не менять»: показать сохранённый секрет нельзя.
+        clientSecret: String(req.body?.clientSecret ?? ''),
+        mode: 'semi'
+      });
+
+      const stored = await loadPlatformApp(pool, config, platform);
+      res.json({ clientId: stored?.clientId ?? '', hasSecret: Boolean(stored?.clientSecret) });
+    });
+  }
 
   // Отключить канал: токены забываем, ключи приложения оставляем — заводить их
   // заново ради смены аккаунта незачем.

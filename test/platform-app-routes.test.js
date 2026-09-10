@@ -212,3 +212,52 @@ test('код возврата без подписанного state не при�
     });
   });
 });
+
+test('ключи площадок коротких видео сохраняются и не показываются обратно', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const headers = asUser(await seedAdmin(pool), 'admin');
+    const app = finalize(createApp({ config, pool, queue: { add: async () => {} } }));
+
+    await withServer(app, async (base) => {
+      for (const platform of ['instagram', 'tiktok']) {
+        const response = await fetch(`${base}/api/integrations/${platform}/app`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ clientId: `${platform}-id`, clientSecret: 'секрет' })
+        });
+        assert.equal(response.status, 200);
+        const answer = await response.json();
+        assert.equal(answer.clientId, `${platform}-id`);
+        // Наружу отдаём только то, что секрет есть: показать его нельзя ни
+        // странице, ни ответу API.
+        assert.equal(answer.hasSecret, true);
+        assert.equal(JSON.stringify(answer).includes('секрет'), false);
+      }
+
+      // Пустое поле секрета означает «не менять», а не «стереть».
+      await fetch(`${base}/api/integrations/instagram/app`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ clientId: 'instagram-id-2', clientSecret: '' })
+      });
+      const page = await (await fetch(`${base}/settings`, { headers })).text();
+      assert.match(page, /instagram-id-2/);
+      assert.match(page, /сохранён — оставьте пустым/);
+    });
+  });
+});
+
+test('пустой номер приложения не принимается', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const headers = asUser(await seedAdmin(pool), 'admin');
+    const app = finalize(createApp({ config, pool, queue: { add: async () => {} } }));
+    await withServer(app, async (base) => {
+      const response = await fetch(`${base}/api/integrations/tiktok/app`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ clientId: '  ', clientSecret: 'x' })
+      });
+      assert.equal(response.status, 400);
+    });
+  });
+});

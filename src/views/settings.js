@@ -11,7 +11,14 @@
 import { escapeHtml } from '../lib/html.js';
 import { layout } from './layout.js';
 
-export function settingsPage({ config, user, youtube = null, channels = [], sources = [] }) {
+export function settingsPage({
+  config,
+  user,
+  youtube = null,
+  channels = [],
+  shortPlatforms = [],
+  sources = []
+}) {
   return layout({
     config,
     user,
@@ -112,6 +119,42 @@ ${
       : '<p class="hint">Сохраните ключи — после этого появится кнопка подключения канала.</p>'
   }
 </section>
+
+${shortPlatforms
+  .map(
+    (platform) => `<section class="card">
+  <h3>${escapeHtml(platform.title)}</h3>
+  <p class="hint">${escapeHtml(platform.hint)}</p>
+  <form data-short-platform="${escapeHtml(platform.name)}">
+    <label>${escapeHtml(platform.idLabel)}
+      <input name="clientId" value="${escapeHtml(platform.clientId)}"
+             autocomplete="off" maxlength="200" required>
+    </label>
+    <label>${escapeHtml(platform.secretLabel)}
+      <input name="clientSecret" type="password" autocomplete="off" maxlength="200"
+             placeholder="${
+               platform.hasSecret ? 'сохранён — оставьте пустым, чтобы не менять' : 'вставьте секрет'
+             }"
+             ${platform.hasSecret ? '' : 'required'}>
+    </label>
+    <div class="form-row">
+      <button class="button-brand" type="submit">Сохранить</button>
+    </div>
+  </form>
+  <p class="hint">
+    Адрес возврата — скопируйте его в панель площадки до последнего знака:<br>
+    <code>${escapeHtml(platform.redirectUri)}</code>
+  </p>
+  <p class="hint">
+    ${
+      platform.hasSecret
+        ? 'Ключи сохранены. Подключение аккаунта и сама выкладка — следующий шаг работы.'
+        : escapeHtml(platform.next)
+    }
+  </p>
+</section>`
+  )
+  .join('')}
 
 ${channels
   .map(

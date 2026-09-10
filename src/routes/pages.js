@@ -616,12 +616,53 @@ export function pageRoutes(config, pool) {
             })
           )
         : [];
+    // Площадки коротких видео: пока только хранение ключей. Автор получает их в
+    // момент регистрации на площадке, и складывать их до появления самой
+    // выкладки ему иначе некуда.
+    const shortPlatforms =
+      user?.role === 'admin'
+        ? await Promise.all(
+            [
+              {
+                name: 'instagram',
+                title: 'Instagram',
+                idLabel: 'Instagram App ID',
+                secretLabel: 'Instagram App Secret',
+                hint:
+                  'Нужен профессиональный аккаунт и приложение Meta типа Business. ' +
+                  'Страница в Facebook НЕ нужна. Порядок расписан в docs/instagram-setup.md.',
+                next: 'Заведите приложение по инструкции и вставьте ключи — они понадобятся выкладке.'
+              },
+              {
+                name: 'tiktok',
+                title: 'TikTok',
+                idLabel: 'Client key',
+                secretLabel: 'Client secret',
+                hint:
+                  'Нужно приложение в TikTok for Developers с продуктами Login Kit и ' +
+                  'Content Posting API. Порядок расписан в docs/tiktok-setup.md.',
+                next: 'Пока приложение не прошло проверку, выложенное через него видно только вам.'
+              }
+            ].map(async (item) => {
+              const stored = await loadPlatformApp(pool, config, item.name);
+              return {
+                ...item,
+                clientId: stored?.clientId ?? '',
+                // Сам секрет наружу не отдаём — только то, что он есть.
+                hasSecret: Boolean(stored?.clientSecret),
+                redirectUri: `${config.publicBaseUrl}/api/integrations/${item.name}/callback`
+              };
+            })
+          )
+        : [];
+
     res.type('html').send(
       settingsPage({
         config,
         user,
         youtube,
         channels,
+        shortPlatforms,
         // Источники анонсов правит автор: сегодня их девять, завтра появится
         // NVIDIA.
         sources: user?.role === 'admin' ? await listSources(pool) : []

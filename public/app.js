@@ -956,6 +956,36 @@ function initPage() {
   // Форма отправляется через API, а не сама собой: без перехвата браузер уйдёт
   // GET-ом и увезёт секрет в адресную строку — то есть в историю браузера и в
   // журнал сервера.
+  // Ключи площадок коротких видео. Форма одна на площадку, обработчик общий:
+  // площадок две, а разница между ними — одно слово в адресе.
+  for (const form of document.querySelectorAll('[data-short-platform]')) {
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const fields = new FormData(form);
+      const button = form.querySelector('button[type=submit]');
+      button.disabled = true;
+      try {
+        const answer = await request(
+          `/api/integrations/${form.dataset.shortPlatform}/app`,
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              clientId: fields.get('clientId'),
+              clientSecret: fields.get('clientSecret')
+            })
+          }
+        );
+        if (!answer) return;
+        toast('Ключи сохранены.');
+        setTimeout(() => location.reload(), 1200);
+      } catch (error) {
+        toast(`Не сохранилось: ${error.message}`, true);
+      } finally {
+        button.disabled = false;
+      }
+    });
+  }
+
   const youtubeAppForm = document.querySelector('[data-youtube-app]');
   youtubeAppForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
