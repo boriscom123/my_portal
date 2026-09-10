@@ -16,7 +16,29 @@
 import { request } from 'node:https';
 import { readFileSync } from 'node:fs';
 
-const CA = readFileSync(new URL('../../certs/russian-trusted-root-ca.pem', import.meta.url));
+const CA_FILE = new URL('../../certs/russian-trusted-root-ca.pem', import.meta.url);
+let ca = null;
+
+/**
+ * Сертификат читается при первом запросе к MAX, а не при загрузке файла.
+ *
+ * Разница важна: этот файл добирается до кода площадок из маршрутов, то есть
+ * из всего портала. Читай мы сертификат сразу — его отсутствие роняло бы
+ * портал целиком, включая страницы, которые про MAX ничего не знают. Ровно это
+ * и случилось на сборщике GitHub, когда правило «*.pem» унесло сертификат из
+ * репозитория: падал каждый тест, который поднимает приложение.
+ */
+function rootCertificate() {
+  if (ca) return ca;
+  try {
+    ca = readFileSync(CA_FILE);
+  } catch (error) {
+    throw new Error(
+      `Нет корневого сертификата для MAX (certs/russian-trusted-root-ca.pem): ${error.code ?? error.message}`
+    );
+  }
+  return ca;
+}
 
 // Адрес, к которому применяется особое доверие. Проверяется, а не
 // подразумевается: та же функция с чужим адресом означала бы, что корень
@@ -46,7 +68,7 @@ export function maxFetch(url, options = {}) {
         path: `${address.pathname}${address.search}`,
         method: options.method ?? 'GET',
         headers: options.headers ?? {},
-        ca: CA
+        ca: rootCertificate()
       },
       (response) => {
         let text = '';
