@@ -177,6 +177,37 @@ export function parseImagePrompt(body) {
   return prompt;
 }
 
+/**
+ * Запрос для рисования обложки урока.
+ *
+ * По-английски: FLUX понимает русский плохо, а переводить на ходу — терять
+ * точность. Требования к картинке те же, что были у обложки на Gemini:
+ * надписи модели рисуют с ошибками, а превью смотрят размером с ноготь.
+ */
+export function buildCoverImagePrompt({ title, description = '', tags = [] }) {
+  const topic = [title, description].filter(Boolean).join('. ');
+  return `Ты помогаешь автору технического портала готовить запрос для
+рисовальщика изображений.
+
+Тема видеоурока по разработке: ${String(topic).trim().slice(0, 1200)}
+Ключевые слова: ${tags.join(', ')}
+
+Составь ОДИН запрос на английском языке, по которому рисовальщик сделает
+обложку этого урока.
+
+Требования к картинке:
+— никаких надписей, букв, цифр и логотипов;
+— тёмный фон, глубокие синие и фиолетовые тона, один тёплый оранжевый акцент;
+— одна ясная метафора темы, а не набор иконок; композиция простая: превью
+  смотрят размером с ноготь;
+— без людей и без лиц;
+— плоская векторная графика, чистые формы, лёгкое свечение.
+
+Одна связная фраза-запрос, 40–70 слов, без списков и без пояснений.
+
+Верни JSON с единственным полем prompt.`;
+}
+
 /** Достаёт текст новости из ответа модели. */
 export function parseNewsResponse(body) {
   const text = body?.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -425,6 +456,24 @@ export function createTexts(config, fetchImpl = fetch) {
     async suggestImagePrompt(title, text = '') {
       const { body, model: name } = await ask(
         buildImagePrompt(title, text),
+        {
+          type: 'object',
+          properties: { prompt: { type: 'string' } },
+          required: ['prompt']
+        },
+        { timeoutMs: NEWS_MODEL_TIMEOUT_MS, totalMs: NEWS_TOTAL_MS }
+      );
+      return { prompt: parseImagePrompt(body), model: name };
+    },
+
+    /**
+     * Английский запрос для рисования обложки урока.
+     * Сроки короткие, как у новости: ждёт воркер, но рисование и так идёт
+     * своим чередом, и минута на запрос к тексту была бы лишней.
+     */
+    async suggestCoverPrompt(lesson) {
+      const { body, model: name } = await ask(
+        buildCoverImagePrompt(lesson),
         {
           type: 'object',
           properties: { prompt: { type: 'string' } },

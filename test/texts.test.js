@@ -11,6 +11,7 @@ import {
   parseNewsResponse,
   buildImagePrompt,
   parseImagePrompt,
+  buildCoverImagePrompt,
   hideKey,
   shouldTryNext,
   parseModels,
@@ -452,4 +453,30 @@ test('ответ рисовальщика разбирается, пустой �
       }),
     /не составила/
   );
+});
+
+test('запрос для обложки просят по-английски и по теме урока', () => {
+  const prompt = buildCoverImagePrompt({
+    title: 'Портал на VPS',
+    description: 'Каркас',
+    tags: ['vps', 'docker']
+  });
+  // FLUX понимает русский плохо: запрос для него — английский.
+  assert.match(prompt, /на английском/);
+  assert.match(prompt, /Портал на VPS/);
+  assert.match(prompt, /vps, docker/);
+  // Модели рисуют буквы с ошибками: обложка с исковерканным словом хуже, чем
+  // без слов.
+  assert.match(prompt, /никаких надписей/);
+});
+
+test('запрос для обложки приходит из модели готовой фразой', async () => {
+  let sent = null;
+  const texts = createTexts(config, async (url, options) => {
+    sent = JSON.parse(options.body);
+    return reply({ prompt: 'A glowing server rack as a lighthouse on a dark sea' });
+  });
+  const { prompt } = await texts.suggestCoverPrompt({ title: 'Портал на VPS', tags: ['vps'] });
+  assert.equal(prompt, 'A glowing server rack as a lighthouse on a dark sea');
+  assert.match(sent.contents[0].parts[0].text, /Портал на VPS/);
 });
