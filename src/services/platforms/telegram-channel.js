@@ -10,6 +10,7 @@
 // повод забыть про его продление.
 // Вызывается из src/jobs/publish-telegram.js.
 import { readFile } from 'node:fs/promises';
+import { openAsBlob } from 'node:fs';
 
 export const DEFAULT_API_URL = 'https://api.telegram.org';
 
@@ -194,4 +195,70 @@ export async function checkBotApi({ apiUrl = DEFAULT_API_URL, token, fetchImpl =
     };
   }
   return { ok: true, username: body.result?.username ?? '' };
+}
+
+// Сколько видео Telegram кладёт в один альбом.
+const ALBUM_LIMIT = 10;
+
+/**
+ * Отправляет урок частями видео.
+ * Одна часть — обычный пост с видео; от двух до десяти — альбом одним запросом:
+ * одно сообщение, одно уведомление, и половины поста при сбое не бывает.
+ * Подписи собирает вызывающий: у первой части — список глав и ссылка, у
+ * остальных — своя глава. Превью первой — обложка урока.
+ *
+ * Файлы идут с диска потоком (openAsBlob), а не читаются в память: часть весит
+ * до 2000 МБ, а память на сервере общая на все проекты. Предел файла — у
+ * сервера Bot API: у своего 2000 МБ, у облака 50 МБ.
+ * Вызывается из src/jobs/publish-lesson-parts.js через адаптер воркера.
+ */
+export async function postPartsToTelegram({
+  apiUrl = DEFAULT_API_URL,
+  token,
+  channel,
+  parts,
+  coverPath = null,
+  fetchImpl = fetch
+}) {
+  if (!parts.length) throw new Error('частей для отправки нет');
+  if (parts.length > ALBUM_LIMIT) {
+    throw new Error(
+      `Telegram кладёт в альбом не больше ${ALBUM_LIMIT} видео, а частей ${parts.length}`
+    );
+  }
+  const coverType = coverPath && /\.png$/i.test(coverPath) ? 'image/png' : 'image/jpeg';
+  const form = new FormData();
+  form.append('chat_id', channel);
+
+  let method;
+  if (parts.length === 1) {
+    method = 'sendVideo';
+    form.append('caption', parts[0].caption);
+    // Без supports_streaming ролик уходит файлом, который надо скачать целиком.
+    form.append('supports_streaming', 'true');
+    form.append('video', await openAsBlob(parts[0].path, { type: 'video/mp4' }), 'part-1.mp4');
+  } else {
+    method = 'sendMediaGroup';
+    const media = parts.map((part, index) => ({
+      type: 'video',
+      media: `attach://part${index}`,
+      caption: part.caption,
+      supports_streaming: true,
+      ...(index === 0 && coverPath ? { cover: 'attach://cover' } : {})
+    }));
+    form.append('media', JSON.stringify(media));
+    for (const [index, part] of parts.entries()) {
+      form.append(`part${index}`, await openAsBlob(part.path, { type: 'video/mp4' }), `part-${index + 1}.mp4`);
+    }
+  }
+  if (coverPath) form.append('cover', await openAsBlob(coverPath, { type: coverType }), 'cover.jpg');
+
+  const response = await fetchImpl(botMethod(apiUrl, token, method), { method: 'POST', body: form });
+  if (!response.ok) await failure(response);
+
+  const body = await response.json();
+  // У альбома ответ — список сообщений; адрес поста — у первого.
+  const first = Array.isArray(body.result) ? body.result[0] : body.result;
+  const messageId = String(first?.message_id ?? '');
+  return { messageId, url: postUrl(channel, messageId) };
 }
