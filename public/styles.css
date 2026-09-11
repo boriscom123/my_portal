@@ -243,6 +243,7 @@ h3 {
   .brand-mark,
   .button-brand,
   .platform-link,
+  .kind-badge,
   .flame,
   .flame-dot {
     animation: none;
@@ -760,6 +761,62 @@ form > textarea {
   width: 100%;
   aspect-ratio: 16 / 9;
   object-fit: cover;
+}
+
+/* --- Бейдж вида карточки в ленте -----------------------------------------
+   Урок это или новость — видно до заголовка: бейдж лежит на картинке в левом
+   верхнем углу. Оба цвета фирменные и разные: урок — сине-фиолетовый перелив
+   знака, новость — огненный перелив пламени ракеты, чтобы отличать по цвету,
+   не читая слово. Анимация та же shimmer и того же темпа — в такт со всей
+   страницей. */
+.card-media {
+  position: relative;
+  display: block;
+}
+.kind-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background-size: 300% 100%;
+  animation: shimmer 9s ease-in-out infinite;
+  /* Тень — чтобы бейдж читался и на светлой картинке, и на тёмной. */
+  box-shadow: 0 2px 10px rgba(12, 10, 32, 0.35);
+  text-shadow: 0 1px 2px rgba(12, 10, 32, 0.35);
+}
+.kind-lesson {
+  background-image: linear-gradient(
+    96deg,
+    var(--brand-1) 0%,
+    var(--brand-2) 25%,
+    var(--brand-3) 50%,
+    var(--brand-2) 75%,
+    var(--brand-1) 100%
+  );
+}
+.kind-news {
+  background-image: linear-gradient(
+    96deg,
+    var(--flame) 0%,
+    #f0a15c 30%,
+    var(--brand-3) 60%,
+    var(--flame) 100%
+  );
+}
+.card-media .kind-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+}
+/* Новость без картинки: бейдж первой строкой карточки, по своей ширине. */
+.card-body > .kind-badge {
+  align-self: flex-start;
+  margin-bottom: 8px;
 }
 
 .tags {
@@ -1911,7 +1968,7 @@ label[for='cover-file'] {
    привычный размер.
    Высота при этом честная: 16:9 от ширины ленты. Растягивать обложку по высоте
    соседней колонки нельзя — она обрезается по краям, вместе с текстом. */
-.lesson-card.wide .cover {
+.lesson-card.wide img.cover {
   width: 100%;
   aspect-ratio: 16 / 9;
   /* contain, а не cover: у плаката режется край, и это край с буквами. Поля по

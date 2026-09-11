@@ -19,6 +19,17 @@ function cover(lesson) {
     : '<div class="cover button-brand"></div>';
 }
 
+/**
+ * Бейдж вида карточки: урок это или новость — видно до заголовка.
+ * Лежит на картинке в левом верхнем углу; цвета оба фирменные и разные, чтобы
+ * отличать по цвету, не читая слово. Серая пометка у даты терялась.
+ */
+function kindBadge(kind) {
+  return kind === 'news'
+    ? '<span class="kind-badge kind-news">Новость</span>'
+    : '<span class="kind-badge kind-lesson">Урок</span>';
+}
+
 function lessonCard(lesson, isAdmin) {
   const date = lesson.publishedAt ? formatDate(lesson.publishedAt) : 'черновик';
   // Состояние обработки видит только автор: зрителю оно ничего не говорит, а
@@ -27,7 +38,8 @@ function lessonCard(lesson, isAdmin) {
   // wide: урок занимает всю ширину ленты. Урок — то, ради чего портал, и
   // ставить его в один ряд с заметкой значит уравнять час работы и три абзаца.
   return `<article class="lesson-card wide">
-  <a href="/lesson/${encodeURIComponent(lesson.slug)}">${cover(lesson)}</a>
+  <a class="card-media" href="/lesson/${encodeURIComponent(lesson.slug)}">${cover(lesson)}
+    ${kindBadge('lesson')}</a>
   <div class="card-body">
     <p class="meta">${escapeHtml(date)}${
       state
@@ -62,20 +74,22 @@ function lessonCard(lesson, isAdmin) {
  * Карточка новости в общей ленте.
  *
  * Отличается от урока намеренно: у новости нет обложки на всю карточку и есть
- * пометка. Вперемешку без различий лента читалась бы как сломанная — человек не
+ * бейдж «Новость». Вперемешку без различий лента читалась бы как сломанная — человек не
  * понимал бы, почему одни карточки открывают видео, а другие текст.
  */
 function newsCard(item) {
   return `<article class="lesson-card news-in-feed">
   ${
     item.images.length
-      ? `<a href="/news/${encodeURIComponent(item.slug)}"><img class="cover" src="${escapeHtml(
+      ? `<a class="card-media" href="/news/${encodeURIComponent(item.slug)}"><img class="cover" src="${escapeHtml(
           item.images[0].url
-        )}" alt="" loading="lazy"></a>`
+        )}" alt="" loading="lazy">
+    ${kindBadge('news')}</a>`
       : ''
   }
   <div class="card-body">
-    <p class="meta">${escapeHtml(formatDate(item.publishedAt))} · <span class="badge">новость</span></p>
+    ${item.images.length ? '' : kindBadge('news')}
+    <p class="meta">${escapeHtml(formatDate(item.publishedAt))}</p>
     <h3><a href="/news/${encodeURIComponent(item.slug)}">${escapeHtml(item.title)}</a></h3>
     <p class="card-text">${escapeHtml(item.body).slice(0, 220)}</p>
   </div>

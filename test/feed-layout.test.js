@@ -150,8 +150,66 @@ test('обложка урока в ленте не обрезается по к�
   // содержание. Обрезка съедает край вместе с буквами, а растяжение по высоте
   // соседней колонки и есть та обрезка. Заказчик увидел это первым.
   const styles = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
-  const rule = styles.slice(styles.indexOf('.lesson-card.wide .cover {'));
-  assert.ok(rule, 'правило для обложки широкой карточки пропало');
+  const at = styles.indexOf('.lesson-card.wide img.cover {');
+  assert.ok(at >= 0, 'правило для обложки широкой карточки пропало');
+  const rule = styles.slice(at);
   assert.match(rule.slice(0, 500), /object-fit: contain/);
   assert.match(rule.slice(0, 500), /aspect-ratio: 16 \/ 9/);
 });
+
+test('бейдж «Урок» или «Новость» лежит на картинке, а старой серой пометки нет', () => {
+  const withCover = { ...lesson('urok', 'Урок с обложкой', '04'), coverUrl: '/media/asset/1' };
+  const page = feedPage({
+    config,
+    lessons: [withCover, lesson('bez', 'Урок без обложки', '01')],
+    news: [
+      { ...newsItem('s-kartinkoy', 'Новость с картинкой', '03'), images: [{ id: 2, url: '/media/asset/2' }] },
+      newsItem('bez-kartinki', 'Новость без картинки', '02')
+    ]
+  });
+  // Видно до заголовка: бейдж внутри ссылки-картинки, поверх неё.
+  assert.match(
+    page,
+    /<a class="card-media" href="\/lesson\/urok"><img[^>]*class="cover">\s*<span class="kind-badge kind-lesson">Урок<\/span><\/a>/
+  );
+  // У урока без обложки бейдж ложится на фирменную заглушку.
+  assert.match(
+    page,
+    /<a class="card-media" href="\/lesson\/bez"><div class="cover button-brand"><\/div>\s*<span class="kind-badge kind-lesson">Урок<\/span><\/a>/
+  );
+  assert.match(
+    page,
+    /<a class="card-media" href="\/news\/s-kartinkoy"><img[^>]*>\s*<span class="kind-badge kind-news">Новость<\/span><\/a>/
+  );
+  // Новость без картинки — бейдж первой строкой карточки, в том же виде.
+  assert.match(page, /<div class="card-body">\s*<span class="kind-badge kind-news">Новость<\/span>/);
+  // Серая пометка у даты терялась — заказчик её не замечал.
+  assert.doesNotMatch(page, /class="badge">новость</);
+});
+
+test('бейджи в фирменных переливах: урок — знака, новость — пламени', async () => {
+  const styles = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
+  const block = (selector) => {
+    const at = styles.indexOf(`${selector} {`);
+    assert.ok(at >= 0, `нет правила ${selector}`);
+    return styles.slice(at, styles.indexOf('}', at));
+  };
+  assert.match(block('.kind-badge'), /animation: shimmer/);
+  assert.match(block('.kind-lesson'), /var\(--brand-1\)[\s\S]*var\(--brand-3\)/);
+  // Разные цвета — чтобы отличать по цвету, не читая слово.
+  assert.match(block('.kind-news'), /var\(--flame\)/);
+  assert.match(block('.card-media .kind-badge'), /position: absolute/);
+  assert.match(block('.card-media .kind-badge'), /top: \d+px/);
+  assert.match(block('.card-media .kind-badge'), /left: \d+px/);
+  // Кто отключил анимацию в системе, видит неподвижный градиент.
+  const calm = styles.slice(styles.indexOf('@media (prefers-reduced-motion: reduce) {'));
+  assert.match(calm.slice(0, 400), /\.kind-badge/);
+});
+
+test('фирменная заглушка урока без обложки не перекрыта фоном картинки', async () => {
+  // Правило обложки широкой карточки задавало фон всему .cover и глушило
+  // градиент заглушки: вместо него было пустое светлое место.
+  const styles = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
+  assert.ok(!styles.includes('.lesson-card.wide .cover {'), 'фон обложки снова задан и заглушке');
+});
+
