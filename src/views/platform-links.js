@@ -25,10 +25,14 @@ export const PLATFORM_NAMES = {
  * Приватный ролик чужому человеку не открывается, а у поста в MAX нет своего
  * адреса — там ссылка ведёт на канал. Поэтому условие одно и то же: есть адрес
  * и состояние «опубликован».
+ *
+ * Посты с частями видео (telegram_parts, max_parts) не показываем: ссылка на
+ * пост в том же канале уже есть — это анонс, и вторая «Смотреть на Telegram»
+ * рядом выглядела бы ошибкой.
  */
 export function platformLinks(publications = [], { className = 'button', prefix = 'Смотреть на ' } = {}) {
   return publications
-    .filter((item) => item.url && item.state === 'published')
+    .filter((item) => item.url && item.state === 'published' && !item.platform.endsWith('_parts'))
     .map(
       (item) =>
         `<a class="${className}" href="${escapeHtml(item.url)}" rel="noopener" target="_blank">${escapeHtml(

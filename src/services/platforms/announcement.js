@@ -50,10 +50,15 @@ export function buildAnnouncement({
   const lessonLink = `${publicBaseUrl}/lesson/${lesson.slug}`;
 
   // Только вышедшее: приватный ролик подписчику не открывается, и звать его
-  // туда нечестно.
+  // туда нечестно. Посты с частями видео — не площадка, где вышел урок: ссылка
+  // на пост в том же канале уже есть, это анонс.
   const links = publications
     .filter(
-      (item) => item.state === 'published' && item.url && item.platform !== skipPlatform
+      (item) =>
+        item.state === 'published' &&
+        item.url &&
+        item.platform !== skipPlatform &&
+        !item.platform.endsWith('_parts')
     )
     .map((item) => `${PLATFORM_NAMES[item.platform] ?? item.platform}: ${item.url}`);
 
