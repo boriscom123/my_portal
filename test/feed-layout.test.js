@@ -157,7 +157,7 @@ test('обложка урока в ленте не обрезается по к�
   assert.match(rule.slice(0, 500), /aspect-ratio: 16 \/ 9/);
 });
 
-test('бейдж «Урок» или «Новость» лежит на картинке, а старой серой пометки нет', () => {
+test('бейдж «Урок» или «Новость» лежит на картинке, огненный — только у новинок', () => {
   const withCover = { ...lesson('urok', 'Урок с обложкой', '04'), coverUrl: '/media/asset/1' };
   const page = feedPage({
     config,
@@ -167,37 +167,41 @@ test('бейдж «Урок» или «Новость» лежит на карт
       newsItem('bez-kartinki', 'Новость без картинки', '02')
     ]
   });
-  // Видно до заголовка: бейдж внутри ссылки-картинки, поверх неё.
+  // Видно до заголовка: бейдж внутри ссылки-картинки, поверх неё. Самый
+  // свежий урок — новинка, у него огненный перелив.
   assert.match(
     page,
-    /<a class="card-media" href="\/lesson\/urok"><img[^>]*class="cover">\s*<span class="kind-badge kind-lesson">Урок<\/span><\/a>/
+    /<a class="card-media" href="\/lesson\/urok"><img[^>]*class="cover">\s*<span class="kind-badge kind-fresh">Урок<\/span><\/a>/
   );
-  // У урока без обложки бейдж ложится на фирменную заглушку.
+  // Прежний урок — в общем фирменном переливе, на фирменной заглушке.
   assert.match(
     page,
-    /<a class="card-media" href="\/lesson\/bez"><div class="cover button-brand"><\/div>\s*<span class="kind-badge kind-lesson">Урок<\/span><\/a>/
+    /<a class="card-media" href="\/lesson\/bez"><div class="cover button-brand"><\/div>\s*<span class="kind-badge">Урок<\/span><\/a>/
   );
   assert.match(
     page,
-    /<a class="card-media" href="\/news\/s-kartinkoy"><img[^>]*>\s*<span class="kind-badge kind-news">Новость<\/span><\/a>/
+    /<a class="card-media" href="\/news\/s-kartinkoy"><img[^>]*>\s*<span class="kind-badge kind-fresh">Новость<\/span><\/a>/
   );
   // Новость без картинки — бейдж первой строкой карточки, в том же виде.
-  assert.match(page, /<div class="card-body">\s*<span class="kind-badge kind-news">Новость<\/span>/);
+  assert.match(page, /<div class="card-body">\s*<span class="kind-badge">Новость<\/span>/);
+  // Новинка — одна в своей категории: последний урок и последняя новость.
+  assert.equal([...page.matchAll(/kind-fresh/g)].length, 2);
   // Серая пометка у даты терялась — заказчик её не замечал.
   assert.doesNotMatch(page, /class="badge">новость</);
 });
 
-test('бейджи в фирменных переливах: урок — знака, новость — пламени', async () => {
+test('бейджи в фирменном переливе, у новинок — огненный', async () => {
   const styles = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
   const block = (selector) => {
     const at = styles.indexOf(`${selector} {`);
     assert.ok(at >= 0, `нет правила ${selector}`);
     return styles.slice(at, styles.indexOf('}', at));
   };
+  // Один фирменный стиль у всех: сине-фиолетовый перелив знака.
   assert.match(block('.kind-badge'), /animation: shimmer/);
-  assert.match(block('.kind-lesson'), /var\(--brand-1\)[\s\S]*var\(--brand-3\)/);
-  // Разные цвета — чтобы отличать по цвету, не читая слово.
-  assert.match(block('.kind-news'), /var\(--flame\)/);
+  assert.match(block('.kind-badge'), /var\(--brand-1\)[\s\S]*var\(--brand-3\)/);
+  // Новинка — огненный перелив пламени.
+  assert.match(block('.kind-fresh'), /var\(--flame\)/);
   assert.match(block('.card-media .kind-badge'), /position: absolute/);
   assert.match(block('.card-media .kind-badge'), /top: \d+px/);
   assert.match(block('.card-media .kind-badge'), /left: \d+px/);

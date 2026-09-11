@@ -21,16 +21,16 @@ function cover(lesson) {
 
 /**
  * Бейдж вида карточки: урок это или новость — видно до заголовка.
- * Лежит на картинке в левом верхнем углу; цвета оба фирменные и разные, чтобы
- * отличать по цвету, не читая слово. Серая пометка у даты терялась.
+ * Лежит на картинке в левом верхнем углу. Цвет у всех один — фирменный;
+ * огненный только у новинки, самой свежей в своей категории: так сразу видно,
+ * что нового. Серая пометка у даты терялась.
  */
-function kindBadge(kind) {
-  return kind === 'news'
-    ? '<span class="kind-badge kind-news">Новость</span>'
-    : '<span class="kind-badge kind-lesson">Урок</span>';
+function kindBadge(kind, fresh = false) {
+  const label = kind === 'news' ? 'Новость' : 'Урок';
+  return `<span class="kind-badge${fresh ? ' kind-fresh' : ''}">${label}</span>`;
 }
 
-function lessonCard(lesson, isAdmin) {
+function lessonCard(lesson, isAdmin, fresh = false) {
   const date = lesson.publishedAt ? formatDate(lesson.publishedAt) : 'черновик';
   // Состояние обработки видит только автор: зрителю оно ничего не говорит, а
   // на главной автор оказывается чаще, чем в кабинете.
@@ -39,7 +39,7 @@ function lessonCard(lesson, isAdmin) {
   // ставить его в один ряд с заметкой значит уравнять час работы и три абзаца.
   return `<article class="lesson-card wide">
   <a class="card-media" href="/lesson/${encodeURIComponent(lesson.slug)}">${cover(lesson)}
-    ${kindBadge('lesson')}</a>
+    ${kindBadge('lesson', fresh)}</a>
   <div class="card-body">
     <p class="meta">${escapeHtml(date)}${
       state
@@ -77,18 +77,18 @@ function lessonCard(lesson, isAdmin) {
  * бейдж «Новость». Вперемешку без различий лента читалась бы как сломанная — человек не
  * понимал бы, почему одни карточки открывают видео, а другие текст.
  */
-function newsCard(item) {
+function newsCard(item, fresh = false) {
   return `<article class="lesson-card news-in-feed">
   ${
     item.images.length
       ? `<a class="card-media" href="/news/${encodeURIComponent(item.slug)}"><img class="cover" src="${escapeHtml(
           item.images[0].url
         )}" alt="" loading="lazy">
-    ${kindBadge('news')}</a>`
+    ${kindBadge('news', fresh)}</a>`
       : ''
   }
   <div class="card-body">
-    ${item.images.length ? '' : kindBadge('news')}
+    ${item.images.length ? '' : kindBadge('news', fresh)}
     <p class="meta">${escapeHtml(formatDate(item.publishedAt))}</p>
     <h3><a href="/news/${encodeURIComponent(item.slug)}">${escapeHtml(item.title)}</a></h3>
     <p class="card-text">${escapeHtml(item.body).slice(0, 220)}</p>
@@ -99,13 +99,25 @@ function newsCard(item) {
 export function feedPage({ config, lessons, news = [], user, tag = null }) {
   // Одна лента по дате: уроки снимаются долго, а новости выходят часто, и
   // разложенные по разным разделам они читались бы как два несвязанных сайта.
+  // Новинка — самая свежая в своей категории: огненный бейдж у неё одной,
+  // у последнего урока и у последней новости.
+  const newest = (items, at) =>
+    items.reduce((best, item) => (!best || new Date(at(item)) > new Date(at(best)) ? item : best), null);
+  const lessonAt = (lesson) => lesson.publishedAt ?? lesson.createdAt ?? new Date(0);
+  const freshLesson = newest(lessons, lessonAt);
+  const freshNews = newest(news, (item) => item.publishedAt);
+
   const feed = [
     ...lessons.map((lesson) => ({
       kind: 'lesson',
-      at: lesson.publishedAt ?? lesson.createdAt ?? new Date(0),
-      html: lessonCard(lesson, user?.role === 'admin')
+      at: lessonAt(lesson),
+      html: lessonCard(lesson, user?.role === 'admin', lesson === freshLesson)
     })),
-    ...news.map((item) => ({ kind: 'news', at: item.publishedAt, html: newsCard(item) }))
+    ...news.map((item) => ({
+      kind: 'news',
+      at: item.publishedAt,
+      html: newsCard(item, item === freshNews)
+    }))
   ].sort((first, second) => new Date(second.at) - new Date(first.at));
 
   // Идущие подряд новости собираются в один ряд — по две, не больше. Урок

@@ -572,7 +572,7 @@ test('на главной уроки и новости идут одной ле�
   assert.ok(html.indexOf('Свежая новость') < html.indexOf('Старый урок'));
   // И новость обязана отличаться от урока: без пометки лента читается как
   // сломанная — часть карточек открывает видео, часть текст.
-  assert.match(html, /kind-badge kind-news">Новость</);
+  assert.match(html, /class="kind-badge[^"]*">Новость</);
   assert.match(html, /href="\/news\/svezhaya"/);
 });
 
