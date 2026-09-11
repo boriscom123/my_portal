@@ -71,15 +71,17 @@ function fitTags(tags, limit) {
 }
 
 /** Тело запроса на создание ролика. */
-export function buildVideoBody({ lesson, publicBaseUrl, privacy }) {
+export function buildVideoBody({ lesson, publicBaseUrl, privacy, chapters: given = null }) {
   const link = `${publicBaseUrl}/lesson/${lesson.slug}`;
 
   // Главы отдельным блоком после текста автора, а не внутри него: иначе правка
   // описания однажды сломает главы, и понять это можно будет только по ролику.
   // Негодный по правилам площадки список отбрасывается целиком — YouTube в
   // таком случае молча не покажет ни одной главы, и лучше их не обещать.
+  // Главы доводом — уже на шкале уезжающего файла (см. chaptersForVideo):
+  // у смонтированной записи они сдвинуты относительно исходной.
   const chapters = chaptersBlock(
-    validChapters(lesson.chapters, (lesson.durationSeconds ?? 0) * 1000 || Infinity)
+    given ?? validChapters(lesson.chapters, (lesson.durationSeconds ?? 0) * 1000 || Infinity)
   );
 
   const description = trimWords(

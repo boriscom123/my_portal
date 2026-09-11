@@ -16,6 +16,8 @@ import {
   pickSubtitlesAsset,
   buildVideoBody
 } from '../services/platforms/youtube-fields.js';
+import { chaptersForVideo } from '../lib/chapters.js';
+import { ensureTrimRanges } from '../services/trim-ranges.js';
 
 // Предел площадки — 2 МБ. Порог ниже предела: обложка ровно на границе уже
 // встречалась, и гадать, считает YouTube мегабайт как 1 000 000 или 1 048 576,
@@ -50,7 +52,13 @@ export function makePublishYoutube(config, pool, platform) {
     // Приватность решает режим: до аудита Google публичным ролик не сделать, и
     // просить об этом бессмысленно — площадка молча оставит приватным.
     const privacy = mode === 'auto' ? 'public' : 'private';
-    const body = buildVideoBody({ lesson, publicBaseUrl: config.publicBaseUrl, privacy });
+    // Главы — на шкале уезжающего файла: у смонтированной записи время
+    // переводится по отрезкам монтажа. Не посчитались — глав не будет:
+    // неверные главы хуже никаких.
+    const trimRanges =
+      video.kind === 'trimmed' ? await ensureTrimRanges(config, pool, lesson).catch(() => null) : null;
+    const chapters = chaptersForVideo({ ...lesson, trimRanges }, video.kind);
+    const body = buildVideoBody({ lesson, publicBaseUrl: config.publicBaseUrl, privacy, chapters });
 
     let videoId;
     try {

@@ -9,6 +9,7 @@
 // Поэтому проверяем сами и негодный список отбрасываем целиком: ролик без глав
 // честнее ролика с проигнорированными строками в описании.
 // Вызывается из src/services/platforms/youtube-fields.js и с экрана проверки.
+import { mapTime, trimmedDurationMs } from './trim.js';
 
 // Пределы площадки.
 const MIN_CHAPTERS = 3;
@@ -66,6 +67,26 @@ export function validChapters(chapters, durationMs = Infinity) {
     if (cleaned[i].atMs - cleaned[i - 1].atMs < MIN_GAP_MS) return [];
   }
   return cleaned;
+}
+
+/**
+ * Главы на шкале файла, который уезжает.
+ * У смонтированной записи время переводится по отрезкам монтажа: главы
+ * считаются по исходной записи, а на площадки идёт смонтированная, и без
+ * перевода главы «убегают» вперёд на сумму вырезанных пауз. Отрезков нет —
+ * главы у смонтированной записи не показываем: неверные хуже никаких.
+ * Вызывается из src/jobs/publish-youtube.js и src/jobs/publish-lesson-parts.js.
+ */
+export function chaptersForVideo({ chapters, durationSeconds, trimRanges = null }, videoKind) {
+  if (videoKind !== 'trimmed') {
+    return validChapters(chapters, (durationSeconds ?? 0) * 1000 || Infinity);
+  }
+  if (!trimRanges?.length) return [];
+  const moved = (chapters ?? []).map((chapter) => ({
+    ...chapter,
+    atMs: mapTime(Number(chapter?.atMs ?? chapter?.at ?? -1), trimRanges)
+  }));
+  return validChapters(moved, trimmedDurationMs(trimRanges));
 }
 
 /** Блок для описания ролика. Пустая строка — глав нет. */
