@@ -1,105 +1,159 @@
-// Обложка урока, нарисованная моделью.
+// Картинки, нарисованные моделью: обложки уроков, следом — картинки новостей.
 //
-// Задача — получить картинку для карточки урока и превью на площадках, когда
-// кадр из записи не годится. Кадр берётся с десятой части урока и часто
-// показывает экран редактора: для превью это скучно, а для площадок коротких
-// видео ещё и нечитаемо.
+// Рисует FLUX через Hugging Face, а не Gemini: модели рисования Gemini на
+// бесплатной доле отказывают по квоте сразу, и портал не нарисовал ими ни
+// одной обложки. FLUX.1 schnell стоит около $0.003 за картинку, и бесплатных
+// $0.10 в месяц у Hugging Face хватает на три десятка обложек.
 //
-// Слой устроен как соседний слой текстов: без ключа его нет, список моделей
-// перебирается до первой ответившей, а при отказе вызывающий остаётся с кадром
-// из записи. Обложка у урока в любом случае есть.
-// Вызывается из src/jobs/make-cover-image.js.
-import { hideKey, shouldTryNext, parseModels, readErrorMessage } from './texts.js';
+// Токен и список моделей берутся из базы перед каждой картинкой, а не при
+// запуске воркера: автор меняет их в настройках, и новый токен должен работать
+// сразу. Список перебирается до первой ответившей модели; при отказе у урока
+// остаётся кадр из записи — обложка у него есть в любом случае.
+// Собирается в src/worker.js, вызывается из src/jobs/make-cover-image.js и
+// src/routes/integrations.js (проверка токена).
+import { imageTypeOf } from '../lib/image-type.js';
+import { hideKey, readErrorMessage } from './texts.js';
 
-const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
+// Поставщик Nscale: он обслуживает FLUX.1 schnell на Hugging Face и отвечает в
+// виде OpenAI — картинка base64 в data[0].b64_json. Адрес и формат взяты из
+// исходника официального клиента Hugging Face.
+export const DRAWING_URL = 'https://router.huggingface.co/nscale/v1/images/generations';
 
-// Рисование идёт дольше текста, и ждёт его воркер, а не запрос через nginx.
-const TIMEOUT_MS = 180_000;
+// Проверка токена: бесплатный запрос «чей это токен», картинку не рисует.
+export const WHOAMI_URL = 'https://huggingface.co/api/whoami-v2';
+
+// 16:9 — обложка идёт в карточку урока и в превью ссылки, а квадрат там
+// обрезается. Меньше мегапикселя — значит, по нижней цене.
+export const COVER_SIZE = '1024x576';
+
+// Schnell рисует за секунды; две минуты — с запасом на очередь у поставщика.
+const TIMEOUT_MS = 120_000;
+const CHECK_TIMEOUT_MS = 15_000;
 
 /**
- * Что просим нарисовать.
- *
- * Надписи запрещены прямым текстом: модели рисуют буквы с ошибками, а
- * кириллицу — особенно, и обложка с исковерканным словом хуже, чем без слов.
- * Название урока на превью всё равно рисует площадка поверх картинки.
+ * Стоит ли пробовать следующую модель.
+ * 429 и 5xx — про занятость конкретной модели. 400–403 — про запрос, токен
+ * или счёт: следующая модель ответит тем же.
  */
-export function buildCoverPrompt({ title, description = '', tags = [] }) {
-  const topic = [title, description].filter(Boolean).join('. ');
-  return `Нарисуй обложку для видеоурока по разработке.
-
-Тема урока: ${topic}
-Ключевые слова: ${tags.join(', ')}
-
-Требования:
-— Никаких надписей, букв, цифр и логотипов на изображении. Совсем.
-— Тёмный фон, глубокие синие и фиолетовые тона, один тёплый оранжевый акцент.
-— Одна ясная метафора темы, а не набор иконок. Композиция простая: превью
-  смотрят размером с ноготь.
-— Без людей и без лиц.
-— Плоская векторная графика, чистые формы, лёгкое свечение.`;
+function shouldTryNext(status) {
+  return status === 429 || status >= 500;
 }
 
-/**
- * Достаёт картинку из ответа.
- * Модель отвечает несколькими частями и может вернуть пояснение текстом вместо
- * картинки — тогда это отказ, а не картинка: разбирать надо явно.
- */
-export function parseImageResponse(body) {
-  const parts = body?.candidates?.[0]?.content?.parts ?? [];
-  const image = parts.find((part) => part?.inlineData?.data);
-  if (!image) {
-    const text = parts.find((part) => part?.text)?.text;
-    throw new Error(text ? `модель ответила текстом: ${text.slice(0, 120)}` : 'модель не вернула картинку');
+/** Достаёт картинку из ответа. Вид — по первым байтам, а не по догадке. */
+export function parseDrawingResponse(body) {
+  const data = body?.data?.[0]?.b64_json;
+  if (!data) throw new Error('модель не вернула картинку');
+  const bytes = Buffer.from(data, 'base64');
+  const type = imageTypeOf(bytes);
+  if (!type) throw new Error('модель вернула не картинку');
+  return { bytes, type };
+}
+
+/** Что сказать автору под кнопкой. status 0 — никто не ответил вовремя. */
+export function describeDrawingFailure(status, detail = '') {
+  if (status === 401 || status === 403) {
+    return 'Токен Hugging Face не подходит — проверьте его в настройках';
   }
-  return {
-    bytes: Buffer.from(image.inlineData.data, 'base64'),
-    mimeType: image.inlineData.mimeType ?? 'image/png'
-  };
+  if (status === 402) {
+    return (
+      'Кончились бесплатные кредиты Hugging Face на этот месяц: ' +
+      'https://huggingface.co/settings/billing'
+    );
+  }
+  if (status === 0 || status === 429 || status >= 500) {
+    return 'Модели сейчас заняты, попробуйте через несколько минут';
+  }
+  return `Hugging Face ответил ${status}${detail ? `: ${detail}` : ''}`;
 }
 
-/** Расширение файла по типу из ответа: png и jpeg модели отдают вперемешку. */
-export function extensionFor(mimeType) {
-  return String(mimeType).includes('jpeg') ? 'jpg' : 'png';
+/**
+ * Запрос для обложки без текстовой модели.
+ * Теги урока и так латиницей и несут смысл; заголовок по-русски FLUX почти не
+ * поймёт, но и не испортит.
+ */
+export function coverPromptTemplate({ title, tags = [] }) {
+  return [
+    'Flat vector illustration for the cover of a software development video lesson.',
+    tags.length ? `Topic keywords: ${tags.join(', ')}.` : '',
+    `Lesson title: ${title}.`,
+    'One clear visual metaphor of the topic, simple composition readable at thumbnail size.',
+    'Dark background, deep blue and violet tones, a single warm orange accent, soft glow, clean shapes.',
+    'No text, no letters, no numbers, no logos, no people, no faces.'
+  ]
+    .filter(Boolean)
+    .join(' ');
 }
 
-export function createImages(config, fetchImpl = fetch) {
-  const { apiKey, imageModel } = config.gemini ?? {};
-  const models = parseModels(imageModel);
-  if (!apiKey || !models.length) return null;
+/** Проверяет токен бесплатным запросом. Токен в ответ не попадает. */
+export async function checkDrawingToken(token, fetchImpl = fetch) {
+  if (!token) return { ok: false, message: 'Токен не сохранён' };
+  let response;
+  try {
+    response = await fetchImpl(WHOAMI_URL, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(CHECK_TIMEOUT_MS)
+    });
+  } catch (error) {
+    const reason = error.name === 'TimeoutError' ? 'не ответил вовремя' : hideKey(error.message, token);
+    return { ok: false, message: `Hugging Face не ответил: ${reason}` };
+  }
+  if (response.status === 401 || response.status === 403) {
+    return { ok: false, message: 'Токен Hugging Face не подходит' };
+  }
+  if (!response.ok) return { ok: false, message: `Hugging Face ответил ${response.status}` };
+  const body = await response.json().catch(() => ({}));
+  return { ok: true, account: String(body?.name ?? '') };
+}
 
+/**
+ * Слой рисования. loadSettings — async () => ({ token, models }): читает
+ * настройки из базы при каждом вызове.
+ */
+export function createImages(loadSettings, fetchImpl = fetch) {
   return {
-    async generate(prompt) {
-      let lastError = null;
+    async isConfigured() {
+      const { token } = await loadSettings();
+      return Boolean(token);
+    },
 
-      for (const name of models) {
-        const response = await fetchImpl(`${API_BASE}/${name}:generateContent`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            // Ключ заголовком, а не в адресе: адреса попадают в журналы
-            // посредников целиком.
-            'x-goog-api-key': apiKey
-          },
-          signal: AbortSignal.timeout(TIMEOUT_MS),
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            // Соотношение сторон просим явно: обложка идёт в карточку урока и
-            // в превью ссылки, а квадрат там обрезается по краям.
-            generationConfig: { imageConfig: { aspectRatio: '16:9' } }
-          })
-        });
-
-        if (response.ok) return { ...parseImageResponse(await response.json()), model: name };
-
-        const body = await response.text().catch(() => '');
-        lastError = new Error(
-          `${name} ответила ${response.status}: ` +
-            `${readErrorMessage(hideKey(body, apiKey)).slice(0, 200)}`
-        );
-        if (!shouldTryNext(response.status)) throw lastError;
+    async generate(prompt, { size = COVER_SIZE } = {}) {
+      const { token, models } = await loadSettings();
+      if (!token) {
+        throw new Error('рисование не настроено: добавьте токен Hugging Face в настройках');
       }
 
-      throw lastError ?? new Error('ни одна модель не ответила');
+      let lastStatus = 0;
+      let lastDetail = '';
+      for (const model of models) {
+        let response;
+        try {
+          response = await fetchImpl(DRAWING_URL, {
+            method: 'POST',
+            headers: {
+              // Токен заголовком, а не в адресе: адреса попадают в журналы
+              // посредников целиком.
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            signal: AbortSignal.timeout(TIMEOUT_MS),
+            body: JSON.stringify({ model, prompt, size, response_format: 'b64_json' })
+          });
+        } catch (error) {
+          // Не ответила вовремя — это про эту модель: следующая может быть свободна.
+          lastStatus = 0;
+          lastDetail = error.name === 'TimeoutError' ? 'не ответила вовремя' : hideKey(error.message, token);
+          continue;
+        }
+
+        if (response.ok) return { ...parseDrawingResponse(await response.json()), model };
+
+        const body = await response.text().catch(() => '');
+        lastStatus = response.status;
+        lastDetail = readErrorMessage(hideKey(body, token)).slice(0, 200);
+        if (!shouldTryNext(response.status)) break;
+      }
+
+      throw new Error(describeDrawingFailure(lastStatus, lastDetail));
     }
   };
 }

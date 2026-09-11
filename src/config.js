@@ -116,14 +116,10 @@ export function loadConfig(env = process.env) {
       // Поэтому перебираем: первая ответившая и делает работу.
       model:
         env.GEMINI_MODEL ??
-        'gemini-flash-latest,gemini-3-flash-preview,gemini-flash-lite-latest',
-      // Модели рисования — отдельным списком: они и называются иначе, и
-      // квотируются отдельно. На бесплатной доле все шесть отвечают отказом по
-      // квоте сразу же, поэтому рисование включается только с оплатой на
-      // проекте: подписка в приложении Gemini на API не распространяется.
-      imageModel:
-        env.GEMINI_IMAGE_MODEL ??
-        'gemini-3-pro-image,gemini-3.1-flash-image,gemini-2.5-flash-image'
+        'gemini-flash-latest,gemini-3-flash-preview,gemini-flash-lite-latest'
+      // Модели рисования здесь больше нет: обложки рисует FLUX через Hugging
+      // Face, а его токен и модели автор задаёт в настройках портала — см.
+      // src/services/drawing-settings.js.
     },
     // Площадка YouTube. Без ключей портал работает: кнопка подключения не
     // показывается, выкладка не предлагается.

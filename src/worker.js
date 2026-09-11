@@ -21,6 +21,7 @@ import { makeSuggestTexts } from './jobs/suggest-texts.js';
 import { createTexts } from './services/texts.js';
 import { makeMakeCoverImage } from './jobs/make-cover-image.js';
 import { createImages } from './services/images.js';
+import { loadDrawingSettings } from './services/drawing-settings.js';
 import { makeCleanupMedia } from './jobs/cleanup-media.js';
 import { makeTranscribe } from './jobs/transcribe.js';
 import { createSpeech } from './services/speech.js';
@@ -105,7 +106,14 @@ const handlers = {
   [JOBS.transcribe]: makeTranscribe(config, pool, queue, speech),
   [JOBS.subtitles]: makeSubtitles(config, pool),
   [JOBS.suggestTexts]: makeSuggestTexts(config, pool, createTexts(config)),
-  [JOBS.makeCoverImage]: makeMakeCoverImage(config, pool, createImages(config)),
+  // Токен рисования читается из базы перед каждой картинкой: автор меняет его
+  // в настройках, и новый должен работать без перезапуска воркера.
+  [JOBS.makeCoverImage]: makeMakeCoverImage(
+    config,
+    pool,
+    createImages(() => loadDrawingSettings(pool, config)),
+    createTexts(config)
+  ),
   [JOBS.trimPauses]: makeTrimPauses(config, pool),
   [JOBS.makeClips]: makeMakeClips(config, pool),
   [JOBS.makeCover]: makeMakeCover(config, pool),

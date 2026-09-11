@@ -11,6 +11,7 @@ import { signSession } from '../src/lib/jwt.js';
 import { makeMakeCoverImage } from '../src/jobs/make-cover-image.js';
 import { saveLesson } from '../src/services/lessons.js';
 import { registerAsset } from '../src/services/media.js';
+import { saveDrawingSettings } from '../src/services/drawing-settings.js';
 import { withServer } from './helpers/http.js';
 import { withTestDb, skipWithoutDb } from './helpers/db.js';
 
@@ -22,7 +23,8 @@ async function makeConfig() {
     telegram: { botToken: '', botId: '', botUsername: '' },
     google: { clientId: '', clientSecret: '' },
     vapid: { publicKey: '', privateKey: '', subject: '' },
-    media: { dir: await mkdtemp(path.join(tmpdir(), 'portal-cover-')), ttlHours: 168 }
+    media: { dir: await mkdtemp(path.join(tmpdir(), 'portal-cover-')), ttlHours: 168 },
+    tokenEncryptionKey: 'a'.repeat(64)
   };
 }
 
@@ -43,10 +45,11 @@ async function seed(pool, config) {
 }
 
 const drawing = {
+  isConfigured: async () => true,
   generate: async () => ({
     bytes: Buffer.from('нарисованная картинка'),
-    mimeType: 'image/png',
-    model: 'gemini-3-pro-image'
+    type: 'png',
+    model: 'black-forest-labs/FLUX.1-schnell'
   })
 };
 
@@ -302,6 +305,7 @@ test('новая попытка не показывает прошлый отк�
   const config = await makeConfig();
   await withTestDb(async (pool) => {
     const { lesson, headers } = await seed(pool, config);
+    await saveDrawingSettings(pool, config, { token: 'hf_secret_token', models: '' });
     await pool.query(
       `UPDATE lessons SET generated = jsonb_set(generated, '{sideError}', $1::jsonb) WHERE id = $2`,
       [JSON.stringify({ step: 'makeCoverImage', message: 'старый отказ' }), lesson.id]
@@ -320,5 +324,35 @@ test('новая попытка не показывает прошлый отк�
       [lesson.id]
     );
     assert.equal(rows[0].has, false);
+  });
+});
+
+test('запрос для обложки даёт текстовая модель, а без неё — шаблон', skipWithoutDb, async () => {
+  const config = await makeConfig();
+  await withTestDb(async (pool) => {
+    const { lesson } = await seed(pool, config);
+    const prompts = [];
+    const recording = {
+      isConfigured: async () => true,
+      generate: async (prompt) => {
+        prompts.push(prompt);
+        return { bytes: Buffer.from('картинка'), type: 'png', model: 'm' };
+      }
+    };
+
+    const fromModel = await makeMakeCoverImage(config, pool, recording, {
+      suggestCoverPrompt: async () => ({ prompt: 'A lighthouse made of servers', model: 't' })
+    })({ lessonId: lesson.id });
+    assert.equal(fromModel.promptSource, 'gemini');
+    assert.equal(prompts[0], 'A lighthouse made of servers');
+
+    // Текстовая модель отказала — рисование от неё не зависит.
+    const fromTemplate = await makeMakeCoverImage(config, pool, recording, {
+      suggestCoverPrompt: async () => {
+        throw new Error('503');
+      }
+    })({ lessonId: lesson.id });
+    assert.equal(fromTemplate.promptSource, 'template');
+    assert.match(prompts[1], /No text/);
   });
 });
