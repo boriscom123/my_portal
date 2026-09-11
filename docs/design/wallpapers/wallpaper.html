@@ -1,0 +1,353 @@
+<!doctype html>
+<!-- Обои рабочего стола в фирменном стиле портала.
+     Нужны, чтобы на записи видеоуроков за окнами был виден знак канала.
+     Один файл на все варианты: вариант выбирается адресом после «#»
+     (wallpaper.html#orbit), картинку снимает render.sh безголовым Chromium.
+     Холст — 1920×1080 CSS-пикселей; 4K и 1440p получаются масштабом, а не
+     перевёрсткой, поэтому все размеры ниже — в пикселях этого холста.
+     Цвета — те же, что в public/styles.css, ракета — из docs/design/rocket.svg. -->
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Обои Solo AI Journey</title>
+<style>
+  /* Шрифты портала лежат в public/fonts. Пути относительные: страница
+     открывается с диска, а не с сервера, и /fonts/ здесь не разрешится. */
+  @font-face { font-family: Unbounded; font-weight: 800; src: url(../../../public/fonts/unbounded-800-latin.woff2); unicode-range: U+0000-00FF, U+2000-206F; }
+  @font-face { font-family: Unbounded; font-weight: 800; src: url(../../../public/fonts/unbounded-800-cyrillic.woff2); unicode-range: U+0400-045F; }
+  @font-face { font-family: Unbounded; font-weight: 600; src: url(../../../public/fonts/unbounded-600-latin.woff2); unicode-range: U+0000-00FF, U+2000-206F; }
+  @font-face { font-family: Unbounded; font-weight: 600; src: url(../../../public/fonts/unbounded-600-cyrillic.woff2); unicode-range: U+0400-045F; }
+  @font-face { font-family: Onest; font-weight: 500; src: url(../../../public/fonts/onest-500-latin.woff2); unicode-range: U+0000-00FF, U+2000-206F; }
+  @font-face { font-family: Onest; font-weight: 500; src: url(../../../public/fonts/onest-500-cyrillic.woff2); unicode-range: U+0400-045F; }
+  @font-face { font-family: 'JetBrains Mono'; font-weight: 400; src: url(../../../public/fonts/jetbrains-mono-400-latin.woff2); unicode-range: U+0000-00FF, U+2000-206F; }
+  @font-face { font-family: 'JetBrains Mono'; font-weight: 400; src: url(../../../public/fonts/jetbrains-mono-400-cyrillic.woff2); unicode-range: U+0400-045F; }
+
+  /* Палитра тёмной темы сайта — родной для знака. */
+  :root {
+    --bg: #0c0a20;
+    --bg-far: #131432;
+    --bg-top: #09071c;
+    --fg: #f2f0fa;
+    --muted: #a9a2c9;
+    --brand-1: #8482fd;
+    --brand-2: #aa5eff;
+    --brand-3: #e060b4;
+    --cyan: #4fc3dc;
+    --line: #2e2757;
+  }
+  /* Светлый вариант берёт светлую тему сайта целиком. */
+  .light {
+    --bg: #f8f7fe;
+    --bg-far: #f1eefb;
+    --bg-top: #ffffff;
+    --fg: #14122a;
+    --muted: #5c5680;
+    --brand-1: #5b58e0;
+    --brand-2: #8a2fe0;
+    --brand-3: #c42f85;
+    --cyan: #0e7fa8;
+    --line: #e0dbf2;
+  }
+
+  html, body { margin: 0; overflow: hidden; background: #000; }
+  .wall {
+    position: relative;
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    color: var(--fg);
+    background: linear-gradient(160deg, var(--bg-top) 0%, var(--bg) 45%, var(--bg-far) 100%);
+    font-family: Onest, system-ui, sans-serif;
+  }
+  .layer { position: absolute; inset: 0; }
+
+  /* Размытые пятна фирменных цветов — «туманность» за знаком. */
+  .glow { position: absolute; border-radius: 50%; filter: blur(140px); }
+
+  /* Мелкий шум поверх градиентов. Без него плавный переход по тёмному
+     на 4K-мониторе распадается на заметные ступеньки. */
+  .grain { position: absolute; inset: 0; opacity: .05; mix-blend-mode: overlay; pointer-events: none; }
+  .light .grain { opacity: .035; mix-blend-mode: multiply; }
+
+  /* Знак: SOLO AI градиентом, как в шапке сайта, JOURNEY — разрядкой.
+     Градиент застывший: на картинке переливу взяться неоткуда. */
+  .brand-mark {
+    font-family: Unbounded, system-ui, sans-serif;
+    font-weight: 800;
+    line-height: 1;
+    background: linear-gradient(96deg, var(--brand-1) 0%, var(--brand-2) 50%, var(--brand-3) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .journey {
+    font-family: Unbounded, system-ui, sans-serif;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: .42em;
+    /* Разрядка добавляет хвост и после последней буквы — возвращаем его,
+       иначе слово съезжает влево от центра. */
+    margin-right: -.42em;
+  }
+  .tagline {
+    font-family: Onest, system-ui, sans-serif;
+    font-weight: 500;
+    letter-spacing: .32em;
+    margin-right: -.32em;
+    color: var(--cyan);
+    text-transform: uppercase;
+  }
+  .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+
+  /* Подпись в углу. Отступ снизу больше бокового намеренно: внизу у Windows
+     панель задач, у macOS — Dock, и знак не должен под них уходить. */
+  .signature {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    gap: 22px;
+  }
+  .signature .words { display: flex; flex-direction: column; gap: 10px; }
+</style>
+</head>
+<body>
+<div class="wall" id="wall"></div>
+
+<script>
+  // Детерминированный генератор случайных чисел: звёзды при каждой отрисовке
+  // встают на одни и те же места, и 4K совпадает с 1080p точка в точку.
+  function seededRandom(seed) {
+    return function () {
+      seed |= 0;
+      seed = (seed + 0x6d2b79f5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  // Ракета со знака канала. Идентификаторы градиентов получают суффикс:
+  // на одной картинке ракет бывает две, и общие id перепутали бы заливки.
+  function rocket(height, suffix, extra = '') {
+    const s = suffix;
+    return `<svg viewBox="0 0 48 116" height="${height}" width="${(height * 48) / 116}" ${extra}>
+      <defs>
+        <linearGradient id="nose-${s}" x1="0" y1="0" x2="1" y2="0.4">
+          <stop offset="0" stop-color="#8A4BD6"/><stop offset="0.55" stop-color="#B45CE8"/><stop offset="1" stop-color="#E88A7A"/>
+        </linearGradient>
+        <linearGradient id="body-${s}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#29BDE8"/><stop offset="0.5" stop-color="#5B9BE0"/><stop offset="1" stop-color="#A38DE2"/>
+        </linearGradient>
+        <linearGradient id="fin-${s}" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#9B5CF0"/><stop offset="1" stop-color="#7B3BC4"/>
+        </linearGradient>
+        <linearGradient id="flame-${s}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#FF6B3D"/><stop offset="0.55" stop-color="#FFB336"/><stop offset="1" stop-color="#FFE08A"/>
+        </linearGradient>
+      </defs>
+      <path d="M16.5 57 Q4.5 69 4.5 88 Q10 76 16.5 72 Z" fill="url(#fin-${s})"/>
+      <path d="M31.5 57 Q43.5 69 43.5 88 Q38 76 31.5 72 Z" fill="url(#fin-${s})"/>
+      <path d="M19 26 H29 V79 Q29 87 24 90 Q19 87 19 79 Z" fill="url(#body-${s})"/>
+      <path d="M24 2 L35.5 35 Q24 25.5 12.5 35 Z" fill="url(#nose-${s})"/>
+      <path d="M24 88 Q28.5 95 26 102 Q24.8 107 24 109 Q23.2 107 22 102 Q19.5 95 24 88 Z" fill="url(#flame-${s})"/>
+    </svg>`;
+  }
+
+  // Звёздное поле. Цветных звёзд немного — так же, как на баннере канала.
+  function stars(count, seed, { maxOpacity = 0.75, avoid = null } = {}) {
+    const random = seededRandom(seed);
+    const colors = ['#ffffff', '#ffffff', '#ffffff', '#ffffff', '#4fc3dc', '#aa5eff', '#e060b4'];
+    let dots = '';
+    for (let i = 0; i < count; i++) {
+      const x = random() * 1920;
+      const y = random() * 1080;
+      const r = random() < 0.08 ? 1.6 + random() * 1.2 : 0.6 + random() * 0.9;
+      const opacity = (0.15 + random() * 0.85) * maxOpacity;
+      const color = colors[Math.floor(random() * colors.length)];
+      if (avoid && avoid(x, y)) continue;
+      dots += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(2)}" fill="${color}" opacity="${opacity.toFixed(2)}"/>`;
+    }
+    return `<svg class="layer" viewBox="0 0 1920 1080">${dots}</svg>`;
+  }
+
+  const grain = `<svg class="grain" viewBox="0 0 1920 1080" preserveAspectRatio="none">
+    <filter id="grain-filter"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/></filter>
+    <rect width="1920" height="1080" filter="url(#grain-filter)"/>
+  </svg>`;
+
+  function glow(x, y, size, color, opacity) {
+    return `<div class="glow" style="left:${x - size / 2}px;top:${y - size / 2}px;width:${size}px;height:${size}px;background:${color};opacity:${opacity}"></div>`;
+  }
+
+  // Подпись: ракета и слова знака. Размер задаётся кеглем «SOLO AI».
+  // Где ракета уже летит по экрану, вторая в подписи лишняя — withRocket: false.
+  function signature(size, style, { tagline = true, withRocket = true, rocketSuffix = 'sig' } = {}) {
+    return `<div class="signature" style="${style}">
+      ${withRocket ? rocket(size * 2.9, rocketSuffix) : ''}
+      <div class="words">
+        <div class="brand-mark" style="font-size:${size}px">SOLO AI</div>
+        <div class="journey" style="font-size:${size * 0.52}px">JOURNEY</div>
+        ${tagline ? `<div class="tagline" style="font-size:${size * 0.3}px;margin-top:6px">от идеи до продукта</div>` : ''}
+      </div>
+    </div>`;
+  }
+
+  const variants = {
+    // Траектория через весь экран и ракета в конце пути. Знак — в правом
+    // нижнем углу; центр пустой, его закроют окна.
+    orbit() {
+      return `
+        ${glow(1560, 260, 900, 'var(--brand-2)', 0.22)}
+        ${glow(180, 980, 800, 'var(--cyan)', 0.12)}
+        ${glow(1200, 1000, 700, 'var(--brand-3)', 0.1)}
+        ${stars(260, 7)}
+        <svg class="layer" viewBox="0 0 1920 1080">
+          <defs>
+            <linearGradient id="path-orbit" x1="0" y1="1" x2="1" y2="0">
+              <stop offset="0" stop-color="#4fc3dc" stop-opacity=".2"/>
+              <stop offset=".55" stop-color="#8482fd" stop-opacity=".75"/>
+              <stop offset="1" stop-color="#e060b4"/>
+            </linearGradient>
+          </defs>
+          <path d="M -40 1010 C 420 960, 900 820, 1210 600 S 1520 380, 1575 330"
+                fill="none" stroke="url(#path-orbit)" stroke-width="3" stroke-linecap="round" stroke-dasharray="1 16"/>
+          <circle cx="120" cy="985" r="7" fill="#4fc3dc"/>
+          <circle cx="120" cy="985" r="18" fill="none" stroke="#4fc3dc" stroke-opacity=".35" stroke-width="2"/>
+        </svg>
+        <div style="position:absolute;left:1575px;top:330px;transform:translate(-50%,-50%) rotate(52deg)">
+          ${rocket(300, 'orbit', 'style="display:block;filter:drop-shadow(0 0 40px rgba(170,94,255,.45))"')}
+        </div>
+        ${signature(46, 'right:110px;bottom:150px', { withRocket: false })}
+      `;
+    },
+
+    // Композиция баннера канала: для заставки в начале и конце урока.
+    wordmark() {
+      return `
+        ${glow(960, 430, 1300, 'var(--brand-2)', 0.16)}
+        ${glow(360, 960, 700, 'var(--cyan)', 0.1)}
+        ${glow(1640, 900, 700, 'var(--brand-3)', 0.1)}
+        ${stars(230, 11, { avoid: (x, y) => x > 330 && x < 1590 && y > 210 && y < 640 })}
+        <svg class="layer" viewBox="0 0 1920 1080">
+          <path d="M 170 1000 C 420 960, 700 900, 900 800" fill="none" stroke="#aa5eff" stroke-opacity=".7"
+                stroke-width="3" stroke-linecap="round" stroke-dasharray="1 15"/>
+          <circle cx="170" cy="1000" r="7" fill="#4fc3dc"/>
+        </svg>
+        <div style="position:absolute;left:0;right:0;top:220px;display:flex;flex-direction:column;align-items:center">
+          <div class="brand-mark" style="font-size:190px">SOLO AI</div>
+          <div class="journey" style="font-size:112px;margin-top:34px">JOURNEY</div>
+          <div style="width:1180px;height:2px;margin-top:48px;background:linear-gradient(90deg,transparent,#4fc3dc 20%,#8482fd 80%,transparent)"></div>
+          <div class="tagline" style="font-size:30px;margin-top:30px">от идеи до продукта · шаг за шагом</div>
+        </div>
+        <div style="position:absolute;left:960px;top:760px;transform:translateX(-50%)">
+          ${rocket(230, 'wordmark', 'style="display:block;filter:drop-shadow(0 0 36px rgba(79,195,220,.35))"')}
+        </div>
+      `;
+    },
+
+    // Спокойный фон: только туманность и маленький знак. Для записи, где
+    // зритель должен смотреть на окно, а не на обои.
+    nebula() {
+      return `
+        ${glow(250, 180, 1100, 'var(--brand-1)', 0.28)}
+        ${glow(1750, 950, 1200, 'var(--brand-3)', 0.2)}
+        ${glow(1850, 250, 700, 'var(--cyan)', 0.12)}
+        ${glow(700, 1050, 800, 'var(--brand-2)', 0.14)}
+        ${stars(140, 23, { maxOpacity: 0.5 })}
+        ${signature(30, 'right:110px;top:110px', { rocketSuffix: 'nebula', tagline: false })}
+      `;
+    },
+
+    // «Шаг за шагом» чертежом: сетка, этапы пути и штамп в углу.
+    blueprint() {
+      const steps = [
+        [230, 900, '01', 'идея'],
+        [620, 780, '02', 'прототип'],
+        [980, 610, '03', 'код'],
+        [1290, 430, '04', 'запуск'],
+      ];
+      const marks = steps
+        .map(([x, y, n, name]) => `
+          <circle cx="${x}" cy="${y}" r="9" fill="#0c0a20" stroke="#4fc3dc" stroke-width="2.5"/>
+          <circle cx="${x}" cy="${y}" r="26" fill="none" stroke="#4fc3dc" stroke-opacity=".25" stroke-width="1.5" stroke-dasharray="4 6"/>
+          <line x1="${x}" y1="${y - 34}" x2="${x}" y2="${y - 92}" stroke="#8482fd" stroke-opacity=".5" stroke-width="1.5"/>
+          <text x="${x + 14}" y="${y - 96}" class="mono" font-size="18" fill="#a9a2c9" letter-spacing="2">${n}</text>
+          <text x="${x + 14}" y="${y - 70}" font-family="Onest" font-weight="500" font-size="24" fill="#f2f0fa" letter-spacing="3">${name.toUpperCase()}</text>`)
+        .join('');
+      return `
+        <svg class="layer" viewBox="0 0 1920 1080">
+          <defs>
+            <pattern id="grid-minor" width="40" height="40" patternUnits="userSpaceOnUse">
+              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#8482fd" stroke-opacity=".06" stroke-width="1"/>
+            </pattern>
+            <pattern id="grid-major" width="200" height="200" patternUnits="userSpaceOnUse">
+              <rect width="200" height="200" fill="url(#grid-minor)"/>
+              <path d="M 200 0 L 0 0 0 200" fill="none" stroke="#8482fd" stroke-opacity=".13" stroke-width="1"/>
+            </pattern>
+            <radialGradient id="grid-fade" cx=".5" cy=".5" r=".75">
+              <stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity=".15"/>
+            </radialGradient>
+            <mask id="grid-mask"><rect width="1920" height="1080" fill="url(#grid-fade)"/></mask>
+            <linearGradient id="path-blueprint" x1="0" y1="1" x2="1" y2="0">
+              <stop offset="0" stop-color="#4fc3dc"/><stop offset=".6" stop-color="#8482fd"/><stop offset="1" stop-color="#e060b4"/>
+            </linearGradient>
+          </defs>
+          <rect width="1920" height="1080" fill="url(#grid-major)" mask="url(#grid-mask)"/>
+          <path d="M 60 980 C 200 920, 230 900, 230 900 S 500 830, 620 780 S 860 690, 980 610 S 1180 500, 1290 430 S 1500 290, 1600 230"
+                fill="none" stroke="url(#path-blueprint)" stroke-width="3" stroke-linecap="round" stroke-dasharray="1 14"/>
+          ${marks}
+          <text x="1705" y="228" class="mono" font-size="18" fill="#a9a2c9" letter-spacing="2">05</text>
+          <text x="1705" y="254" font-family="Onest" font-weight="500" font-size="24" fill="#e060b4" letter-spacing="3">ПРОДУКТ</text>
+          <g class="mono" font-size="14" fill="#a9a2c9" fill-opacity=".55" letter-spacing="1.5">
+            <text x="60" y="70">SOLO-AI-JOURNEY / ЛИСТ 01</text>
+            <text x="1860" y="70" text-anchor="end">МАСШТАБ 1:1 · ОДИН ЧЕЛОВЕК + ИИ</text>
+          </g>
+          <path d="M 40 40 h 40 M 40 40 v 40 M 1880 40 h -40 M 1880 40 v 40 M 40 1040 h 40 M 40 1040 v -40 M 1880 1040 h -40 M 1880 1040 v -40"
+                stroke="#8482fd" stroke-opacity=".5" stroke-width="2" fill="none"/>
+        </svg>
+        ${glow(1600, 230, 600, 'var(--brand-2)', 0.2)}
+        <div style="position:absolute;left:1600px;top:230px;transform:translate(-50%,-50%) rotate(58deg)">
+          ${rocket(210, 'blueprint', 'style="display:block"')}
+        </div>
+        <div style="position:absolute;right:110px;bottom:150px;padding:22px 28px;border:1.5px solid rgba(132,130,253,.35);background:rgba(12,10,32,.6);display:flex;flex-direction:column;gap:10px">
+          <div class="brand-mark" style="font-size:34px">SOLO AI</div>
+          <div class="journey" style="font-size:17px">JOURNEY</div>
+          <div class="mono" style="font-size:13px;color:var(--muted);letter-spacing:.12em;margin-top:6px;border-top:1px solid rgba(132,130,253,.25);padding-top:10px">ШАГ ЗА ШАГОМ</div>
+        </div>
+      `;
+    },
+
+    // Светлая тема сайта: для записи в светлом оформлении системы.
+    light() {
+      return `
+        ${glow(1650, 200, 1000, '#c9b8ff', 0.55)}
+        ${glow(150, 1000, 900, '#b8e6f2', 0.6)}
+        ${glow(1300, 1080, 800, '#f5c6e3', 0.45)}
+        <svg class="layer" viewBox="0 0 1920 1080">
+          <defs>
+            <linearGradient id="path-light" x1="0" y1="1" x2="1" y2="0">
+              <stop offset="0" stop-color="#0e7fa8" stop-opacity=".35"/>
+              <stop offset=".55" stop-color="#5b58e0" stop-opacity=".7"/>
+              <stop offset="1" stop-color="#c42f85"/>
+            </linearGradient>
+          </defs>
+          <path d="M -40 1010 C 420 960, 900 820, 1210 600 S 1520 380, 1575 330"
+                fill="none" stroke="url(#path-light)" stroke-width="3" stroke-linecap="round" stroke-dasharray="1 16"/>
+          <circle cx="120" cy="985" r="7" fill="#0e7fa8"/>
+          <circle cx="120" cy="985" r="18" fill="none" stroke="#0e7fa8" stroke-opacity=".35" stroke-width="2"/>
+        </svg>
+        <div style="position:absolute;left:1575px;top:330px;transform:translate(-50%,-50%) rotate(52deg)">
+          ${rocket(300, 'light', 'style="display:block;filter:drop-shadow(0 18px 30px rgba(91,88,224,.25))"')}
+        </div>
+        ${signature(46, 'right:110px;bottom:150px', { withRocket: false })}
+      `;
+    },
+  };
+
+  const name = location.hash.slice(1) || 'orbit';
+  const wall = document.getElementById('wall');
+  if (name === 'light') wall.classList.add('light');
+  wall.innerHTML = variants[name]() + grain;
+</script>
+</body>
+</html>
