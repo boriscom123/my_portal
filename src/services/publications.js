@@ -76,7 +76,7 @@ export async function markPublicationState(
 /** Одна публикация по номеру: шаг очереди знает только его. */
 export async function publicationById(pool, id) {
   const { rows } = await pool.query(
-    `SELECT id, platform, asset_id, state, mode, external_id, url, error
+    `SELECT id, platform, asset_id, state, mode, external_id, url, error, details
        FROM publications WHERE id = $1`,
     [id]
   );
@@ -89,8 +89,23 @@ export async function publicationById(pool, id) {
     mode: rows[0].mode,
     externalId: rows[0].external_id,
     url: rows[0].url,
-    error: rows[0].error
+    error: rows[0].error,
+    // Ход отправки частей постами подряд — см. markPublicationDetails.
+    details: rows[0].details ?? {}
   };
+}
+
+/**
+ * Записывает ход отправки частей постами подряд: какие части ушли и номера
+ * их постов. Повтор после сбоя читает его и продолжает с части, которая не
+ * ушла, — вместо второго поста с теми же частями.
+ * Вызывается из src/jobs/publish-lesson-parts.js.
+ */
+export async function markPublicationDetails(pool, id, details) {
+  await pool.query(
+    'UPDATE publications SET details = $2::jsonb, updated_at = now() WHERE id = $1',
+    [id, JSON.stringify(details)]
+  );
 }
 
 /** Публикации урока — для кабинета и для карточки. */
