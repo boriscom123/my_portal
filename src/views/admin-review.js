@@ -48,6 +48,7 @@ export function adminReviewPage({
   segments = [],
   covers = [],
   sideError = null,
+  drawingReady = false,
   publications = [],
   platforms = [],
   series = [],
@@ -196,7 +197,13 @@ ${
       Взять кадр из записи
     </button>
     <button class="button" type="button" data-draw-cover="${escapeHtml(lesson.slug)}"
-      ${lesson.title ? '' : 'disabled title="Сначала нужен заголовок"'}>
+      ${
+        !lesson.title
+          ? 'disabled title="Сначала нужен заголовок"'
+          : drawingReady
+            ? ''
+            : 'disabled title="Добавьте токен Hugging Face в настройках"'
+      }>
       Нарисовать обложку
     </button>
     <label class="button" for="cover-file">Загрузить с компьютера</label>
@@ -204,14 +211,16 @@ ${
       data-cover-upload="${escapeHtml(lesson.slug)}">
   </div>
   ${
+    drawingReady
+      ? ''
+      : `<p class="hint">
+           Рисование выключено: <a href="/settings">добавьте токен Hugging Face в настройках</a>.
+         </p>`
+  }
+  ${
     sideError && sideError.step === 'makeCoverImage'
       ? `<p class="hint danger">
            Нарисовать не вышло: ${escapeHtml(sideError.message)}
-           ${
-             /429|quota/i.test(sideError.message)
-               ? '<br>Это квота Google: рисование включается оплатой на проекте, к которому привязан ключ.'
-               : ''
-           }
          </p>`
       : ''
   }

@@ -44,6 +44,7 @@ import { listSources, addSource, removeSource, toggleSource } from '../services/
 import { youtubeAccessToken } from '../services/platforms/youtube-auth.js';
 import { instagramAccess } from '../services/platforms/instagram-auth.js';
 import { youtubeApp, channelApp } from '../services/platform-apps.js';
+import { loadDrawingSettings } from '../services/drawing-settings.js';
 import { readVideoPrivacy } from '../services/platforms/youtube.js';
 
 import { rebuildSubtitles } from '../services/transcript.js';
@@ -656,6 +657,11 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
     const lesson = await getLessonBySlug(pool, req.params.slug, { includeDrafts: true });
     if (!lesson) throw new PublicError('Урок не найден', 404);
     if (!lesson.title) throw new PublicError('Сначала нужен заголовок — по нему и рисуем', 409);
+    // Без токена задача упала бы уже в очереди, и автор узнал бы об этом
+    // минутой позже. Говорим сразу.
+    if (!(await loadDrawingSettings(pool, config)).token) {
+      throw new PublicError('Рисование не настроено — добавьте токен Hugging Face в настройках', 409);
+    }
     if (!req.app.locals.queue) throw new PublicError('Очередь недоступна', 503);
 
     // Прошлый отказ убираем: иначе он покажется как ответ на новое нажатие.

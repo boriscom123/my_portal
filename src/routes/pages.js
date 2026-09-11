@@ -326,6 +326,8 @@ export function pageRoutes(config, pool) {
           expiresLabel: new Date(row.expires_at).toLocaleDateString('ru-RU')
         })),
         transcript: transcript[0]?.text ?? null,
+        // Без токена рисования кнопка неактивна и объясняет, где его взять.
+        drawingReady: Boolean((await loadDrawingSettings(pool, config)).token),
         // Обложек у урока бывает две: кадр из записи и нарисованная. Автор
         // выбирает, какая идёт в карточку.
         covers: assets.filter((row) => row.kind === 'cover').map(coverLabel),

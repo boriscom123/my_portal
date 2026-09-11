@@ -356,3 +356,47 @@ test('запрос для обложки даёт текстовая модел�
     assert.match(prompts[1], /No text/);
   });
 });
+
+test('без токена рисование не ставится в очередь, а кнопка это объясняет', skipWithoutDb, async () => {
+  const config = await makeConfig();
+  await withTestDb(async (pool) => {
+    const { headers } = await seed(pool, config);
+    const added = [];
+    const app = finalize(createApp({ config, pool, queue: { add: async (name) => added.push(name) } }));
+    await withServer(app, async (base) => {
+      const response = await fetch(`${base}/api/admin/lessons/urok/cover-image`, {
+        method: 'POST',
+        headers
+      });
+      assert.equal(response.status, 409);
+      assert.match((await response.json()).error, /токен Hugging Face/);
+
+      const page = await (
+        await fetch(`${base}/admin/lesson/urok`, { headers: { Accept: 'text/html', ...headers } })
+      ).text();
+      assert.match(page, /data-draw-cover="urok"\s+disabled title="Добавьте токен Hugging Face в настройках"/);
+      assert.match(page, /href="\/settings"/);
+    });
+    assert.deepEqual(added, [], 'задача ушла в очередь без токена');
+  });
+});
+
+test('с токеном кнопка активна, а про квоту Google речи нет', skipWithoutDb, async () => {
+  const config = await makeConfig();
+  await withTestDb(async (pool) => {
+    const { lesson, headers } = await seed(pool, config);
+    await saveDrawingSettings(pool, config, { token: 'hf_secret_token', models: '' });
+    await pool.query(
+      `UPDATE lessons SET generated = jsonb_set(generated, '{sideError}', $1::jsonb) WHERE id = $2`,
+      [JSON.stringify({ step: 'makeCoverImage', message: 'You exceeded your current quota' }), lesson.id]
+    );
+    const app = finalize(createApp({ config, pool }));
+    await withServer(app, async (base) => {
+      const page = await (
+        await fetch(`${base}/admin/lesson/urok`, { headers: { Accept: 'text/html', ...headers } })
+      ).text();
+      assert.match(page, /data-draw-cover="urok"\s*>/);
+      assert.ok(!page.includes('квота Google'), 'осталась подсказка про Google');
+    });
+  });
+});
