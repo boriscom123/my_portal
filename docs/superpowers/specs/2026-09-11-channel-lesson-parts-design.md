@@ -7,8 +7,8 @@
 (`src/jobs/publish-channel.js`, `src/services/platforms/telegram-channel.js`,
 `src/services/platforms/max-channel.js`), отправку коротких роликов видео в оба
 канала, монтаж без пауз (`src/jobs/trim-pauses.js`, `src/lib/trim.js`), главы
-урока (`src/lib/chapters.js`) и общий слой Docker на сервере
-(`/home/boris/projects/ClaudeDocker`).
+урока (`src/lib/chapters.js`) и центральный сервис ботов на сервере
+(`/home/boris/projects/ClaudeService`).
 
 ## 1. Что делаем
 
@@ -26,7 +26,7 @@
 
 ## 2. Порядок работ
 
-1. **Свой сервер Telegram Bot API** в общем слое и адрес сервера в портале;
+1. **Свой сервер Telegram Bot API** в ClaudeService и адрес сервера в портале;
    бот портала переезжает на него.
 2. **Отрезки монтажа и время глав**: портал запоминает отрезки, оставленные
    монтажом, и пересчитывает главы под смонтированную запись — и для нарезки,
@@ -42,7 +42,7 @@
 
 ### Делаем
 
-- Сервис `telegram-bot-api` в общем слое ClaudeDocker и тот же сервис под
+- Сервис `telegram-bot-api` в ClaudeService и тот же сервис под
   профилем `standalone` в `docker-compose.yml` портала.
 - Одну настройку адреса Bot API, по которой ходят все обращения бота портала.
 - Сохранение отрезков монтажа и пересчёт глав, включая описание YouTube.
@@ -60,26 +60,32 @@
 
 ## 4. Свой сервер Telegram Bot API
 
-**Сервис.** В `ClaudeDocker/docker-compose.yml` — `telegram-bot-api` по образцу
-общих `postgres` и `redis`:
+**Сервис.** В `ClaudeService/docker-compose.yml` — `telegram-bot-api`. Место —
+центральный сервис ботов, а не проект: сервер Bot API глобальный, им будут
+пользоваться боты разных проектов, и ключи приложения лежат рядом с остальными
+ключами Telegram этого сервера.
 
 - образ закреплён: `aiogram/telegram-bot-api:10.3`;
-- `TELEGRAM_API_ID` и `TELEGRAM_API_HASH` из `.env` общего слоя,
+- `container_name: claudeservice-telegram-bot-api-1` — по образцу соседей;
+- `TELEGRAM_API_ID` и `TELEGRAM_API_HASH` из `ClaudeService/.env`,
   `TELEGRAM_LOCAL=1` — режим, в котором сервер принимает файлы до 2000 МБ;
 - том `telegram_bot_api_data` на `/var/lib/telegram-bot-api` (владелец внутри —
   uid 101);
-- сеть `data` (`shared-data`), порт 8081 наружу не публикуется;
+- сети `claude-net` и внешняя `shared-data`: воркер портала, который шлёт
+  видео, живёт только в `shared-data`; порт 8081 наружу не публикуется;
+- профиль `bot-api`: без ключей сервис не уходит в перезапуски, а обычный
+  `docker compose up` на машине без сети `shared-data` не ломается;
 - `restart: unless-stopped`.
 
 Проекты обращаются по полному имени контейнера —
-`http://shared-telegram-bot-api-1:8081` (короткие имена в общих сетях однажды
-уже указали на два разных сервера, см. README ClaudeDocker).
+`http://claudeservice-telegram-bot-api-1:8081` (короткие имена в общих сетях
+однажды уже указали на два разных сервера, см. README ClaudeDocker).
 
 **Ключи.** `api_id` и `api_hash` берутся на my.telegram.org → API development
-tools. В `.env.example` общего слоя — пустые `TELEGRAM_API_ID=` и
+tools. В `ClaudeService/deploy/.env.example` — пустые `TELEGRAM_API_ID=` и
 `TELEGRAM_API_HASH=` с комментарием, где их взять. Реальные значения заказчик
-вписывает в `ClaudeDocker/.env` на сервере сам: через Telegram их не присылать —
-история переписки уходит в публичный репозиторий.
+вписывает в `ClaudeService/.env` на сервере сам: через Telegram их не
+присылать — история переписки уходит в публичный репозиторий.
 
 **Портал.** `TELEGRAM_API_URL` в окружении → `config.telegram.apiUrl`, пусто —
 `https://api.telegram.org`. По этому адресу ходят все обращения бота портала:

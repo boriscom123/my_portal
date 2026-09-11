@@ -4,7 +4,7 @@
 
 **Goal:** с экрана урока отдельной кнопкой отправлять урок в каналы Telegram и MAX самим видео — частями под одним сообщением со списком глав.
 
-**Architecture:** свой сервер Telegram Bot API в общем слое ClaudeDocker снимает предел бота до 2000 МБ; все обращения бота портала идут по одной настройке адреса. Запись режется без пережатия, по размеру и главам, с примеркой каждой части; главы переводятся на шкалу смонтированной записи по сохранённым отрезкам монтажа. Пост с частями — отдельные «площадки» `telegram_parts` и `max_parts` со своими кнопками, состояниями и шагом очереди.
+**Architecture:** свой сервер Telegram Bot API в центральном сервисе ботов ClaudeService снимает предел бота до 2000 МБ; все обращения бота портала идут по одной настройке адреса. Запись режется без пережатия, по размеру и главам, с примеркой каждой части; главы переводятся на шкалу смонтированной записи по сохранённым отрезкам монтажа. Пост с частями — отдельные «площадки» `telegram_parts` и `max_parts` со своими кнопками, состояниями и шагом очереди.
 
 **Tech Stack:** Node 24 (`fs.openAsBlob`), Express, PostgreSQL, BullMQ, ffmpeg/ffprobe, `node:test`; образ `aiogram/telegram-bot-api:10.3`.
 
@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - Имена — только латиницей; комментарии и тексты для человека — по-русски. Новый файл начинается с русского комментария: задача, зачем так, откуда вызывается.
-- Образ сервера Bot API — ровно `aiogram/telegram-bot-api:10.3`; внутри общей сети адрес — `http://shared-telegram-bot-api-1:8081`.
+- Образ сервера Bot API — ровно `aiogram/telegram-bot-api:10.3`; сервис живёт в ClaudeService (глобальный для всех ботов сервера), ключи — в `ClaudeService/.env`; адрес в сети `shared-data` — `http://claudeservice-telegram-bot-api-1:8081`.
 - Пределы частей: Telegram (свой сервер) — 2000 МБ, MAX — 250 МБ; запас — 5% (`SIZE_MARGIN = 0.95`).
 - Альбом Telegram — не больше 10 видео; подпись — не больше 1024 знаков. Текст MAX — не больше 4000 знаков.
 - Резка — без пережатия (`-c copy`). Видео в `FormData` — только через `fs.openAsBlob` (файл не читается в память целиком: на сервере 3,8 ГБ на всё).
@@ -69,8 +69,8 @@ test('без настройки адрес — облако Telegram, со св�
   const base = { ...process.env, JWT_SECRET: 'x'.repeat(32), PUBLIC_BASE_URL: 'https://p.example' };
   assert.equal(loadConfig({ ...base, TELEGRAM_API_URL: '' }).telegram.apiUrl, DEFAULT_API_URL);
   assert.equal(
-    loadConfig({ ...base, TELEGRAM_API_URL: 'http://shared-telegram-bot-api-1:8081/' }).telegram.apiUrl,
-    'http://shared-telegram-bot-api-1:8081'
+    loadConfig({ ...base, TELEGRAM_API_URL: 'http://claudeservice-telegram-bot-api-1:8081/' }).telegram.apiUrl,
+    'http://claudeservice-telegram-bot-api-1:8081'
   );
 });
 
@@ -130,7 +130,7 @@ Expected: FAIL — `checkBotApi`/`DEFAULT_API_URL` не экспортируют
 
 ```js
       // Адрес сервера Telegram Bot API. Пусто — облако Telegram. Свой сервер
-      // (общий слой ClaudeDocker) снимает предел бота с 50 МБ до 2000 МБ на
+      // (ClaudeService, общий для ботов сервера) снимает предел бота с 50 МБ до 2000 МБ на
       // файл; бот, переехавший на него, в облако ходить не должен — поэтому
       // адрес один на все обращения бота портала.
       apiUrl: (env.TELEGRAM_API_URL ?? '').replace(/\/+$/, '') || 'https://api.telegram.org'
@@ -152,7 +152,7 @@ Expected: FAIL — `checkBotApi`/`DEFAULT_API_URL` не экспортируют
 export const DEFAULT_API_URL = 'https://api.telegram.org';
 
 /**
- * Адрес метода Bot API. Сервер — облако Telegram или свой (общий слой):
+ * Адрес метода Bot API. Сервер — облако Telegram или свой (ClaudeService):
  * свой принимает от бота файлы до 2000 МБ вместо 50.
  */
 export function botMethod(apiUrl, token, name) {
@@ -252,7 +252,7 @@ const telegramAdapter = {
 
 ```ini
 # Адрес сервера Telegram Bot API. Пусто — облако Telegram (предел бота 50 МБ).
-# Свой сервер из общего слоя: http://shared-telegram-bot-api-1:8081 — до 2000 МБ.
+# Свой сервер из ClaudeService: http://claudeservice-telegram-bot-api-1:8081 — до 2000 МБ.
 TELEGRAM_API_URL=
 ```
 
@@ -271,64 +271,80 @@ git push origin main && docker compose up -d --build
 
 ---
 
-### Task 2: Сервер Bot API в общем слое и в standalone
+### Task 2: Сервер Bot API в ClaudeService и в standalone
 
 **Files:**
-- Modify: `/home/boris/projects/ClaudeDocker/docker-compose.yml`, `/home/boris/projects/ClaudeDocker/.env.example`, `/home/boris/projects/ClaudeDocker/README.md`
+- Modify: `/home/boris/projects/ClaudeService/docker-compose.yml`, `/home/boris/projects/ClaudeService/deploy/.env.example`, `/home/boris/projects/ClaudeService/README.md`
 - Modify: `docker-compose.yml` (портал), `.env.example` (портал)
 
-**Interfaces:** Produces: сервис `telegram-bot-api` (контейнер `shared-telegram-bot-api-1`), переменные `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`.
+**Interfaces:** Produces: сервис `telegram-bot-api` под профилем `bot-api` (контейнер `claudeservice-telegram-bot-api-1`, сети `claude-net` и `shared-data`), переменные `TELEGRAM_API_ID`, `TELEGRAM_API_HASH` в `ClaudeService/.env`.
 
-- [ ] **Step 1: Сервис в общем слое**
+- [ ] **Step 1: Сервис в ClaudeService**
 
-`ClaudeDocker/docker-compose.yml` — перед `  portainer:` вставить:
+`ClaudeService/docker-compose.yml` — после сервиса `devbot` (перед `volumes:`) вставить:
 
 ```yaml
-  # Свой сервер Telegram Bot API. Нужен тем, кому мало 50 МБ на файл от бота:
-  # в локальном режиме (TELEGRAM_LOCAL) он принимает файлы до 2000 МБ. Общий,
-  # потому что ботов на сервере несколько, а сервер Bot API может быть один.
-  # Проекты обращаются по полному имени: http://shared-telegram-bot-api-1:8081
+  # Свой сервер Telegram Bot API — глобальный для ботов этого сервера. Нужен
+  # тем, кому мало 50 МБ на файл от бота: в локальном режиме (TELEGRAM_LOCAL)
+  # он принимает файлы до 2000 МБ. Живёт здесь, а не в проекте: ботов на
+  # сервере несколько, сервер Bot API может быть один, а его ключи
+  # (my.telegram.org) — рядом с остальными ключами Telegram в .env.
+  # Проекты обращаются по полному имени: http://claudeservice-telegram-bot-api-1:8081
   # (короткие имена в общих сетях однажды указали на два разных сервера).
+  # Сеть shared-data — потому что там живут воркеры проектов.
+  # Профиль bot-api: без ключей сервер уходит в перезапуски, а на машине без
+  # shared-data обычный `docker compose up` не должен ломаться. Запуск:
+  #   docker compose --profile bot-api up -d telegram-bot-api
   # Бот переезжает на него после logOut у облачного Bot API — см. README.
   telegram-bot-api:
     image: aiogram/telegram-bot-api:10.3
+    container_name: claudeservice-telegram-bot-api-1
+    profiles: [bot-api]
+    restart: unless-stopped
     environment:
-      - TELEGRAM_API_ID=${TELEGRAM_API_ID}
-      - TELEGRAM_API_HASH=${TELEGRAM_API_HASH}
-      - TELEGRAM_LOCAL=1
+      TELEGRAM_API_ID: ${TELEGRAM_API_ID:-}
+      TELEGRAM_API_HASH: ${TELEGRAM_API_HASH:-}
+      TELEGRAM_LOCAL: "1"
     volumes:
       - telegram_bot_api_data:/var/lib/telegram-bot-api
-    networks: [data]
-    restart: unless-stopped
-
+    networks: [claude-net, shared-data]
 ```
 
-и в `volumes:` после `  redis_data:` — строку `  telegram_bot_api_data:`.
+в `volumes:` после `  redis_data:` — строку `  telegram_bot_api_data:`, в `networks:` после `claude-net` —
 
-`ClaudeDocker/.env.example` — в конец:
+```yaml
+  shared-data:
+    external: true
+```
+
+`ClaudeService/deploy/.env.example` — в конец:
 
 ```ini
 
-# Свой сервер Telegram Bot API: ключи приложения с my.telegram.org →
-# API development tools. Реальные значения только в .env: в git и в переписку
-# они не попадают.
+# Свой сервер Telegram Bot API (профиль bot-api): ключи приложения с
+# my.telegram.org → API development tools. Реальные значения только в .env:
+# в git и в переписку они не попадают.
 TELEGRAM_API_ID=
 TELEGRAM_API_HASH=
 ```
 
-`ClaudeDocker/README.md` — в таблицу «Что здесь» после строки `redis`:
+`ClaudeService/README.md` — в таблицу «Состав» после строки `docker-compose.yml` поправить её описание на `devbot + Redis (сеть claude-net); сервер Telegram Bot API (профиль bot-api)`, а в конец раздела «Установка / развёртывание» добавить:
 
 ```markdown
-| `telegram-bot-api` | aiogram 10.3 | свой сервер Telegram Bot API: файлы от бота до 2000 МБ |
-```
+### Свой сервер Telegram Bot API
 
-и в конец раздела «Подводные камни» пункт:
+Глобальный для ботов сервера: бот, которому мало 50 МБ на файл, шлёт через
+него до 2000 МБ. Ключи `TELEGRAM_API_ID`/`TELEGRAM_API_HASH` — с my.telegram.org
+→ API development tools, вписываются в `.env` руками (не через Telegram:
+переписка уходит в публичные репозитории).
 
-```markdown
-- **Бот на своём сервере Bot API.** Перед переездом — `logOut` у облака:
-  `curl -s https://api.telegram.org/bot<токен>/logOut`. После него бот сразу
-  работает на своём сервере, а в облако вернуться может только через 10 минут.
-  Смешивать облако и свой сервер для одного бота нельзя.
+    docker compose --profile bot-api up -d telegram-bot-api
+
+Адрес для проектов (сеть `shared-data`): `http://claudeservice-telegram-bot-api-1:8081`.
+Перед переездом бота — `logOut` у облака:
+`curl -s https://api.telegram.org/bot<токен>/logOut`. После него бот сразу
+работает на своём сервере, а в облако вернуться может только через 10 минут.
+Смешивать облако и свой сервер для одного бота нельзя.
 ```
 
 - [ ] **Step 2: Сервис в standalone портала**
@@ -336,8 +352,9 @@ TELEGRAM_API_HASH=
 `docker-compose.yml` портала — после сервиса `redis` (перед `volumes:`):
 
 ```yaml
-  # Свой сервер Telegram Bot API для чистой машины. На VPS его даёт общий слой,
-  # и профиль standalone там не включается.
+  # Свой сервер Telegram Bot API для чистой машины. На VPS его даёт
+  # ClaudeService (глобальный для всех ботов), и профиль standalone там не
+  # включается.
   telegram-bot-api:
     image: aiogram/telegram-bot-api:10.3
     profiles: [standalone]
@@ -355,29 +372,27 @@ TELEGRAM_API_HASH=
 `.env.example` портала — под `TELEGRAM_API_URL=`:
 
 ```ini
-# Только для standalone (своя машина без общего слоя): ключи для своего
-# сервера Bot API с my.telegram.org. На VPS они лежат в .env общего слоя.
+# Только для standalone (своя машина без ClaudeService): ключи для своего
+# сервера Bot API с my.telegram.org. На VPS они лежат в ClaudeService/.env.
 TELEGRAM_API_ID=
 TELEGRAM_API_HASH=
 ```
 
 - [ ] **Step 3: Проверить конфигурацию**
 
-Run: `docker compose -f /home/boris/projects/ClaudeDocker/docker-compose.yml config -q && docker compose config -q && echo ok`
-Expected: `ok`. Сервис общего слоя **не поднимать** до задачи 12: без ключей он уходит в перезапуски.
+Run: `docker compose -f /home/boris/projects/ClaudeService/docker-compose.yml --profile bot-api config -q && docker compose -f /home/boris/projects/ClaudeService/docker-compose.yml config --services && docker compose config -q && echo ok`
+Expected: без профиля в списке служб только `redis` и `devbot`, в конце `ok`. Сервер Bot API **не поднимать** до задачи 12: нужны ключи. Работающие `devbot` и `redis` не перезапускать — через них идёт вся переписка.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git -C /home/boris/projects/ClaudeDocker add docker-compose.yml .env.example README.md
-git -C /home/boris/projects/ClaudeDocker commit -m "feat: общий сервер Telegram Bot API — файлы от бота до 2000 МБ"
-git -C /home/boris/projects/ClaudeDocker push
+git -C /home/boris/projects/ClaudeService add docker-compose.yml deploy/.env.example README.md
+git -C /home/boris/projects/ClaudeService commit -m "feat: глобальный сервер Telegram Bot API — файлы от бота до 2000 МБ"
+git -C /home/boris/projects/ClaudeService push
 git add docker-compose.yml .env.example
 git commit -m "chore: свой сервер Telegram Bot API под профилем standalone"
 git push origin main
 ```
-
-(В ClaudeDocker есть чужая незакоммиченная правка `projects/my_portal/docker-compose.yml` — не добавлять её.)
 
 ---
 
@@ -2136,14 +2151,14 @@ test('на экране урока — своя строка «видео уро
 
 **Files:** нет новых (настройки на сервере; правка спеки).
 
-- [ ] **Step 1: Ключи.** Попросить заказчика (в Telegram, словами — без самих ключей): my.telegram.org → API development tools → создать приложение → вписать `TELEGRAM_API_ID` и `TELEGRAM_API_HASH` в `/home/boris/projects/ClaudeDocker/.env` на сервере самому.
+- [ ] **Step 1: Ключи.** Попросить заказчика (в Telegram, словами — без самих ключей): my.telegram.org → API development tools → создать приложение → вписать `TELEGRAM_API_ID` и `TELEGRAM_API_HASH` в `/home/boris/projects/ClaudeService/.env` на сервере самому.
 
 - [ ] **Step 2: Поднять сервер Bot API**
 
 ```bash
-cd /home/boris/projects/ClaudeDocker && docker compose up -d telegram-bot-api
-docker logs --since 2m shared-telegram-bot-api-1 | tail -20
-docker stats --no-stream shared-telegram-bot-api-1
+docker compose -f /home/boris/projects/ClaudeService/docker-compose.yml --profile bot-api up -d telegram-bot-api
+docker logs --since 2m claudeservice-telegram-bot-api-1 | tail -20
+docker stats --no-stream claudeservice-telegram-bot-api-1
 ```
 
 Expected: контейнер `Up`, в журнале нет ошибок про ключи; память — десятки МБ.
@@ -2156,7 +2171,7 @@ Expected: контейнер `Up`, в журнале нет ошибок про 
 docker exec my_portal-api-1 node -e "fetch('https://api.telegram.org/bot'+process.env.TELEGRAM_BOT_TOKEN+'/logOut').then(r=>r.json()).then(b=>console.log(b.ok, b.description ?? ''))"
 ```
 
-Expected: `true`. Затем в `.env` портала `TELEGRAM_API_URL=http://shared-telegram-bot-api-1:8081` и `docker compose up -d` (перечитать окружение). Для отдельного бота канала (если подтверждено) — тот же `logOut` с его токеном.
+Expected: `true`. Затем в `.env` портала `TELEGRAM_API_URL=http://claudeservice-telegram-bot-api-1:8081` и `docker compose up -d` (перечитать окружение). Для отдельного бота канала (если подтверждено) — тот же `logOut` с его токеном.
 
 - [ ] **Step 5: Проверка связи.** Настройки → канал Telegram → «Проверить связь» → «На связи: бот @…». Уведомление в Telegram приходит (любое тестовое событие или `docker exec` отправкой `sendMessage` админу через свой адрес).
 
