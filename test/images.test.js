@@ -9,6 +9,7 @@ import {
   describeDrawingFailure,
   coverPromptTemplate,
   checkDrawingToken,
+  stripNegations,
   DRAWING_URL,
   WHOAMI_URL,
   COVER_SIZE
@@ -141,8 +142,8 @@ test('шаблонный запрос — по-английски, по тега
   const prompt = coverPromptTemplate({ title: 'Портал на VPS', tags: ['vps', 'docker'] });
   assert.match(prompt, /vps, docker/);
   assert.match(prompt, /Портал на VPS/);
-  assert.match(prompt, /No text/);
-  assert.match(prompt, /no people/);
+  // Отрицаний нет вовсе: модель рисования читает «no X» как «нарисуй X».
+  assert.ok(!/\b(no|without)\b/i.test(prompt), `в шаблоне отрицание: ${prompt}`);
 });
 
 test('тексты отказов понятны автору', () => {
@@ -173,6 +174,17 @@ test('токен проверяется бесплатным запросом, �
 test('шаблонный запрос просит предметную сцену, а не значок видео', () => {
   const prompt = coverPromptTemplate({ title: 'Т', tags: [] });
   assert.match(prompt, /concrete physical scene/);
-  assert.match(prompt, /no play buttons/);
-  assert.match(prompt, /no user interface icons/);
+  // Даже в запрете: слово «play» в запросе и рисует кнопку play.
+  assert.ok(!/play|video|screen/i.test(prompt), `в шаблоне слово про видео: ${prompt}`);
+});
+
+test('отрицания вычищаются из запроса целыми кусками', () => {
+  assert.equal(
+    stripNegations('A workshop with gears, no text, no play buttons, soft glow'),
+    'A workshop with gears, soft glow'
+  );
+  assert.equal(stripNegations('A conveyor. Without people. Dark background'), 'A conveyor. Dark background');
+  assert.equal(stripNegations('A lighthouse, no text'), 'A lighthouse');
+  // Слово внутри куска не трогаем: «snow» и «know» — не отрицания.
+  assert.equal(stripNegations('A snowy mountain'), 'A snowy mountain');
 });

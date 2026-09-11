@@ -618,6 +618,8 @@ textarea:focus-visible {
 /* Подпись над полем, а не рядом. Рядом она становится в строку со всеми
    соседями — так голая форма настроек и выглядела: три поля и три подписи в
    одну линию. */
+/* Поле вне формы — запрос для рисования обложки — берёт тот же вид классом. */
+label.field,
 form label {
   display: flex;
   flex-direction: column;
@@ -631,6 +633,7 @@ form label {
 form label > input,
 form label > select,
 form label > textarea,
+label.field > textarea,
 form > input,
 form > select,
 form > textarea {

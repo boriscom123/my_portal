@@ -71,6 +71,8 @@ export function describeDrawingFailure(status, detail = '') {
  * Путь запасной: основной запрос пишет Gemini. Теги и заголовок урока бывают
  * по-русски, и FLUX их почти не поймёт, поэтому смысл держит сама сцена из
  * шаблона — предметная, а не значок: абстракцию модель рисует кнопкой play.
+ * Отрицаний в шаблоне нет намеренно: «no play buttons» модель читает как
+ * «нарисуй кнопку play», так вышла вторая обложка.
  */
 export function coverPromptTemplate({ title, tags = [] }) {
   return [
@@ -78,12 +80,27 @@ export function coverPromptTemplate({ title, tags = [] }) {
     tags.length ? `Topic keywords: ${tags.join(', ')}.` : '',
     `Lesson title: ${title}.`,
     'Show a concrete physical scene with real-world objects (a machine, a workshop, a conveyor, tools) as a visual metaphor of the topic.',
-    'Simple composition readable at thumbnail size.',
-    'Dark background, deep blue and violet tones, a single warm orange accent, soft glow, clean shapes.',
-    'No text, no letters, no numbers, no logos, no people, no faces, no play buttons, no user interface icons, no screens.'
+    'Simple composition readable at thumbnail size, plain surfaces, clean flat shapes.',
+    'Dark background, deep blue and violet tones, a single warm orange accent, soft glow.'
   ]
     .filter(Boolean)
     .join(' ');
+}
+
+/**
+ * Вычищает отрицания из запроса целыми кусками между запятыми и точками.
+ * Модель рисования отрицаний не понимает: «no play buttons» она читает как
+ * «нарисуй кнопку play». Gemini просят их не писать, а это страховка на
+ * случай, если напишет. Запрос автора сюда не попадает: что писать, решает он.
+ */
+export function stripNegations(prompt) {
+  return String(prompt)
+    .split(/(?<=[,.;])/)
+    .filter((part) => !/^\s*(no|without|avoid|never|not)\b/i.test(part))
+    .join('')
+    .replace(/[,;]\s*$/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 /** Проверяет токен бесплатным запросом. Токен в ответ не попадает. */

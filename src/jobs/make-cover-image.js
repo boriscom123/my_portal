@@ -10,9 +10,10 @@
 // Кадр из записи при этом остаётся в буфере: если нарисованная не понравится,
 // автор вернёт кадр одним нажатием, а не перезапуском обработки.
 // Вызывается воркером по имени JOBS.makeCoverImage.
-import { writeFile, stat, mkdir } from 'node:fs/promises';
-import { coverPromptTemplate } from '../services/images.js';
-import { mediaPath, registerAsset } from '../services/media.js';
+import { writeFile, stat, mkdir, rm } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { coverPromptTemplate, stripNegations } from '../services/images.js';
+import { mediaPath, registerAsset, forgetAsset } from '../services/media.js';
 import { finishDrawing } from '../services/cover-drawing.js';
 
 /** Запрос для рисования и откуда он взялся — видно, по чему рисовали. */
@@ -51,16 +52,21 @@ export function makeMakeCoverImage(config, pool, images, texts = null) {
       description: rows[0].description ?? '',
       tags: rows[0].tags
     };
-    const { prompt, source } = authorPrompt
+    const { prompt: rawPrompt, source } = authorPrompt
       ? { prompt: authorPrompt, source: 'author' }
       : await coverPrompt(texts, lesson);
+    // Отрицания уходят из запроса Gemini и шаблона: модель рисования «no» не
+    // понимает и рисует ровно то, что запрещено. Запрос автора — как есть.
+    const prompt = source === 'author' ? rawPrompt : stripNegations(rawPrompt);
     const { bytes, type, model } = await images.generate(prompt);
 
     const dir = `lesson-${lessonId}`;
     await mkdir(mediaPath(config, dir), { recursive: true });
-    // Имя постоянное: повторное рисование заменяет прошлую картинку, а не
-    // копит их в буфере до истечения срока.
-    const relative = `${dir}/cover-drawn.${type}`;
+    // Имя своё у каждой картинки: адрес обложки браузер держит сутки, и с
+    // постоянным именем автор видел старую картинку, пока не удалял её руками.
+    // Случайный хвост, а не время: две перерисовки в одну миллисекунду иначе
+    // легли бы в один файл.
+    const relative = `${dir}/cover-drawn-${randomUUID().slice(0, 8)}.${type}`;
     await writeFile(mediaPath(config, relative), bytes);
 
     const { size } = await stat(mediaPath(config, relative));
@@ -75,6 +81,18 @@ export function makeMakeCoverImage(config, pool, images, texts = null) {
       `/media/asset/${asset.id}`,
       lessonId
     ]);
+
+    // Прежние нарисованные уходят и с диска, и из учёта: в буфере живёт одна,
+    // иначе картинки копились бы до истечения срока.
+    const { rows: previous } = await pool.query(
+      `SELECT id, path FROM assets
+        WHERE lesson_id = $1 AND kind = 'cover' AND path LIKE $2 AND id <> $3`,
+      [lessonId, `${dir}/cover-drawn%`, asset.id]
+    );
+    for (const old of previous) {
+      await rm(mediaPath(config, old.path), { force: true });
+      await forgetAsset(pool, Number(old.id));
+    }
 
     // Запрос запоминается: при плохой картинке автор видит, по чему рисовали,
     // и правит его, а не гадает.

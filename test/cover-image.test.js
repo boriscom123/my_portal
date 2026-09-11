@@ -61,9 +61,8 @@ test('нарисованная обложка ложится в буфер и в
     const { lesson } = await seed(pool, config);
     const result = await makeMakeCoverImage(config, pool, drawing)({ lessonId: lesson.id });
 
-    const file = await readFile(
-      path.join(config.media.dir, `lesson-${lesson.id}/cover-drawn.png`)
-    );
+    const { rows: files } = await pool.query('SELECT path FROM assets WHERE id = $1', [result.assetId]);
+    const file = await readFile(path.join(config.media.dir, files[0].path));
     assert.equal(file.toString(), 'нарисованная картинка');
 
     const { rows } = await pool.query('SELECT cover_url FROM lessons WHERE id = $1', [lesson.id]);
@@ -355,7 +354,9 @@ test('запрос для обложки даёт текстовая модел�
       }
     })({ lessonId: lesson.id });
     assert.equal(fromTemplate.promptSource, 'template');
-    assert.match(prompts[1], /No text/);
+    // Шаблон держит смысл предметной сценой, а не запретами: отрицаний в нём
+    // нет вовсе, модель рисования читает их наоборот.
+    assert.match(prompts[1], /concrete physical scene/);
   });
 });
 
@@ -552,4 +553,77 @@ test('рисование обложки сама очередь не повто�
   // через полминуты снимал бы отметку «рисуется» на первой же неудаче и потом
   // молча менял обложку. Повторить автор может сам — одной кнопкой.
   assert.deepEqual(jobOptions('makeCoverImage'), { attempts: 1 });
+});
+
+test('перерисовка даёт новый адрес, а прежней нарисованной не остаётся', skipWithoutDb, async () => {
+  const config = await makeConfig();
+  await withTestDb(async (pool) => {
+    const { lesson } = await seed(pool, config);
+    const job = makeMakeCoverImage(config, pool, drawing);
+    const first = await job({ lessonId: lesson.id });
+    const second = await job({ lessonId: lesson.id });
+    // Картинку по адресу браузер держит сутки: с прежним адресом автор видел
+    // старую обложку, пока не удалял её руками.
+    assert.notEqual(String(second.assetId), String(first.assetId));
+    const { rows } = await pool.query('SELECT cover_url FROM lessons WHERE id = $1', [lesson.id]);
+    assert.equal(rows[0].cover_url, `/media/asset/${second.assetId}`);
+
+    const { rows: drawn } = await pool.query(
+      `SELECT id FROM assets WHERE lesson_id = $1 AND path LIKE '%cover-drawn%'`,
+      [lesson.id]
+    );
+    assert.deepEqual(drawn.map((row) => String(row.id)), [String(second.assetId)]);
+    const { readdir } = await import('node:fs/promises');
+    const onDisk = (await readdir(path.join(config.media.dir, `lesson-${lesson.id}`))).filter((name) =>
+      name.startsWith('cover-drawn')
+    );
+    assert.equal(onDisk.length, 1, 'прежний нарисованный файл остался на диске');
+  });
+});
+
+test('отрицания из запроса Gemini до модели рисования не доходят', skipWithoutDb, async () => {
+  const config = await makeConfig();
+  await withTestDb(async (pool) => {
+    const { lesson } = await seed(pool, config);
+    const prompts = [];
+    const recording = {
+      isConfigured: async () => true,
+      generate: async (prompt) => {
+        prompts.push(prompt);
+        return { bytes: Buffer.from('картинка'), type: 'png', model: 'm' };
+      }
+    };
+    await makeMakeCoverImage(config, pool, recording, {
+      suggestCoverPrompt: async () => ({
+        prompt: 'A workshop with gears and a conveyor, no text, no play buttons, soft glow',
+        model: 't'
+      })
+    })({ lessonId: lesson.id });
+    // «no play buttons» модель рисования читает как «нарисуй кнопку play» —
+    // так и вышла вторая обложка.
+    assert.equal(prompts[0], 'A workshop with gears and a conveyor, soft glow');
+
+    // Запрос автора уходит как есть: что писать, решает он.
+    await makeMakeCoverImage(config, pool, recording, null)({
+      lessonId: lesson.id,
+      prompt: 'A lighthouse, no boats'
+    });
+    assert.equal(prompts[1], 'A lighthouse, no boats');
+  });
+});
+
+test('поле запроса оформлено как остальные, и подсказка предупреждает про «no»', skipWithoutDb, async () => {
+  const config = await makeConfig();
+  await withTestDb(async (pool) => {
+    const { headers } = await seed(pool, config);
+    await saveDrawingSettings(pool, config, { token: 'hf_secret_token', models: '' });
+    await withServer(finalize(createApp({ config, pool })), async (base) => {
+      const page = await (
+        await fetch(`${base}/admin/lesson/urok`, { headers: { Accept: 'text/html', ...headers } })
+      ).text();
+      // Стили подписи над полем висят на классе: поле стоит вне формы.
+      assert.match(page, /<label class="field">Запрос для рисования/);
+      assert.match(page, /«no …»/);
+    });
+  });
 });

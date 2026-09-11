@@ -489,3 +489,10 @@ test('запрос для обложки просит конкретную сц�
   assert.match(prompt, /кнопки воспроизведения/);
   assert.match(prompt, /значки интерфейса/);
 });
+
+test('Gemini просят писать только то, что есть на картинке, без «no»', () => {
+  // Модель рисования отрицаний не понимает: «no play buttons» рисует кнопку.
+  const prompt = buildCoverImagePrompt({ title: 'Т', tags: [] });
+  assert.match(prompt, /только то, что есть на картинке/);
+  assert.match(prompt, /«no»/);
+});
