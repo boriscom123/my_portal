@@ -12,6 +12,8 @@ import { makeMakeCoverImage } from '../src/jobs/make-cover-image.js';
 import { saveLesson } from '../src/services/lessons.js';
 import { registerAsset } from '../src/services/media.js';
 import { saveDrawingSettings } from '../src/services/drawing-settings.js';
+import { markDrawing, recordSideFailure } from '../src/services/cover-drawing.js';
+import { jobOptions } from '../src/queue.js';
 import { withServer } from './helpers/http.js';
 import { withTestDb, skipWithoutDb } from './helpers/db.js';
 
@@ -399,4 +401,155 @@ test('с токеном кнопка активна, а про квоту Google
       assert.ok(!page.includes('квота Google'), 'осталась подсказка про Google');
     });
   });
+});
+
+/** Приложение с очередью, которая запоминает поставленные задачи. */
+function appWithQueue(config, pool, added) {
+  return finalize(
+    createApp({ config, pool, queue: { add: async (name, data) => added.push({ name, data }) } })
+  );
+}
+
+const stateOf = async (base, headers) =>
+  (await fetch(`${base}/api/admin/lessons/urok/state`, { headers })).json();
+
+test('рисование помечает урок, и второй раз его не запустить, пока идёт первое', skipWithoutDb, async () => {
+  const config = await makeConfig();
+  await withTestDb(async (pool) => {
+    const { headers } = await seed(pool, config);
+    await saveDrawingSettings(pool, config, { token: 'hf_secret_token', models: '' });
+    const added = [];
+    await withServer(appWithQueue(config, pool, added), async (base) => {
+      const first = await fetch(`${base}/api/admin/lessons/urok/cover-image`, { method: 'POST', headers });
+      assert.equal(first.status, 200);
+      // Страница узнаёт о конце рисования только так: без отметки ей не на
+      // что смотреть, и автор жмёт кнопку второй раз — так обложка и
+      // нарисовалась дважды.
+      assert.equal((await stateOf(base, headers)).drawing, true);
+
+      const second = await fetch(`${base}/api/admin/lessons/urok/cover-image`, { method: 'POST', headers });
+      assert.equal(second.status, 409);
+      assert.match((await second.json()).error, /уже рисуется/);
+    });
+    assert.equal(added.length, 1, 'вторая задача ушла в очередь');
+  });
+});
+
+test('поправленный автором запрос уходит в задачу и рисуется ровно по нему', skipWithoutDb, async () => {
+  const config = await makeConfig();
+  await withTestDb(async (pool) => {
+    const { headers } = await seed(pool, config);
+    await saveDrawingSettings(pool, config, { token: 'hf_secret_token', models: '' });
+    const added = [];
+    const text = 'A robot arm packing film reels into parcels on a conveyor';
+    await withServer(appWithQueue(config, pool, added), async (base) => {
+      await fetch(`${base}/api/admin/lessons/urok/cover-image`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ prompt: `  ${text}  ` })
+      });
+    });
+    assert.equal(added[0].data.prompt, text);
+
+    const prompts = [];
+    const recording = {
+      isConfigured: async () => true,
+      generate: async (prompt) => {
+        prompts.push(prompt);
+        return { bytes: Buffer.from('картинка'), type: 'png', model: 'm' };
+      }
+    };
+    const result = await makeMakeCoverImage(config, pool, recording, {
+      suggestCoverPrompt: async () => {
+        throw new Error('запрос автора не должен уходить в Gemini');
+      }
+    })(added[0].data);
+    assert.equal(result.promptSource, 'author');
+    assert.deepEqual(prompts, [text]);
+  });
+});
+
+test('готовая обложка снимает отметку и запоминает, по какому запросу нарисована', skipWithoutDb, async () => {
+  const config = await makeConfig();
+  await withTestDb(async (pool) => {
+    const { lesson, headers } = await seed(pool, config);
+    await saveDrawingSettings(pool, config, { token: 'hf_secret_token', models: '' });
+    await markDrawing(pool, lesson.id);
+    await makeMakeCoverImage(config, pool, drawing, {
+      suggestCoverPrompt: async () => ({ prompt: 'A lighthouse made of servers', model: 't' })
+    })({ lessonId: lesson.id });
+
+    await withServer(finalize(createApp({ config, pool })), async (base) => {
+      assert.equal((await stateOf(base, headers)).drawing, false);
+      const page = await (
+        await fetch(`${base}/admin/lesson/urok`, { headers: { Accept: 'text/html', ...headers } })
+      ).text();
+      // Запрос виден и правится: иначе при плохой картинке непонятно, по чему
+      // рисовали и что поменять.
+      assert.match(page, /<textarea[^>]*data-cover-prompt[^>]*>A lighthouse made of servers<\/textarea>/);
+      assert.ok(!page.includes('data-draw-watch'), 'страница ждёт уже законченное рисование');
+    });
+  });
+});
+
+test('отказ рисования тоже снимает отметку', skipWithoutDb, async () => {
+  const config = await makeConfig();
+  await withTestDb(async (pool) => {
+    const { lesson, headers } = await seed(pool, config);
+    await markDrawing(pool, lesson.id);
+    await recordSideFailure(pool, lesson.id, 'makeCoverImage', 'Модели сейчас заняты');
+    await withServer(finalize(createApp({ config, pool })), async (base) => {
+      // Иначе страница ждала бы конца рисования, которое уже упало.
+      assert.equal((await stateOf(base, headers)).drawing, false);
+    });
+    const { rows } = await pool.query(`SELECT generated->'sideError' AS e FROM lessons WHERE id = $1`, [
+      lesson.id
+    ]);
+    assert.equal(rows[0].e.message, 'Модели сейчас заняты');
+  });
+});
+
+test('открытая во время рисования страница ждёт его сама', skipWithoutDb, async () => {
+  const config = await makeConfig();
+  await withTestDb(async (pool) => {
+    const { lesson, headers } = await seed(pool, config);
+    await saveDrawingSettings(pool, config, { token: 'hf_secret_token', models: '' });
+    await markDrawing(pool, lesson.id);
+    await withServer(finalize(createApp({ config, pool })), async (base) => {
+      const page = await (
+        await fetch(`${base}/admin/lesson/urok`, { headers: { Accept: 'text/html', ...headers } })
+      ).text();
+      // Человек обновил страницу посреди рисования — кнопка всё равно занята
+      // и страница сама перечитается, когда обложка будет готова.
+      assert.match(page, /data-draw-watch="urok"/);
+      assert.match(page, /Рисую…/);
+    });
+  });
+});
+
+test('давняя отметка не держит кнопку вечно', skipWithoutDb, async () => {
+  const config = await makeConfig();
+  await withTestDb(async (pool) => {
+    const { lesson, headers } = await seed(pool, config);
+    await saveDrawingSettings(pool, config, { token: 'hf_secret_token', models: '' });
+    // Воркер перезапустили посреди рисования — снять отметку было некому.
+    await pool.query(
+      `UPDATE lessons SET generated = generated || jsonb_build_object('drawing',
+         jsonb_build_object('startedAt', now() - interval '11 minutes')) WHERE id = $1`,
+      [lesson.id]
+    );
+    const added = [];
+    await withServer(appWithQueue(config, pool, added), async (base) => {
+      const response = await fetch(`${base}/api/admin/lessons/urok/cover-image`, { method: 'POST', headers });
+      assert.equal(response.status, 200);
+    });
+    assert.equal(added.length, 1);
+  });
+});
+
+test('рисование обложки сама очередь не повторяет', () => {
+  // Слой рисования уже перебирает модели на «занято», а повтор всей задачи
+  // через полминуты снимал бы отметку «рисуется» на первой же неудаче и потом
+  // молча менял обложку. Повторить автор может сам — одной кнопкой.
+  assert.deepEqual(jobOptions('makeCoverImage'), { attempts: 1 });
 });

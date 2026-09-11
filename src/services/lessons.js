@@ -30,6 +30,10 @@ function toLesson(row) {
     // Отказ необязательного шага — нарисовать обложку, предложить заголовок.
     // Урок при нём цел, и состояние конвейера он не трогает.
     sideError: row.generated?.sideError ?? null,
+    // Идёт ли рисование обложки и по какому запросу нарисована последняя —
+    // см. src/services/cover-drawing.js.
+    drawing: row.generated?.drawing ?? null,
+    coverPrompt: row.generated?.coverPrompt ?? null,
     // Главы урока: правит их автор, а уезжают они в описание ролика. Лежат
     // рядом с предложенным моделью — в колонке, заведённой ровно под это.
     chapters: row.generated?.chapters ?? [],

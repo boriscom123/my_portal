@@ -22,6 +22,7 @@ import { createTexts } from './services/texts.js';
 import { makeMakeCoverImage } from './jobs/make-cover-image.js';
 import { createImages } from './services/images.js';
 import { loadDrawingSettings } from './services/drawing-settings.js';
+import { recordSideFailure } from './services/cover-drawing.js';
 import { makeCleanupMedia } from './jobs/cleanup-media.js';
 import { makeTranscribe } from './jobs/transcribe.js';
 import { createSpeech } from './services/speech.js';
@@ -223,16 +224,11 @@ worker.on('failed', async (job, err) => {
     // Отказ довеска пишем рядом с ним, а не в состояние урока: иначе на
     // готовом уроке навсегда повисает «обработка упала» из-за необязательной
     // кнопки, которую автор нажал один раз.
-    await pool
-      .query(
-        `UPDATE lessons SET generated = jsonb_set(generated, '{sideError}', $1::jsonb)
-          WHERE id = $2`,
-        [
-          JSON.stringify({ step: job.name, message: err.message.slice(0, 400) }),
-          job.data.lessonId
-        ]
-      )
-      .catch((dbError) => console.error('Не удалось записать отказ довеска:', dbError.message));
+    // Заодно снимается отметка «рисуется»: иначе страница ждала бы конца
+    // рисования, которое уже упало.
+    await recordSideFailure(pool, job.data.lessonId, job.name, err.message).catch((dbError) =>
+      console.error('Не удалось записать отказ довеска:', dbError.message)
+    );
     return;
   }
 

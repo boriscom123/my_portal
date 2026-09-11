@@ -68,17 +68,19 @@ export function describeDrawingFailure(status, detail = '') {
 
 /**
  * Запрос для обложки без текстовой модели.
- * Теги урока и так латиницей и несут смысл; заголовок по-русски FLUX почти не
- * поймёт, но и не испортит.
+ * Путь запасной: основной запрос пишет Gemini. Теги и заголовок урока бывают
+ * по-русски, и FLUX их почти не поймёт, поэтому смысл держит сама сцена из
+ * шаблона — предметная, а не значок: абстракцию модель рисует кнопкой play.
  */
 export function coverPromptTemplate({ title, tags = [] }) {
   return [
-    'Flat vector illustration for the cover of a software development video lesson.',
+    'Flat vector illustration for the cover of a software development lesson.',
     tags.length ? `Topic keywords: ${tags.join(', ')}.` : '',
     `Lesson title: ${title}.`,
-    'One clear visual metaphor of the topic, simple composition readable at thumbnail size.',
+    'Show a concrete physical scene with real-world objects (a machine, a workshop, a conveyor, tools) as a visual metaphor of the topic.',
+    'Simple composition readable at thumbnail size.',
     'Dark background, deep blue and violet tones, a single warm orange accent, soft glow, clean shapes.',
-    'No text, no letters, no numbers, no logos, no people, no faces.'
+    'No text, no letters, no numbers, no logos, no people, no faces, no play buttons, no user interface icons, no screens.'
   ]
     .filter(Boolean)
     .join(' ');

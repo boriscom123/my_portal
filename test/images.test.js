@@ -169,3 +169,10 @@ test('токен проверяется бесплатным запросом, �
 
   assert.equal((await checkDrawingToken('', async () => withImage())).ok, false);
 });
+
+test('шаблонный запрос просит предметную сцену, а не значок видео', () => {
+  const prompt = coverPromptTemplate({ title: 'Т', tags: [] });
+  assert.match(prompt, /concrete physical scene/);
+  assert.match(prompt, /no play buttons/);
+  assert.match(prompt, /no user interface icons/);
+});

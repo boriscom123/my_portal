@@ -14,6 +14,7 @@ import { PUBLICATION_STATES } from './publication-state.js';
 import { readSettings } from '../lib/settings.js';
 import { chaptersBlock, validChapters } from '../lib/chapters.js';
 import { timeLabel } from './search.js';
+import { isDrawing } from '../services/cover-drawing.js';
 
 /** Байты человеку. Гигабайты для исходника, мегабайты для остального. */
 export function humanBytes(bytes) {
@@ -62,6 +63,8 @@ export function adminReviewPage({
   // Пока записи нет, главное действие — загрузить её. Когда есть, предлагать
   // загрузку как главное действие значит звать сделать то, что уже сделано.
   const hasSource = assets.some((asset) => asset.kind === 'source' || asset.kind === 'trimmed');
+  // Обложка рисуется прямо сейчас: кнопка занята, страница ждёт конца сама.
+  const drawingNow = isDrawing(lesson.drawing);
   // Обработана ли запись: по субтитрам видно надёжнее, чем по состоянию —
   // состояние сбрасывается, а файлы остаются.
   const processed = assets.some((asset) => asset.kind === 'subtitles');
@@ -200,11 +203,13 @@ ${
       ${
         !lesson.title
           ? 'disabled title="Сначала нужен заголовок"'
-          : drawingReady
-            ? ''
-            : 'disabled title="Добавьте токен Hugging Face в настройках"'
+          : !drawingReady
+            ? 'disabled title="Добавьте токен Hugging Face в настройках"'
+            : drawingNow
+              ? `disabled data-draw-watch="${escapeHtml(lesson.slug)}"`
+              : ''
       }>
-      Нарисовать обложку
+      ${drawingNow ? 'Рисую…' : 'Нарисовать обложку'}
     </button>
     <label class="button" for="cover-file">Загрузить с компьютера</label>
     <input id="cover-file" type="file" accept="image/png,image/jpeg,image/webp" hidden
@@ -212,7 +217,17 @@ ${
   </div>
   ${
     drawingReady
-      ? ''
+      ? `<label>Запрос для рисования — по-английски
+           <textarea rows="3" maxlength="1000" data-cover-prompt
+             placeholder="Пусто — запрос составит Gemini по заголовку и описанию урока">${escapeHtml(lesson.coverPrompt?.text ?? '')}</textarea>
+         </label>
+         <p class="hint">
+           ${
+             lesson.coverPrompt
+               ? 'Последняя обложка нарисована по этому запросу. Поправьте его и нажмите «Нарисовать обложку» — портал нарисует ровно по нему. Очистите поле — запрос заново составит Gemini.'
+               : 'Поле можно оставить пустым: запрос составит Gemini. Свой запрос пишите по-английски — модель рисования русский понимает плохо.'
+           }
+         </p>`
       : `<p class="hint">
            Рисование выключено: <a href="/settings">добавьте токен Hugging Face в настройках</a>.
          </p>`

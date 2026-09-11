@@ -45,6 +45,7 @@ import { youtubeAccessToken } from '../services/platforms/youtube-auth.js';
 import { instagramAccess } from '../services/platforms/instagram-auth.js';
 import { youtubeApp, channelApp } from '../services/platform-apps.js';
 import { loadDrawingSettings } from '../services/drawing-settings.js';
+import { isDrawing, markDrawing } from '../services/cover-drawing.js';
 import { readVideoPrivacy } from '../services/platforms/youtube.js';
 
 import { rebuildSubtitles } from '../services/transcript.js';
@@ -664,11 +665,20 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
     }
     if (!req.app.locals.queue) throw new PublicError('Очередь недоступна', 503);
 
-    // Прошлый отказ убираем: иначе он покажется как ответ на новое нажатие.
-    await pool.query(`UPDATE lessons SET generated = generated - 'sideError' WHERE id = $1`, [
-      lesson.id
-    ]);
-    await addJob(req.app.locals.queue, 'makeCoverImage', { lessonId: lesson.id });
+    // Второе нажатие, пока рисуется первое, — вторая картинка за те же кредиты.
+    if (isDrawing(lesson.drawing)) {
+      throw new PublicError('Обложка уже рисуется — страница обновится, когда она будет готова', 409);
+    }
+    // Запрос, поправленный автором: по нему и рисуем, не спрашивая Gemini.
+    const prompt = String(req.body?.prompt ?? '').trim().slice(0, 1000);
+
+    // Отметка «рисуется» заодно убирает прошлый отказ: иначе он покажется
+    // ответом на новое нажатие.
+    await markDrawing(pool, lesson.id);
+    await addJob(req.app.locals.queue, 'makeCoverImage', {
+      lessonId: lesson.id,
+      ...(prompt ? { prompt } : {})
+    });
     res.json({ started: true });
   });
 
@@ -676,14 +686,16 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
   // минуты, и без опроса кнопка молчит, а человек жмёт её второй раз.
   router.get('/lessons/:slug/state', async (req, res) => {
     const { rows } = await pool.query(
-      `SELECT pipeline_state, pipeline_error, source_asset_id FROM lessons WHERE slug = $1`,
+      `SELECT pipeline_state, pipeline_error, source_asset_id, generated FROM lessons WHERE slug = $1`,
       [req.params.slug]
     );
     if (!rows[0]) throw new PublicError('Урок не найден', 404);
     res.json({
       state: rows[0].pipeline_state,
       error: rows[0].pipeline_error,
-      hasSource: Boolean(rows[0].source_asset_id)
+      hasSource: Boolean(rows[0].source_asset_id),
+      // По нему страница урока ждёт конца рисования обложки.
+      drawing: isDrawing(rows[0].generated?.drawing)
     });
   });
 

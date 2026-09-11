@@ -576,24 +576,49 @@ export function initPage() {
 
   /* --- Обложка ------------------------------------------------------------- */
 
-  // Рисование идёт минуту с лишним, поэтому кнопка только ставит задачу, а
-  // готовность видно по перечитанной странице: обложка — картинка, и подменять
-  // её на месте значит показывать половину загруженного файла.
+  // Рисование идёт в воркере, и ответ на нажатие о его конце ничего не знает.
+  // Поэтому кнопка держит «Рисую…», а страница спрашивает сервер, идёт ли ещё
+  // рисование, и перечитывается сама, когда оно кончилось: обложка — картинка,
+  // и подменять её на месте значит показывать половину загруженного файла.
+  // Раньше страница просила обновить её вручную — и автор жал кнопку второй раз.
+  async function waitForDrawing(slug) {
+    const deadline = Date.now() + 5 * 60 * 1000;
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 4000));
+      const state = await request(`/api/admin/lessons/${slug}/state`).catch(() => null);
+      if (state && !state.drawing) {
+        location.reload();
+        return;
+      }
+    }
+    toast('Рисование затянулось — обновите страницу через пару минут.', true);
+  }
+
   const drawCoverButton = document.querySelector('[data-draw-cover]');
   drawCoverButton?.addEventListener('click', async () => {
+    const wasText = drawCoverButton.textContent;
+    drawCoverButton.disabled = true;
+    drawCoverButton.textContent = 'Рисую…';
     try {
-      await withButtonState(drawCoverButton, 'Рисую…', 'Запущено', async () => {
-        const answer = await request(
-          `/api/admin/lessons/${drawCoverButton.dataset.drawCover}/cover-image`,
-          { method: 'POST' }
-        );
-        if (!answer) return;
-        toast('Рисую обложку. Это минута-две — обновите страницу, когда будет готово.');
-      });
+      // Запрос, поправленный автором, уходит как есть; пустой составит Gemini.
+      const prompt = document.querySelector('[data-cover-prompt]')?.value.trim() ?? '';
+      const answer = await request(
+        `/api/admin/lessons/${drawCoverButton.dataset.drawCover}/cover-image`,
+        { method: 'POST', body: JSON.stringify({ prompt }) }
+      );
+      if (!answer) return;
+      toast('Рисую обложку. Страница обновится сама, когда она будет готова.');
+      await waitForDrawing(drawCoverButton.dataset.drawCover);
     } catch (error) {
+      drawCoverButton.textContent = wasText;
+      drawCoverButton.disabled = false;
       toast(`Не нарисовалось: ${error.message}`, true);
     }
   });
+
+  // Страницу открыли или обновили посреди рисования — ждём его так же.
+  const drawWatch = document.querySelector('[data-draw-watch]');
+  if (drawWatch) waitForDrawing(drawWatch.dataset.drawWatch);
 
   // Кадр из записи. Раньше его брал конвейер сам, в конце обработки; теперь
   // каждый шаг запускает автор, и кадр — такая же кнопка, как остальные.

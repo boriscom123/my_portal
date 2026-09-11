@@ -480,3 +480,12 @@ test('запрос для обложки приходит из модели го
   assert.equal(prompt, 'A glowing server rack as a lighthouse on a dark sea');
   assert.match(sent.contents[0].parts[0].text, /Портал на VPS/);
 });
+
+test('запрос для обложки просит конкретную сцену, а не значок видео', () => {
+  // Первая нарисованная обложка вышла кнопкой play в кольцах: модель свела
+  // абстрактную «автоматизацию видео» к самому частому символу.
+  const prompt = buildCoverImagePrompt({ title: 'Автоматизация публикации видеоуроков', tags: [] });
+  assert.match(prompt, /конкретн/);
+  assert.match(prompt, /кнопки воспроизведения/);
+  assert.match(prompt, /значки интерфейса/);
+});

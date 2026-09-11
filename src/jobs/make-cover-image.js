@@ -5,13 +5,15 @@
 // идти дольше минуты, а запрос через nginx рвётся на шестидесяти секундах.
 //
 // Английский запрос для FLUX составляет текстовая модель; без неё или при её
-// отказе — шаблон. Рисование от текстовой модели не зависит.
+// отказе — шаблон. Рисование от текстовой модели не зависит. Запрос,
+// поправленный автором на странице урока, идёт как есть, без Gemini.
 // Кадр из записи при этом остаётся в буфере: если нарисованная не понравится,
 // автор вернёт кадр одним нажатием, а не перезапуском обработки.
 // Вызывается воркером по имени JOBS.makeCoverImage.
 import { writeFile, stat, mkdir } from 'node:fs/promises';
 import { coverPromptTemplate } from '../services/images.js';
 import { mediaPath, registerAsset } from '../services/media.js';
+import { finishDrawing } from '../services/cover-drawing.js';
 
 /** Запрос для рисования и откуда он взялся — видно, по чему рисовали. */
 async function coverPrompt(texts, lesson) {
@@ -27,7 +29,7 @@ async function coverPrompt(texts, lesson) {
 }
 
 export function makeMakeCoverImage(config, pool, images, texts = null) {
-  return async ({ lessonId }) => {
+  return async ({ lessonId, prompt: authorPrompt = '' }) => {
     if (!images || !(await images.isConfigured())) {
       throw new Error('рисование не настроено: добавьте токен Hugging Face в настройках');
     }
@@ -49,7 +51,9 @@ export function makeMakeCoverImage(config, pool, images, texts = null) {
       description: rows[0].description ?? '',
       tags: rows[0].tags
     };
-    const { prompt, source } = await coverPrompt(texts, lesson);
+    const { prompt, source } = authorPrompt
+      ? { prompt: authorPrompt, source: 'author' }
+      : await coverPrompt(texts, lesson);
     const { bytes, type, model } = await images.generate(prompt);
 
     const dir = `lesson-${lessonId}`;
@@ -71,6 +75,10 @@ export function makeMakeCoverImage(config, pool, images, texts = null) {
       `/media/asset/${asset.id}`,
       lessonId
     ]);
+
+    // Запрос запоминается: при плохой картинке автор видит, по чему рисовали,
+    // и правит его, а не гадает.
+    await finishDrawing(pool, lessonId, { text: prompt, source });
 
     return { assetId: asset.id, bytes: size, model, promptSource: source };
   };
