@@ -91,7 +91,12 @@ export function loadConfig(env = process.env) {
       // Номер бота — часть токена до двоеточия. Секретной является вторая
       // половина, а номер нужен ссылке входа и виден в любом виджете.
       botId: (env.TELEGRAM_BOT_TOKEN ?? '').split(':')[0],
-      channelId: env.TELEGRAM_CHANNEL_ID ?? ''
+      channelId: env.TELEGRAM_CHANNEL_ID ?? '',
+      // Адрес сервера Telegram Bot API. Пусто — облако Telegram. Свой сервер
+      // (ClaudeService, общий для ботов сервера) снимает предел бота с 50 МБ до
+      // 2000 МБ на файл; бот, переехавший на него, в облако ходить не должен —
+      // поэтому адрес один на все обращения бота портала.
+      apiUrl: (env.TELEGRAM_API_URL ?? '').replace(/\/+$/, '') || 'https://api.telegram.org'
     },
     google: {
       clientId: env.GOOGLE_CLIENT_ID ?? '',

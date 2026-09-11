@@ -27,7 +27,7 @@ import {
 } from '../services/platform-apps.js';
 import { normalizeChannel } from '../services/platforms/announcement.js';
 import { findMaxChat } from '../services/platforms/max-channel.js';
-import { checkTelegramChannel } from '../services/platforms/telegram-channel.js';
+import { checkTelegramChannel, checkBotApi } from '../services/platforms/telegram-channel.js';
 import {
   instagramApp,
   instagramConsentUrl,
@@ -311,7 +311,7 @@ export function integrationRoutes(config, pool, fetchImpl = fetch) {
     let settings = { channel };
     if (platform === 'telegram') {
       try {
-        await checkTelegramChannel({ token, channel });
+        await checkTelegramChannel({ token, channel, apiUrl: config.telegram.apiUrl });
       } catch (error) {
         throw new PublicError(error.message, 400);
       }
@@ -362,7 +362,7 @@ export function integrationRoutes(config, pool, fetchImpl = fetch) {
       // Прежде чем убрать чужой токен, убеждаемся, что бот портала канал видит:
       // молча оставить площадку ненастроенной — не починка.
       try {
-        await checkTelegramChannel({ token, channel });
+        await checkTelegramChannel({ token, channel, apiUrl: config.telegram.apiUrl });
       } catch (error) {
         throw new PublicError(error.message, 400);
       }
@@ -371,6 +371,14 @@ export function integrationRoutes(config, pool, fetchImpl = fetch) {
     await forgetPlatformSecret(pool, 'telegram');
     const app = await channelApp(pool, config, 'telegram');
     res.json({ channel: app.channel, configured: app.configured });
+  });
+
+  // Проверка связи с сервером Bot API — тем ботом, который постит в канал.
+  // После переезда бота на свой сервер упавший сервер — это бот, который молчит.
+  router.post('/telegram/check-api', async (req, res) => {
+    const { token } = await channelApp(pool, config, 'telegram');
+    if (!token) throw new PublicError('Бот Telegram не настроен', 400);
+    res.json(await checkBotApi({ apiUrl: config.telegram.apiUrl, token }));
   });
 
   /** Список видео в папке Диска. */

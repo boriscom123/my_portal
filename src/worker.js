@@ -88,11 +88,13 @@ for (const [name, model, modelUrl] of [
 // Площадки-каналы: у каждой свои запросы, но одинаковый смысл — отправить
 // анонс и потом поправить подпись. Шаг получает их набором функций, а не
 // импортом внутрь себя: так он проверяется тестом без сети.
+// Адрес Bot API один на все обращения бота портала: облако или свой сервер.
+const telegramApi = { apiUrl: config.telegram.apiUrl };
 const telegramAdapter = {
   app: channelApp,
-  post: postToTelegram,
-  postVideo: postVideoToTelegram,
-  edit: editTelegramPost
+  post: (args) => postToTelegram({ ...args, ...telegramApi }),
+  postVideo: (args) => postVideoToTelegram({ ...args, ...telegramApi }),
+  edit: (args) => editTelegramPost({ ...args, ...telegramApi })
 };
 const maxAdapter = {
   app: channelApp,

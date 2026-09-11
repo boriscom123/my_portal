@@ -16,7 +16,10 @@ export function createTelegramChannel(config, fetchImpl = fetch) {
       `${config.publicBaseUrl}${message.url ?? '/'}`
     ].join('\n');
 
-    const res = await fetchImpl(`https://api.telegram.org/bot${config.telegram.botToken}/sendMessage`, {
+    // Адрес сервера — из настроек: бот, переехавший на свой сервер Bot API,
+    // в облако ходить не должен.
+    const apiUrl = config.telegram.apiUrl || 'https://api.telegram.org';
+    const res = await fetchImpl(`${apiUrl}/bot${config.telegram.botToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

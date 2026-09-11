@@ -931,6 +931,23 @@ function initPage() {
     }
   });
 
+  // Проверка связи с сервером Bot API: после переезда бота на свой сервер
+  // упавший сервер — это бот, который молчит.
+  const telegramCheckApi = document.querySelector('[data-telegram-check-api]');
+  telegramCheckApi?.addEventListener('click', async () => {
+    telegramCheckApi.disabled = true;
+    try {
+      const answer = await request('/api/integrations/telegram/check-api', { method: 'POST' });
+      if (!answer) return;
+      if (answer.ok) toast(`На связи: бот @${answer.username}.`);
+      else toast(`Нет связи: ${answer.message}`, true);
+    } catch (error) {
+      toast(`Не проверилось: ${error.message}`, true);
+    } finally {
+      telegramCheckApi.disabled = false;
+    }
+  });
+
   /* --- Рисование картинки к новости ---------------------------------------- */
 
   // Запрос для картинки — по заголовку и тексту новости; ложится в поле, где

@@ -205,6 +205,11 @@ ${channels
              </button>`
           : ''
       }
+      ${
+        channel.name === 'telegram'
+          ? '<button class="button" type="button" data-telegram-check-api>Проверить связь</button>'
+          : ''
+      }
     </div>
   </form>
   <p class="hint">

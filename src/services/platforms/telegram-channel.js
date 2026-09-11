@@ -11,7 +11,15 @@
 // Вызывается из src/jobs/publish-telegram.js.
 import { readFile } from 'node:fs/promises';
 
-const API = 'https://api.telegram.org/bot';
+export const DEFAULT_API_URL = 'https://api.telegram.org';
+
+/**
+ * Адрес метода Bot API. Сервер — облако Telegram или свой (ClaudeService):
+ * свой принимает от бота файлы до 2000 МБ вместо 50.
+ */
+export function botMethod(apiUrl, token, name) {
+  return `${apiUrl || DEFAULT_API_URL}/bot${token}/${name}`;
+}
 
 /** Отказ площадки её же словами: они точнее нашего пересказа. */
 async function failure(response) {
@@ -39,8 +47,13 @@ function postUrl(channel, messageId) {
  * будет перевставлять верный токен, когда дело в правах бота.
  * Вызывается из src/routes/integrations.js при сохранении настроек канала.
  */
-export async function checkTelegramChannel({ token, channel, fetchImpl = fetch }) {
-  const me = await fetchImpl(`${API}${token}/getMe`);
+export async function checkTelegramChannel({
+  apiUrl = DEFAULT_API_URL,
+  token,
+  channel,
+  fetchImpl = fetch
+}) {
+  const me = await fetchImpl(botMethod(apiUrl, token, 'getMe'));
   if (!me.ok) {
     throw new Error(
       'Telegram не знает такого бота: токен неверный или отозван. ' +
@@ -49,7 +62,9 @@ export async function checkTelegramChannel({ token, channel, fetchImpl = fetch }
   }
   const bot = (await me.json()).result ?? {};
 
-  const chat = await fetchImpl(`${API}${token}/getChat?chat_id=${encodeURIComponent(channel)}`);
+  const chat = await fetchImpl(
+    `${botMethod(apiUrl, token, 'getChat')}?chat_id=${encodeURIComponent(channel)}`
+  );
   if (!chat.ok) {
     const body = await chat.json().catch(() => ({}));
     throw new Error(
@@ -65,12 +80,19 @@ export async function checkTelegramChannel({ token, channel, fetchImpl = fetch }
  * Без картинки — обычным сообщением: новость бывает и без неё, а sendPhoto без
  * фотографии площадка не принимает.
  */
-export async function postToTelegram({ token, channel, photoUrl, caption, fetchImpl = fetch }) {
+export async function postToTelegram({
+  apiUrl = DEFAULT_API_URL,
+  token,
+  channel,
+  photoUrl,
+  caption,
+  fetchImpl = fetch
+}) {
   const [method, payload] = photoUrl
     ? ['sendPhoto', { chat_id: channel, photo: photoUrl, caption }]
     : ['sendMessage', { chat_id: channel, text: caption }];
 
-  const response = await fetchImpl(`${API}${token}/${method}`, {
+  const response = await fetchImpl(botMethod(apiUrl, token, method), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -93,6 +115,7 @@ export async function postToTelegram({ token, channel, photoUrl, caption, fetchI
  * который сначала надо скачать целиком, и лента канала перестаёт работать.
  */
 export async function postVideoToTelegram({
+  apiUrl = DEFAULT_API_URL,
   token,
   channel,
   filePath,
@@ -105,7 +128,10 @@ export async function postVideoToTelegram({
   form.append('supports_streaming', 'true');
   form.append('video', new Blob([await readFile(filePath)], { type: 'video/mp4' }), 'short.mp4');
 
-  const response = await fetchImpl(`${API}${token}/sendVideo`, { method: 'POST', body: form });
+  const response = await fetchImpl(botMethod(apiUrl, token, 'sendVideo'), {
+    method: 'POST',
+    body: form
+  });
   if (!response.ok) await failure(response);
 
   const body = await response.json();
@@ -124,6 +150,7 @@ export async function postVideoToTelegram({
  * посте площадка не даёт.
  */
 export async function editTelegramPost({
+  apiUrl = DEFAULT_API_URL,
   token,
   channel,
   messageId,
@@ -135,10 +162,36 @@ export async function editTelegramPost({
     ? ['editMessageCaption', { chat_id: channel, message_id: Number(messageId), caption }]
     : ['editMessageText', { chat_id: channel, message_id: Number(messageId), text: caption }];
 
-  const response = await fetchImpl(`${API}${token}/${method}`, {
+  const response = await fetchImpl(botMethod(apiUrl, token, method), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   });
   if (!response.ok) await failure(response);
+}
+
+/**
+ * Проверка связи с сервером Bot API: getMe по настроенному адресу.
+ * Нужна после переезда бота на свой сервер: упавший сервер — это бот, который
+ * молчит, и узнать об этом лучше кнопкой в настройках, чем по пропавшим постам.
+ * Отвечает, а не бросает: результат идёт прямо в подсказку на странице.
+ * Вызывается из src/routes/integrations.js.
+ */
+export async function checkBotApi({ apiUrl = DEFAULT_API_URL, token, fetchImpl = fetch }) {
+  let response;
+  try {
+    response = await fetchImpl(botMethod(apiUrl, token, 'getMe'), {
+      signal: AbortSignal.timeout(10_000)
+    });
+  } catch (error) {
+    return { ok: false, message: `сервер Telegram Bot API недоступен: ${error.message}` };
+  }
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    return {
+      ok: false,
+      message: `сервер ответил ${response.status}: ${body.description ?? 'без объяснения'}`
+    };
+  }
+  return { ok: true, username: body.result?.username ?? '' };
 }
