@@ -72,6 +72,14 @@ export function buildPrompt(transcript, timeline = '') {
    тема, а не там, где автор сделал паузу.`
        : ''
    }
+${timeline ? 5 : 4}. coverPrompt — запрос для рисовальщика обложки урока, по-английски, одна
+   связная фраза 40–70 слов: одна конкретная сцена с настоящими предметами —
+   механизм, мастерская, конвейер, инструменты, — которая через метафору
+   показывает суть урока. Пиши только то, что есть на картинке: рисовальщик
+   не понимает отрицаний и слова «no», «without» читает как «нарисуй». Не
+   упоминай видео, плёнку, камеры, экраны, кнопки воспроизведения, значки
+   интерфейса, надписи и людей. Тёмный фон, глубокие синие и фиолетовые тона,
+   один тёплый оранжевый акцент, плоская векторная графика.
 
 Пиши как автор о своей работе: без рекламных оборотов, без «в этом видео мы
 рассмотрим», без восклицательных знаков.
@@ -253,6 +261,9 @@ export function parseTextsResponse(body) {
   return {
     title: String(parsed.title ?? '').trim(),
     description: String(parsed.description ?? '').trim(),
+    // Запрос для рисования обложки — по всей расшифровке урока. Нет его —
+    // пустая строка: поле обложки тогда не трогается.
+    coverPrompt: String(parsed.coverPrompt ?? '').trim(),
     // Решётку и регистр приводим сами: модель ставит их через раз, а теги
     // уходят в адреса вида /tag/docker.
     tags: tags
@@ -408,6 +419,8 @@ export function createTexts(config, fetchImpl = fetch) {
           title: { type: 'string' },
           description: { type: 'string' },
           tags: { type: 'array', items: { type: 'string' } },
+          // Запрос для обложки: чего нет в схеме, того модель не вернёт.
+          coverPrompt: { type: 'string' },
           ...(timeline
             ? {
                 chapters: {
@@ -422,8 +435,8 @@ export function createTexts(config, fetchImpl = fetch) {
             : {})
         },
         required: timeline
-          ? ['title', 'description', 'tags', 'chapters']
-          : ['title', 'description', 'tags']
+          ? ['title', 'description', 'tags', 'chapters', 'coverPrompt']
+          : ['title', 'description', 'tags', 'coverPrompt']
       };
 
       const { body, model: name } = await ask(buildPrompt(transcript, timeline), schema);

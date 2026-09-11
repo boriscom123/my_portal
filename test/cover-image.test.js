@@ -650,3 +650,24 @@ test('список обложек виден и при одной — у каж�
   });
 });
 
+test('подсказка у поля говорит, откуда взялся запрос и как его обновить', skipWithoutDb, async () => {
+  const config = await makeConfig();
+  await withTestDb(async (pool) => {
+    const { lesson, headers } = await seed(pool, config);
+    await saveDrawingSettings(pool, config, { token: 'hf_secret_token', models: '' });
+    await pool.query(
+      `UPDATE lessons SET generated = generated || jsonb_build_object('coverPrompt',
+         jsonb_build_object('text', 'A ship loading containers', 'source', 'suggested')) WHERE id = $1`,
+      [lesson.id]
+    );
+    await withServer(finalize(createApp({ config, pool })), async (base) => {
+      const page = await (
+        await fetch(`${base}/admin/lesson/urok`, { headers: { Accept: 'text/html', ...headers } })
+      ).text();
+      assert.match(page, />A ship loading containers<\/textarea>/);
+      // Поле менялось только очисткой, и догадаться об этом было нельзя.
+      assert.match(page, /Запрос составлен по расшифровке урока/);
+      assert.match(page, /«Заполнить из расшифровки»/);
+    });
+  });
+});

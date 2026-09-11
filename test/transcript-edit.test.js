@@ -264,3 +264,55 @@ test('посторонний титры не правит', skipWithoutDb, async
     });
   });
 });
+
+test('заготовка кладёт запрос для обложки в урок — уже без отрицаний', skipWithoutDb, async () => {
+  const config = await makeConfig();
+  await withTestDb(async (pool) => {
+    const { lesson } = await seed(pool, config);
+    const { makeSuggestTexts } = await import('../src/jobs/suggest-texts.js');
+    await makeSuggestTexts(config, pool, {
+      suggest: async () => ({
+        title: 'Докер компоуз',
+        description: 'О компоузе',
+        tags: ['docker'],
+        chapters: [],
+        coverPrompt: 'A ship loading containers, no text, glowing harbor',
+        model: 'm'
+      })
+    })({ lessonId: lesson.id });
+    const { rows } = await pool.query(
+      `SELECT generated->'coverPrompt' AS cover, generated->'suggested'->>'coverPrompt' AS suggested
+         FROM lessons WHERE id = $1`,
+      [lesson.id]
+    );
+    // Поле «Запрос для рисования» показывает его и после обновления страницы,
+    // а «no text» модель рисования прочла бы как «нарисуй надпись».
+    assert.deepEqual(rows[0].cover, { text: 'A ship loading containers, glowing harbor', source: 'suggested' });
+    assert.equal(rows[0].suggested, 'A ship loading containers, glowing harbor');
+  });
+});
+
+test('без ответа модели запрос для обложки не трогается', skipWithoutDb, async () => {
+  const config = await makeConfig();
+  await withTestDb(async (pool) => {
+    const { lesson } = await seed(pool, config);
+    await pool.query(
+      `UPDATE lessons SET generated = generated || jsonb_build_object('coverPrompt',
+         jsonb_build_object('text', 'A lighthouse', 'source', 'author')) WHERE id = $1`,
+      [lesson.id]
+    );
+    const { makeSuggestTexts } = await import('../src/jobs/suggest-texts.js');
+    await makeSuggestTexts(config, pool, {
+      suggest: async () => {
+        throw new Error('503');
+      }
+    })({ lessonId: lesson.id });
+    // Заготовка из расшифровки своими силами запроса для обложки не даёт — и
+    // затирать им запрос автора было бы нечем, кроме пустоты.
+    const { rows } = await pool.query(
+      `SELECT generated->'coverPrompt'->>'text' AS text FROM lessons WHERE id = $1`,
+      [lesson.id]
+    );
+    assert.equal(rows[0].text, 'A lighthouse');
+  });
+});

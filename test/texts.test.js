@@ -496,3 +496,37 @@ test('Gemini просят писать только то, что есть на �
   assert.match(prompt, /только то, что есть на картинке/);
   assert.match(prompt, /«no»/);
 });
+
+test('заготовка урока просит и запрос для обложки — по-английски и без «no»', () => {
+  const prompt = buildPrompt('Разбираем докер компоуз', '');
+  assert.match(prompt, /4\. coverPrompt/);
+  assert.match(prompt, /по-английски/);
+  assert.match(prompt, /«no»/);
+  // С главами номер пункта сдвигается, но запрос для обложки остаётся.
+  assert.match(buildPrompt('Разбираем докер компоуз', '0:00 начало'), /5\. coverPrompt/);
+});
+
+test('запрос для обложки достаётся из ответа, а без него — пустая строка', () => {
+  const answer = (payload) => ({
+    candidates: [{ content: { parts: [{ text: JSON.stringify(payload) }] } }]
+  });
+  assert.equal(
+    parseTextsResponse(answer({ title: 'Т', description: 'О', tags: [], coverPrompt: '  A workshop  ' }))
+      .coverPrompt,
+    'A workshop'
+  );
+  assert.equal(parseTextsResponse(answer({ title: 'Т', description: 'О', tags: [] })).coverPrompt, '');
+});
+
+test('схема ответа заготовки требует запрос для обложки', async () => {
+  // Чего нет в схеме, того модель не вернёт: главы однажды так уже не приходили.
+  let schema = null;
+  const texts = createTexts(config, async (url, options) => {
+    schema = JSON.parse(options.body).generationConfig.responseSchema;
+    return reply({ title: 'Т', description: 'О', tags: ['docker'], coverPrompt: 'A workshop' });
+  });
+  const result = await texts.suggest('Разбираем докер компоуз');
+  assert.ok(schema.properties.coverPrompt, 'в схеме нет coverPrompt');
+  assert.ok(schema.required.includes('coverPrompt'));
+  assert.equal(result.coverPrompt, 'A workshop');
+});

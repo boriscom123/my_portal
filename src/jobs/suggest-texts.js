@@ -10,6 +10,7 @@
 // Вызывается воркером по имени JOBS.suggestTexts.
 import { suggestFromTranscript } from '../lib/summary.js';
 import { buildTimeline, chaptersBlock } from '../lib/chapters.js';
+import { stripNegations } from '../services/images.js';
 
 export function makeSuggestTexts(config, pool, texts) {
   return async ({ lessonId }) => {
@@ -50,11 +51,25 @@ export function makeSuggestTexts(config, pool, texts) {
     // иначе два вида одного времени однажды разойдутся.
     suggested.chaptersText = chaptersBlock(suggested.chapters ?? []);
 
+    // Отрицания из запроса для обложки уходят сразу: модель рисования «no»
+    // читает как «нарисуй», а автор увидит запрос в поле уже чистым.
+    if (suggested.coverPrompt) suggested.coverPrompt = stripNegations(suggested.coverPrompt);
+
     suggested.at = new Date().toISOString();
     await pool.query(
       `UPDATE lessons SET generated = jsonb_set(generated, '{suggested}', $1::jsonb) WHERE id = $2`,
       [JSON.stringify(suggested), lessonId]
     );
+    // Запрос для обложки ложится и в поле «Запрос для рисования»: иначе он
+    // пропал бы после обновления страницы. Только от модели — заготовка из
+    // расшифровки своими силами его не даёт, и затирать прежний было бы нечем.
+    if (suggested.source === 'model' && suggested.coverPrompt) {
+      await pool.query(
+        `UPDATE lessons SET generated = generated || jsonb_build_object('coverPrompt', $1::jsonb)
+          WHERE id = $2`,
+        [JSON.stringify({ text: suggested.coverPrompt, source: 'suggested' }), lessonId]
+      );
+    }
     return { source: suggested.source, model: suggested.model ?? null };
   };
 }

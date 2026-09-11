@@ -509,6 +509,9 @@ export function initPage() {
         // вида одного времени не разошлись между ним и страницей.
         const chapters = form.querySelector('[name=chapters]');
         if (chapters && answer.chaptersText) chapters.value = answer.chaptersText;
+        // Запрос для обложки — по всей расшифровке, как и остальные поля.
+        const coverPrompt = document.querySelector('[data-cover-prompt]');
+        if (coverPrompt && answer.coverPrompt) coverPrompt.value = answer.coverPrompt;
         if (answer.warning) toast(answer.warning, true);
         else {
           toast(
