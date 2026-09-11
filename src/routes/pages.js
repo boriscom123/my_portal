@@ -62,6 +62,10 @@ import { PublicError } from '../middleware/errors.js';
  * трёх одинаковых картинок превращается в угадывание.
  * Вызывается из обработчика /admin/lesson/:slug.
  */
+// Время в подписи — по часам заказчика: сервер живёт в Europe/Berlin, а
+// контейнер — в UTC, и без зоны время на экране расходилось бы с его часами.
+const COVER_TIME_ZONE = 'Europe/Berlin';
+
 function coverLabel(row) {
   const labels = [
     ['cover-drawn', 'нарисованная'],
@@ -69,7 +73,18 @@ function coverLabel(row) {
     ['cover', 'кадр из записи']
   ];
   const found = labels.find(([part]) => row.path.includes(part));
-  return { id: Number(row.id), label: found ? found[1] : 'обложка' };
+  const kind = found ? found[1] : 'обложка';
+  // Нарисованных бывает несколько: без времени их не различить.
+  const time = row.created_at
+    ? new Date(row.created_at).toLocaleString('ru-RU', {
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: COVER_TIME_ZONE
+      })
+    : '';
+  return { id: Number(row.id), label: time ? `${kind} · ${time}` : kind };
 }
 
 /**
@@ -280,7 +295,7 @@ export function pageRoutes(config, pool) {
     if (!lesson) throw new PublicError('Урок не найден', 404);
 
     const { rows: assets } = await pool.query(
-      `SELECT id, kind, path, bytes, expires_at FROM assets
+      `SELECT id, kind, path, bytes, expires_at, created_at FROM assets
         WHERE lesson_id = $1 ORDER BY kind, id`,
       [lesson.id]
     );

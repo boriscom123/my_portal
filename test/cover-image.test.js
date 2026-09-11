@@ -92,18 +92,20 @@ test('без настроенного рисования шаг говорит �
   });
 });
 
-test('повтор заменяет картинку, а не копит их в буфере', skipWithoutDb, async () => {
+test('повтор добавляет картинку к прежним, а не заменяет её', skipWithoutDb, async () => {
   const config = await makeConfig();
   await withTestDb(async (pool) => {
     const { lesson } = await seed(pool, config);
     const job = makeMakeCoverImage(config, pool, drawing);
     await job({ lessonId: lesson.id });
     await job({ lessonId: lesson.id });
+    // Заказчик выбирает из нескольких: прежняя нарисованная ему может
+    // понравиться больше новой.
     const { rows } = await pool.query(
       `SELECT count(*)::int n FROM assets WHERE lesson_id = $1 AND kind = 'cover'`,
       [lesson.id]
     );
-    assert.equal(rows[0].n, 1);
+    assert.equal(rows[0].n, 2);
   });
 });
 
@@ -555,29 +557,32 @@ test('рисование обложки сама очередь не повто�
   assert.deepEqual(jobOptions('makeCoverImage'), { attempts: 1 });
 });
 
-test('перерисовка даёт новый адрес, а прежней нарисованной не остаётся', skipWithoutDb, async () => {
+test('перерисовка добавляет картинку с новым адресом и не трогает выбранную обложку', skipWithoutDb, async () => {
   const config = await makeConfig();
   await withTestDb(async (pool) => {
     const { lesson } = await seed(pool, config);
     const job = makeMakeCoverImage(config, pool, drawing);
+    // У урока обложки ещё нет — первая нарисованная ею и становится: иначе урок
+    // остался бы совсем без обложки.
     const first = await job({ lessonId: lesson.id });
     const second = await job({ lessonId: lesson.id });
-    // Картинку по адресу браузер держит сутки: с прежним адресом автор видел
-    // старую обложку, пока не удалял её руками.
+    // Картинку по адресу браузер держит сутки: у каждой перерисовки свой адрес.
     assert.notEqual(String(second.assetId), String(first.assetId));
+
+    // Новая только добавляется: выбирает автор, а не рисование.
     const { rows } = await pool.query('SELECT cover_url FROM lessons WHERE id = $1', [lesson.id]);
-    assert.equal(rows[0].cover_url, `/media/asset/${second.assetId}`);
+    assert.equal(rows[0].cover_url, `/media/asset/${first.assetId}`);
 
     const { rows: drawn } = await pool.query(
-      `SELECT id FROM assets WHERE lesson_id = $1 AND path LIKE '%cover-drawn%'`,
+      `SELECT id FROM assets WHERE lesson_id = $1 AND path LIKE '%cover-drawn%' ORDER BY id`,
       [lesson.id]
     );
-    assert.deepEqual(drawn.map((row) => String(row.id)), [String(second.assetId)]);
+    assert.deepEqual(drawn.map((row) => String(row.id)), [String(first.assetId), String(second.assetId)]);
     const { readdir } = await import('node:fs/promises');
     const onDisk = (await readdir(path.join(config.media.dir, `lesson-${lesson.id}`))).filter((name) =>
       name.startsWith('cover-drawn')
     );
-    assert.equal(onDisk.length, 1, 'прежний нарисованный файл остался на диске');
+    assert.equal(onDisk.length, 2, 'прежний нарисованный файл пропал с диска');
   });
 });
 
@@ -627,3 +632,21 @@ test('поле запроса оформлено как остальные, и �
     });
   });
 });
+
+test('список обложек виден и при одной — у каждой есть «Удалить» и время', skipWithoutDb, async () => {
+  const config = await makeConfig();
+  await withTestDb(async (pool) => {
+    const { lesson, headers } = await seed(pool, config);
+    const only = await makeMakeCoverImage(config, pool, drawing)({ lessonId: lesson.id });
+    await withServer(finalize(createApp({ config, pool })), async (base) => {
+      const page = await (
+        await fetch(`${base}/admin/lesson/urok`, { headers: { Accept: 'text/html', ...headers } })
+      ).text();
+      // При одной картинке списка не было — и удалить её было нечем.
+      assert.match(page, new RegExp(`data-cover-remove="${only.assetId}"`));
+      // Нарисованных бывает несколько: без времени их не различить.
+      assert.match(page, /нарисованная · \d/);
+    });
+  });
+});
+

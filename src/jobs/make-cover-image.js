@@ -8,12 +8,14 @@
 // отказе — шаблон. Рисование от текстовой модели не зависит. Запрос,
 // поправленный автором на странице урока, идёт как есть, без Gemini.
 // Кадр из записи при этом остаётся в буфере: если нарисованная не понравится,
-// автор вернёт кадр одним нажатием, а не перезапуском обработки.
+// автор вернёт кадр одним нажатием, а не перезапуском обработки. Новая
+// картинка добавляется к прежним нарисованным; какая идёт в карточку,
+// выбирает автор.
 // Вызывается воркером по имени JOBS.makeCoverImage.
-import { writeFile, stat, mkdir, rm } from 'node:fs/promises';
+import { writeFile, stat, mkdir } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { coverPromptTemplate, stripNegations } from '../services/images.js';
-import { mediaPath, registerAsset, forgetAsset } from '../services/media.js';
+import { mediaPath, registerAsset } from '../services/media.js';
 import { finishDrawing } from '../services/cover-drawing.js';
 
 /** Запрос для рисования и откуда он взялся — видно, по чему рисовали. */
@@ -36,7 +38,7 @@ export function makeMakeCoverImage(config, pool, images, texts = null) {
     }
 
     const { rows } = await pool.query(
-      `SELECT l.title, l.description,
+      `SELECT l.title, l.description, l.cover_url,
               COALESCE(array_agg(t.slug) FILTER (WHERE t.slug IS NOT NULL), '{}') AS tags
          FROM lessons l
          LEFT JOIN lesson_tags lt ON lt.lesson_id = l.id
@@ -77,27 +79,20 @@ export function makeMakeCoverImage(config, pool, images, texts = null) {
       bytes: size
     });
 
-    await pool.query('UPDATE lessons SET cover_url = $1 WHERE id = $2', [
-      `/media/asset/${asset.id}`,
-      lessonId
-    ]);
-
-    // Прежние нарисованные уходят и с диска, и из учёта: в буфере живёт одна,
-    // иначе картинки копились бы до истечения срока.
-    const { rows: previous } = await pool.query(
-      `SELECT id, path FROM assets
-        WHERE lesson_id = $1 AND kind = 'cover' AND path LIKE $2 AND id <> $3`,
-      [lessonId, `${dir}/cover-drawn%`, asset.id]
-    );
-    for (const old of previous) {
-      await rm(mediaPath(config, old.path), { force: true });
-      await forgetAsset(pool, Number(old.id));
+    // Новая картинка только добавляется в список: обложку выбирает автор.
+    // Исключение — у урока обложки нет вовсе: иначе он остался бы без неё.
+    const chosen = !rows[0].cover_url;
+    if (chosen) {
+      await pool.query('UPDATE lessons SET cover_url = $1 WHERE id = $2', [
+        `/media/asset/${asset.id}`,
+        lessonId
+      ]);
     }
 
     // Запрос запоминается: при плохой картинке автор видит, по чему рисовали,
     // и правит его, а не гадает.
     await finishDrawing(pool, lessonId, { text: prompt, source });
 
-    return { assetId: asset.id, bytes: size, model, promptSource: source };
+    return { assetId: asset.id, bytes: size, model, promptSource: source, chosen };
   };
 }
