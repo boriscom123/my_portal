@@ -14,6 +14,7 @@ import { keepRanges, remapSegments, trimmedDurationMs, concatList } from '../lib
 import { toSrt, toVtt } from '../lib/srt.js';
 import { readSettings } from '../lib/settings.js';
 import { mediaPath, registerAsset, assetById } from '../services/media.js';
+import { saveTrimRanges } from '../services/trim-ranges.js';
 
 export function makeTrimPauses(config, pool) {
   return async ({ lessonId }) => {
@@ -76,6 +77,10 @@ export function makeTrimPauses(config, pool) {
       await done();
       return { skipped: 'речи в записи не нашлось' };
     }
+
+    // Отрезки запоминаются: по ним главы переводятся на смонтированную запись
+    // — для нарезки частями и для описания YouTube.
+    await saveTrimRanges(pool, lessonId, ranges);
 
     const dir = `lesson-${lessonId}`;
     await mkdir(mediaPath(config, dir), { recursive: true });

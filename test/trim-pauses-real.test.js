@@ -108,6 +108,14 @@ test('запись становится короче, а субтитры к н�
       [lessonId]
     );
     assert.equal(state[0].pipeline_state, 'review');
+
+    // Отрезки монтажа запоминаются: по ним главы переводятся на смонтированную
+    // запись — для нарезки частями и для описания YouTube.
+    const { rows: saved } = await pool.query(
+      `SELECT generated->'trimRanges' AS ranges FROM lessons WHERE id = $1`,
+      [lessonId]
+    );
+    assert.equal(saved[0].ranges?.length, 2, 'отрезки монтажа не сохранены');
   });
 });
 
