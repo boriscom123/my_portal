@@ -33,6 +33,12 @@ import {
   instagramConsentUrl,
   exchangeInstagramCode
 } from '../services/platforms/instagram-auth.js';
+import {
+  loadDrawingSettings,
+  saveDrawingSettings,
+  forgetDrawingToken
+} from '../services/drawing-settings.js';
+import { checkDrawingToken } from '../services/images.js';
 import { signShortLived, verifyShortLived } from '../lib/jwt.js';
 
 // Куда возвращать, если страница отправления неизвестна.
@@ -233,6 +239,31 @@ export function integrationRoutes(config, pool, fetchImpl = fetch) {
       res.json({ clientId: stored?.clientId ?? '', hasSecret: Boolean(stored?.clientSecret) });
     });
   }
+
+  // Рисование через Hugging Face: токен и список моделей. Номера приложения у
+  // Hugging Face нет — только токен, поэтому маршрут свой, а не общий с
+  // площадками.
+  router.post('/huggingface/app', async (req, res) => {
+    await saveDrawingSettings(pool, config, {
+      // Пустое поле означает «не менять»: показать сохранённый токен нельзя.
+      token: String(req.body?.token ?? ''),
+      models: String(req.body?.models ?? '')
+    });
+    const stored = await loadDrawingSettings(pool, config);
+    // Сам токен наружу не отдаём — только то, что он есть.
+    res.json({ models: stored.modelsText, hasToken: Boolean(stored.token) });
+  });
+
+  // Проверка токена бесплатным запросом: картинку не рисует, кредиты не тратит.
+  router.post('/huggingface/check', async (req, res) => {
+    const { token } = await loadDrawingSettings(pool, config);
+    res.json(await checkDrawingToken(token, fetchImpl));
+  });
+
+  router.post('/huggingface/forget', async (req, res) => {
+    await forgetDrawingToken(pool);
+    res.json({ ok: true });
+  });
 
   // Отключить канал: токены забываем, ключи приложения оставляем — заводить их
   // заново ради смены аккаунта незачем.

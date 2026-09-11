@@ -21,6 +21,7 @@ export function settingsPage({
   youtube = null,
   channels = [],
   shortPlatforms = [],
+  drawing = null,
   sources = []
 }) {
   return layout({
@@ -222,7 +223,48 @@ ${channels
   )
   .join('')}
 
-<details class="card settings-block" data-block="sources" open>
+${
+  drawing
+    ? `<details class="card settings-block" data-block="drawing" open>
+  <summary><h2>Рисование (Hugging Face)</h2></summary>
+  <p class="hint">
+    Обложки уроков рисует FLUX через Hugging Face. Токен: huggingface.co →
+    Settings → Access Tokens → Create new token → тип Fine-grained → право
+    «Make calls to Inference Providers». Бесплатно даётся $0.10 в месяц — это
+    около тридцати обложек, карта не нужна.
+  </p>
+  <form data-drawing-form>
+    <label>Токен Hugging Face
+      <input name="token" type="password" autocomplete="off" maxlength="200"
+             placeholder="${drawing.hasToken ? 'сохранён — оставьте пустым, чтобы не менять' : 'hf_…'}"
+             ${drawing.hasToken ? '' : 'required'}>
+    </label>
+    <label>Модели через запятую — пусто означает список по умолчанию
+      <input name="models" value="${escapeHtml(drawing.models)}" autocomplete="off"
+             maxlength="500" placeholder="${escapeHtml(drawing.defaultModels)}">
+    </label>
+    <div class="form-row">
+      <button class="button-brand" type="submit">Сохранить</button>
+      ${
+        drawing.hasToken
+          ? `<button class="button" type="button" data-drawing-check>Проверить</button>
+             <button class="button" type="button" data-drawing-forget>Убрать токен</button>`
+          : ''
+      }
+    </div>
+  </form>
+  <p class="hint">
+    ${
+      drawing.hasToken
+        ? 'Токен сохранён: кнопка «Нарисовать обложку» у урока работает.'
+        : 'Пока токена нет, рисование выключено.'
+    }
+  </p>
+</details>
+
+`
+    : ''
+}<details class="card settings-block" data-block="sources" open>
   <summary><h2>Источники анонсов</h2></summary>
   <p class="hint">
     Их ленты портал показывает в форме новости — по кнопке «Свежие анонсы».

@@ -1012,6 +1012,61 @@ function initPage() {
     });
   }
 
+  /* --- Рисование: токен Hugging Face -------------------------------------- */
+
+  // Токен уходит через API, а не отправкой формы: иначе браузер увёз бы его
+  // GET-ом в адресную строку — в историю и в журнал сервера.
+  const drawingForm = document.querySelector('[data-drawing-form]');
+  drawingForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const fields = new FormData(drawingForm);
+    const button = drawingForm.querySelector('button[type=submit]');
+    button.disabled = true;
+    try {
+      const answer = await request('/api/integrations/huggingface/app', {
+        method: 'POST',
+        body: JSON.stringify({ token: fields.get('token'), models: fields.get('models') })
+      });
+      if (!answer) return;
+      toast('Настройки рисования сохранены.');
+      setTimeout(() => location.reload(), 1200);
+    } catch (error) {
+      toast(`Не сохранилось: ${error.message}`, true);
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  // Проверка бесплатная: Hugging Face отвечает, чей это токен, и ничего не рисует.
+  const drawingCheck = document.querySelector('[data-drawing-check]');
+  drawingCheck?.addEventListener('click', async () => {
+    drawingCheck.disabled = true;
+    try {
+      const answer = await request('/api/integrations/huggingface/check', { method: 'POST' });
+      if (!answer) return;
+      if (answer.ok) toast(`Токен рабочий${answer.account ? `, аккаунт ${answer.account}` : ''}.`);
+      else toast(answer.message, true);
+    } catch (error) {
+      toast(`Не проверилось: ${error.message}`, true);
+    } finally {
+      drawingCheck.disabled = false;
+    }
+  });
+
+  const drawingForget = document.querySelector('[data-drawing-forget]');
+  drawingForget?.addEventListener('click', async () => {
+    drawingForget.disabled = true;
+    try {
+      const answer = await request('/api/integrations/huggingface/forget', { method: 'POST' });
+      if (!answer) return;
+      toast('Токен убран, рисование выключено.');
+      setTimeout(() => location.reload(), 1200);
+    } catch (error) {
+      toast(`Не убралось: ${error.message}`, true);
+      drawingForget.disabled = false;
+    }
+  });
+
   const youtubeAppForm = document.querySelector('[data-youtube-app]');
   youtubeAppForm?.addEventListener('submit', async (event) => {
     event.preventDefault();

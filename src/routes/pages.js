@@ -31,6 +31,7 @@ import {
 } from '../views/shorts.js';
 import { listShorts, getShortBySlug, shortsOfLesson } from '../services/shorts.js';
 import { youtubeApp, channelApp, loadPlatformApp } from '../services/platform-apps.js';
+import { loadDrawingSettings, DEFAULT_DRAWING_MODELS } from '../services/drawing-settings.js';
 import { loadIntegration } from '../services/disk.js';
 import { listSources } from '../services/news-sources.js';
 import { mediaLink } from '../lib/media-token.js';
@@ -668,6 +669,20 @@ export function pageRoutes(config, pool) {
           )
         : [];
 
+    // Рисование: токен Hugging Face и модели. Сам токен наружу не отдаём —
+    // только то, что он есть.
+    const drawing =
+      user?.role === 'admin'
+        ? await (async () => {
+            const stored = await loadDrawingSettings(pool, config);
+            return {
+              hasToken: Boolean(stored.token),
+              models: stored.modelsText,
+              defaultModels: DEFAULT_DRAWING_MODELS
+            };
+          })()
+        : null;
+
     res.type('html').send(
       settingsPage({
         config,
@@ -675,6 +690,7 @@ export function pageRoutes(config, pool) {
         youtube,
         channels,
         shortPlatforms,
+        drawing,
         // Источники анонсов правит автор: сегодня их девять, завтра появится
         // NVIDIA.
         sources: user?.role === 'admin' ? await listSources(pool) : []

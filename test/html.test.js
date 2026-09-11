@@ -657,3 +657,30 @@ test('без адреса репозитория подвал остаётся �
   assert.doesNotMatch(html, /Как это делалось/);
   assert.match(html, /href="\/privacy"/);
 });
+
+test('блок рисования видит только автор, и токен в разметку не попадает', async () => {
+  const { settingsPage } = await import('../src/views/settings.js');
+  const drawing = {
+    hasToken: true,
+    models: '',
+    defaultModels: 'black-forest-labs/FLUX.1-schnell'
+  };
+  const author = settingsPage({ config, user: { displayName: 'Автор', role: 'admin' }, drawing });
+  assert.match(author, /<details class="card settings-block" data-block="drawing" open>/);
+  assert.match(author, /data-drawing-check/);
+  assert.match(author, /data-drawing-forget/);
+  assert.match(author, /black-forest-labs\/FLUX\.1-schnell/);
+  // Как получить токен — прямо в блоке: иначе автор пойдёт искать инструкцию.
+  assert.match(author, /Make calls to Inference Providers/);
+
+  const withoutToken = settingsPage({
+    config,
+    user: { displayName: 'Автор', role: 'admin' },
+    drawing: { ...drawing, hasToken: false }
+  });
+  // Проверять и убирать нечего, пока токена нет.
+  assert.ok(!withoutToken.includes('data-drawing-check'));
+
+  const viewer = settingsPage({ config, user: { displayName: 'Зритель', role: 'user' }, drawing: null });
+  assert.ok(!viewer.includes('data-block="drawing"'), 'зрителю показали рисование');
+});
