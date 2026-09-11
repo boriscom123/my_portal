@@ -119,7 +119,23 @@ services:
     command: ["redis-server", "--save", "", "--appendonly", "no"]
     restart: unless-stopped
 
+  # Свой сервер Telegram Bot API для чистой машины: с ним бот шлёт в канал
+  # видео до 2000 МБ, а не до 50. На VPS его даёт ClaudeService (глобальный
+  # для всех ботов), и профиль standalone там не включается. Адрес для
+  # портала здесь — http://telegram-bot-api:8081 (TELEGRAM_API_URL).
+  telegram-bot-api:
+    image: aiogram/telegram-bot-api:10.3
+    profiles: [standalone]
+    environment:
+      TELEGRAM_API_ID: ${TELEGRAM_API_ID:-}
+      TELEGRAM_API_HASH: ${TELEGRAM_API_HASH:-}
+      TELEGRAM_LOCAL: "1"
+    volumes:
+      - portal_telegram_bot_api:/var/lib/telegram-bot-api
+    restart: unless-stopped
+
 volumes:
   portal_db:
   portal_media:
   portal_models:
+  portal_telegram_bot_api:
