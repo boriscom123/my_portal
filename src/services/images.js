@@ -66,6 +66,14 @@ export function describeDrawingFailure(status, detail = '') {
   return `Hugging Face ответил ${status}${detail ? `: ${detail}` : ''}`;
 }
 
+// Сцена и стиль — общие для обложки урока и картинки к новости. Без
+// отрицаний и без слов про видео: модель рисования читает их наоборот.
+const SCENE_STYLE = [
+  'Show a concrete physical scene with real-world objects (a machine, a workshop, a conveyor, tools) as a visual metaphor of the topic.',
+  'Simple composition readable at thumbnail size, plain surfaces, clean flat shapes.',
+  'Dark background, deep blue and violet tones, a single warm orange accent, soft glow.'
+];
+
 /**
  * Запрос для обложки без текстовой модели.
  * Путь запасной: основной запрос пишет Gemini. Теги и заголовок урока бывают
@@ -79,12 +87,15 @@ export function coverPromptTemplate({ title, tags = [] }) {
     'Flat vector illustration for the cover of a software development lesson.',
     tags.length ? `Topic keywords: ${tags.join(', ')}.` : '',
     `Lesson title: ${title}.`,
-    'Show a concrete physical scene with real-world objects (a machine, a workshop, a conveyor, tools) as a visual metaphor of the topic.',
-    'Simple composition readable at thumbnail size, plain surfaces, clean flat shapes.',
-    'Dark background, deep blue and violet tones, a single warm orange accent, soft glow.'
+    ...SCENE_STYLE
   ]
     .filter(Boolean)
     .join(' ');
+}
+
+/** Запрос для картинки к новости без текстовой модели: та же сцена, свой предмет. */
+export function newsPromptTemplate({ title }) {
+  return ['Flat vector illustration for a technology news article.', `News headline: ${title}.`, ...SCENE_STYLE].join(' ');
 }
 
 /**

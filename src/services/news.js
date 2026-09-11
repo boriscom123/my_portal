@@ -21,6 +21,11 @@ function toNews(row) {
     // Черновику дата выхода не положена, а показать в кабинете что-то надо:
     // показываем день, когда его завели.
     createdAt: row.created_at,
+    // Служебное: идёт ли рисование картинки, по какому запросу рисуется и
+    // почему не вышло — см. src/services/cover-drawing.js.
+    drawing: row.generated?.drawing ?? null,
+    imagePrompt: row.generated?.imagePrompt ?? null,
+    sideError: row.generated?.sideError ?? null,
     images: []
   };
 }
@@ -42,7 +47,7 @@ async function attachImages(pool, items) {
   return items;
 }
 
-const FIELDS = 'id, slug, title, body, status, published_at, created_at';
+const FIELDS = 'id, slug, title, body, status, published_at, created_at, generated';
 
 /**
  * Лента новостей, свежие сверху.

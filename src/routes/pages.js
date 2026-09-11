@@ -539,11 +539,20 @@ export function pageRoutes(config, pool) {
   router.get('/news/:slug/edit', requireAdmin, async (req, res) => {
     const item = await getNewsBySlug(pool, req.params.slug);
     if (!item) throw new PublicError('Новость не найдена', 404);
+    // Отказ рисования показывается один раз — сразу после попытки — и
+    // стирается, как у обложки урока: иначе он встречал бы автора всегда.
+    if (item.sideError) {
+      await pool
+        .query(`UPDATE news SET generated = generated - 'sideError' WHERE id = $1`, [item.id])
+        .catch((error) => console.error('Не удалось убрать отказ рисования:', error.message));
+    }
     res.type('html').send(
       newsEditPage({
         config,
         user: await currentUser(pool, req),
         item,
+        // Без токена рисования кнопка неактивна и объясняет, где его взять.
+        drawingReady: Boolean((await loadDrawingSettings(pool, config)).token),
         // Выпуск и каналы живут здесь: на странице просмотра новость должна
         // выглядеть так, как её увидит читатель.
         publications: await newsPublications(pool, item.id),

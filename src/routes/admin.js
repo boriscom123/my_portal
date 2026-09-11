@@ -45,7 +45,9 @@ import { youtubeAccessToken } from '../services/platforms/youtube-auth.js';
 import { instagramAccess } from '../services/platforms/instagram-auth.js';
 import { youtubeApp, channelApp } from '../services/platform-apps.js';
 import { loadDrawingSettings } from '../services/drawing-settings.js';
-import { isDrawing, markDrawing } from '../services/cover-drawing.js';
+import { isDrawing, markDrawing, savePrompt } from '../services/cover-drawing.js';
+import { removeNewsImage } from '../services/news-images.js';
+import { stripNegations } from '../services/images.js';
 import { readVideoPrivacy } from '../services/platforms/youtube.js';
 
 import { rebuildSubtitles } from '../services/transcript.js';
@@ -452,21 +454,67 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
     }
   });
 
-  // Запрос для рисовальщика: картинку автор рисует сам, в стороннем
-  // рисовальщике, и ему нужен готовый текст запроса, а не совет.
-  router.post('/news/image-prompt', async (req, res) => {
-    const title = String(req.body?.title ?? '').trim();
-    if (!title) throw new PublicError('Сначала напишите заголовок', 400);
+  // Запрос для картинки к новости — по уже сохранённым заголовку и тексту.
+  // Кладётся у новости: поле «Запрос для рисования» показывает его и после
+  // обновления страницы. Отрицания уходят сразу: модель рисования «no» не
+  // понимает и рисует ровно то, что запрещено.
+  router.post('/news/:slug/image-prompt', async (req, res) => {
+    const item = await getNewsBySlug(pool, req.params.slug);
+    if (!item) throw new PublicError('Новость не найдена', 404);
 
     const texts = createTexts(config, fetchImpl);
     if (!texts) throw new PublicError('Модель не подключена: нет ключа в настройках сервера', 503);
 
+    let prompt;
     try {
-      const { prompt } = await texts.suggestImagePrompt(title, String(req.body?.body ?? ''));
-      res.json({ prompt });
+      ({ prompt } = await texts.suggestImagePrompt(item.title, item.body ?? ''));
     } catch (error) {
       throw new PublicError(`Модель не ответила: ${error.message}`, 502);
     }
+    const clean = stripNegations(prompt);
+    await savePrompt(pool, item.id, { text: clean, source: 'suggested' }, 'news');
+    res.json({ prompt: clean });
+  });
+
+  // Нарисовать картинку к новости. Очередью, как и обложку: рисование идёт до
+  // минуты, а запрос через nginx рвётся на шестидесяти секундах.
+  router.post('/news/:slug/image', async (req, res) => {
+    const item = await getNewsBySlug(pool, req.params.slug);
+    if (!item) throw new PublicError('Новость не найдена', 404);
+    if (!req.app.locals.queue) throw new PublicError('Очередь недоступна', 503);
+    if (!(await loadDrawingSettings(pool, config)).token) {
+      throw new PublicError('Рисование не настроено — добавьте токен Hugging Face в настройках', 409);
+    }
+    // Второе нажатие, пока рисуется первое, — вторая картинка за те же кредиты.
+    if (isDrawing(item.drawing)) {
+      throw new PublicError('Картинка уже рисуется — страница обновится, когда она будет готова', 409);
+    }
+    // Запрос, поправленный автором: по нему и рисуем, не спрашивая Gemini.
+    const prompt = String(req.body?.prompt ?? '').trim().slice(0, 1000);
+
+    await markDrawing(pool, item.id, 'news');
+    await addJob(req.app.locals.queue, 'makeNewsImage', {
+      newsId: item.id,
+      ...(prompt ? { prompt } : {})
+    });
+    res.json({ started: true });
+  });
+
+  // Идёт ли рисование: по нему страница правки ждёт готовую картинку.
+  router.get('/news/:slug/state', async (req, res) => {
+    const item = await getNewsBySlug(pool, req.params.slug);
+    if (!item) throw new PublicError('Новость не найдена', 404);
+    res.json({ drawing: isDrawing(item.drawing) });
+  });
+
+  // Удалить картинку новости: загрузили или нарисовали не то — убрали.
+  router.delete('/news/:slug/images/:assetId', async (req, res) => {
+    const item = await getNewsBySlug(pool, req.params.slug);
+    if (!item) throw new PublicError('Новость не найдена', 404);
+    if (!(await removeNewsImage(pool, config, item.id, Number(req.params.assetId)))) {
+      throw new PublicError('Такой картинки у новости нет', 404);
+    }
+    res.json({ ok: true });
   });
 
   // Выпуск новости в свет. Отдельным нажатием, а не при сохранении: автор

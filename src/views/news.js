@@ -7,6 +7,7 @@
 import { escapeHtml } from '../lib/html.js';
 import { layout } from './layout.js';
 import { publicationLabel } from './publication-state.js';
+import { isDrawing } from '../services/cover-drawing.js';
 
 /** Дата человеку: «8 сентября 2026». */
 function formatDate(value) {
@@ -53,15 +54,9 @@ function newsForm(item = null) {
   <!-- Сюда скрипт кладёт список свежих анонсов. Пустой и скрытый: пока автор
        не попросил, чужие ленты никто не спрашивает. -->
   <div class="announcements" data-announcements-list hidden></div>
-  <!-- Готовый запрос для рисовальщика. Скрыт, пока не попросили: пустое поле
-       посреди формы отвлекает от того, ради чего человек сюда пришёл. -->
-  <label data-image-prompt-box hidden>Запрос для рисовальщика — скопируйте в свой рисовальщик
-    <textarea rows="4" data-image-prompt-text readonly></textarea>
-  </label>
   <div class="form-row">
     <button class="button" type="button" data-announcements>Свежие анонсы</button>
     <button class="button" type="button" data-news-suggest>Написать по заголовку</button>
-    <button class="button" type="button" data-image-prompt>Запрос для картинки</button>
     <button class="button-brand" type="submit">${item ? 'Сохранить' : 'Завести новость'}</button>
     ${
       item
@@ -163,8 +158,83 @@ export function linkify(text) {
     .join('<br>');
 }
 
+/**
+ * Картинки новости в кабинете: у каждой «Удалить», рядом рисование и загрузка.
+ * Отдельно от ленты для читателя: там картинка — содержимое, здесь — предмет
+ * работы, и кнопки посреди новости читателю ни к чему.
+ */
+function newsImagesAdmin(item, drawingReady) {
+  const slug = escapeHtml(item.slug);
+  // Картинка рисуется прямо сейчас: кнопка занята, страница ждёт конца сама.
+  const drawingNow = isDrawing(item.drawing);
+  return `${
+    item.images.length
+      ? `<ul class="cover-choice">${item.images
+          .map(
+            (image, index) => `<li>
+          <img src="${escapeHtml(image.url)}" alt="">
+          <span class="meta">${index === 0 ? 'первая — уходит в пост канала' : `№ ${index + 1}`}</span>
+          <span class="form-row">
+            <button class="button" type="button" data-news-image-remove="${image.id}"
+              title="Убрать эту картинку">Удалить</button>
+          </span>
+        </li>`
+          )
+          .join('')}</ul>`
+      : '<p class="hint">Картинок пока нет.</p>'
+  }
+  ${
+    drawingReady
+      ? `<label class="field">Запрос для рисования — по-английски
+      <textarea rows="3" maxlength="1000" data-news-image-prompt
+        placeholder="Пусто — запрос составит Gemini по заголовку и тексту новости">${escapeHtml(item.imagePrompt?.text ?? '')}</textarea>
+    </label>
+    <p class="hint">
+      ${
+        item.imagePrompt?.source === 'suggested'
+          ? 'Запрос составлен по заголовку и тексту новости. Поправьте, если нужно, и нажмите «Нарисовать картинку».'
+          : item.imagePrompt
+            ? 'Последняя картинка нарисована по этому запросу.'
+            : 'Поле можно оставить пустым: запрос составит Gemini по заголовку и тексту.'
+      }
+      Пишите по-английски и только то, что должно быть на картинке: «no …» модель читает как «нарисуй …».
+    </p>`
+      : `<p class="hint">
+      Рисование выключено: <a href="/settings">добавьте токен Hugging Face в настройках</a>.
+    </p>`
+  }
+  <p class="form-row">
+    ${drawingReady ? `<button class="button" type="button" data-news-prompt="${slug}">Составить запрос</button>` : ''}
+    <button class="button" type="button" data-draw-news="${slug}"
+      ${
+        !drawingReady
+          ? 'disabled title="Добавьте токен Hugging Face в настройках"'
+          : drawingNow
+            ? `disabled data-news-draw-watch="${slug}"`
+            : ''
+      }>
+      ${drawingNow ? 'Рисую…' : 'Нарисовать картинку'}
+    </button>
+    <label class="button" for="news-image">Добавить картинку</label>
+    <input id="news-image" type="file" accept="image/png,image/jpeg,image/webp" hidden
+      data-news-image="${slug}">
+  </p>
+  ${
+    item.sideError?.step === 'makeNewsImage'
+      ? `<p class="hint danger">Нарисовать не вышло: ${escapeHtml(item.sideError.message)}</p>`
+      : ''
+  }`;
+}
+
 /** Страница создания и правки новости. */
-export function newsEditPage({ config, user, item = null, publications = [], platforms = [] }) {
+export function newsEditPage({
+  config,
+  user,
+  item = null,
+  publications = [],
+  platforms = [],
+  drawingReady = false
+}) {
   return layout({
     config,
     user,
@@ -185,14 +255,9 @@ ${
   <h2>Картинки</h2>
   <p class="hint">
     Одна показывается как есть, несколько — лентой с прокруткой. Порядок — тот,
-    в каком вы их загружали.
+    в каком они появлялись; первая уходит в пост канала.
   </p>
-  ${newsImages(item.images)}
-  <p class="form-row">
-    <label class="button" for="news-image">Добавить картинку</label>
-    <input id="news-image" type="file" accept="image/png,image/jpeg,image/webp" hidden
-      data-news-image="${escapeHtml(item.slug)}">
-  </p>
+  ${newsImagesAdmin(item, drawingReady)}
 </section>`
     : '<p class="hint">Картинки добавляются после сохранения — на этой же странице.</p>'
 }`

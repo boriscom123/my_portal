@@ -20,6 +20,7 @@ import { makeTrimPauses } from './jobs/trim-pauses.js';
 import { makeSuggestTexts } from './jobs/suggest-texts.js';
 import { createTexts } from './services/texts.js';
 import { makeMakeCoverImage } from './jobs/make-cover-image.js';
+import { makeMakeNewsImage } from './jobs/make-news-image.js';
 import { createImages } from './services/images.js';
 import { loadDrawingSettings } from './services/drawing-settings.js';
 import { recordSideFailure } from './services/cover-drawing.js';
@@ -110,6 +111,13 @@ const handlers = {
   // Токен рисования читается из базы перед каждой картинкой: автор меняет его
   // в настройках, и новый должен работать без перезапуска воркера.
   [JOBS.makeCoverImage]: makeMakeCoverImage(
+    config,
+    pool,
+    createImages(() => loadDrawingSettings(pool, config)),
+    createTexts(config)
+  ),
+  // Картинка к новости — тем же слоем рисования и тем же токеном.
+  [JOBS.makeNewsImage]: makeMakeNewsImage(
     config,
     pool,
     createImages(() => loadDrawingSettings(pool, config)),
@@ -218,6 +226,15 @@ worker.on('failed', async (job, err) => {
   console.error(`Задача ${job?.name} упала: ${err.message}`);
   // Причину видит автор в кабинете, а не только журнал контейнера: с телефона
   // до журнала не добраться, а понять, почему урок застрял, нужно именно там.
+  // Отказ рисования картинки к новости — рядом с новостью: у неё нет ни
+  // конвейера, ни уведомлений, а страница правки ждёт снятия отметки.
+  if (job?.name === JOBS.makeNewsImage && job.data?.newsId) {
+    await recordSideFailure(pool, job.data.newsId, job.name, err.message, 'news').catch((dbError) =>
+      console.error('Не удалось записать отказ рисования новости:', dbError.message)
+    );
+    return;
+  }
+
   if (!job?.data?.lessonId) return;
 
   if (!isPipelineJob(job.name)) {

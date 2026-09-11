@@ -584,52 +584,6 @@ function initPage() {
     }
   });
 
-  /**
-   * Запрос для рисовальщика.
-   * Картинку автор рисует сам, поэтому портал отдаёт готовый текст запроса и
-   * сразу кладёт его в буфер обмена: переносить руками из поля в чужой
-   * рисовальщик — лишняя работа на ровном месте.
-   */
-  const imagePromptButton = document.querySelector('[data-image-prompt]');
-  imagePromptButton?.addEventListener('click', async () => {
-    const form = document.querySelector('[data-news-form]');
-    const title = form?.querySelector('[name=title]')?.value?.trim();
-    if (!title) {
-      toast('Сначала напишите заголовок — по нему и составляем.', true);
-      return;
-    }
-
-    const box = document.querySelector('[data-image-prompt-box]');
-    const field = document.querySelector('[data-image-prompt-text]');
-    const wasText = imagePromptButton.textContent;
-    imagePromptButton.disabled = true;
-    imagePromptButton.textContent = 'Составляю…';
-
-    try {
-      const answer = await request('/api/admin/news/image-prompt', {
-        method: 'POST',
-        body: JSON.stringify({ title, body: form.querySelector('[name=body]')?.value ?? '' })
-      });
-      if (!answer) return;
-
-      field.value = answer.prompt;
-      box.hidden = false;
-      try {
-        await navigator.clipboard.writeText(answer.prompt);
-        toast('Запрос готов и скопирован — вставьте в рисовальщик.');
-      } catch {
-        // Буфер обмена доступен не везде: на старом браузере и по http его нет.
-        // Тогда просто оставляем текст в поле — его можно выделить руками.
-        toast('Запрос готов — он в поле ниже.');
-      }
-    } catch (error) {
-      toast(`Не составилось: ${error.message}`, true);
-    } finally {
-      imagePromptButton.disabled = false;
-      imagePromptButton.textContent = wasText;
-    }
-  });
-
   /* --- Короткие ролики ----------------------------------------------------- */
 
   /**
@@ -975,6 +929,93 @@ function initPage() {
       toast(`Картинка не загрузилась: ${error.message}`, true);
       if (label) label.textContent = wasText;
     }
+  });
+
+  /* --- Рисование картинки к новости ---------------------------------------- */
+
+  // Запрос для картинки — по заголовку и тексту новости; ложится в поле, где
+  // его можно поправить перед рисованием.
+  const newsPromptButton = document.querySelector('[data-news-prompt]');
+  newsPromptButton?.addEventListener('click', async () => {
+    const field = document.querySelector('[data-news-image-prompt]');
+    const wasText = newsPromptButton.textContent;
+    newsPromptButton.disabled = true;
+    newsPromptButton.textContent = 'Составляю…';
+    try {
+      const answer = await request(
+        `/api/admin/news/${newsPromptButton.dataset.newsPrompt}/image-prompt`,
+        { method: 'POST' }
+      );
+      if (!answer) return;
+      if (field) field.value = answer.prompt;
+      toast('Запрос готов — поправьте, если нужно, и нажмите «Нарисовать картинку».');
+    } catch (error) {
+      toast(`Не составилось: ${error.message}`, true);
+    } finally {
+      newsPromptButton.disabled = false;
+      newsPromptButton.textContent = wasText;
+    }
+  });
+
+  // Рисование идёт в воркере: кнопка держит «Рисую…», а страница спрашивает
+  // сервер и перечитывается сама, когда картинка готова, — как у обложки урока.
+  async function waitForNewsDrawing(slug) {
+    const deadline = Date.now() + 5 * 60 * 1000;
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 4000));
+      const state = await request(`/api/admin/news/${slug}/state`).catch(() => null);
+      if (state && !state.drawing) {
+        location.reload();
+        return;
+      }
+    }
+    toast('Рисование затянулось — обновите страницу через пару минут.', true);
+  }
+
+  const drawNewsButton = document.querySelector('[data-draw-news]');
+  drawNewsButton?.addEventListener('click', async () => {
+    const wasText = drawNewsButton.textContent;
+    drawNewsButton.disabled = true;
+    drawNewsButton.textContent = 'Рисую…';
+    try {
+      // Запрос, поправленный автором, уходит как есть; пустой составит Gemini.
+      const prompt = document.querySelector('[data-news-image-prompt]')?.value.trim() ?? '';
+      const answer = await request(`/api/admin/news/${drawNewsButton.dataset.drawNews}/image`, {
+        method: 'POST',
+        body: JSON.stringify({ prompt })
+      });
+      if (!answer) return;
+      toast('Рисую картинку. Страница обновится сама, когда она будет готова.');
+      await waitForNewsDrawing(drawNewsButton.dataset.drawNews);
+    } catch (error) {
+      drawNewsButton.textContent = wasText;
+      drawNewsButton.disabled = false;
+      toast(`Не нарисовалось: ${error.message}`, true);
+    }
+  });
+
+  // Страницу открыли или обновили посреди рисования — ждём его так же.
+  const newsDrawWatch = document.querySelector('[data-news-draw-watch]');
+  if (newsDrawWatch) waitForNewsDrawing(newsDrawWatch.dataset.newsDrawWatch);
+
+  // Удалить картинку новости: загрузили или нарисовали не то. Адрес новости
+  // берём у поля загрузки — оно на этой странице всегда есть.
+  document.querySelectorAll('[data-news-image-remove]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const slug = document.querySelector('[data-news-image]')?.dataset.newsImage;
+      if (!slug) return;
+      button.disabled = true;
+      try {
+        const answer = await request(
+          `/api/admin/news/${slug}/images/${button.dataset.newsImageRemove}`,
+          { method: 'DELETE' }
+        );
+        if (answer) location.reload();
+      } catch (error) {
+        button.disabled = false;
+        toast(`Не удалилось: ${error.message}`, true);
+      }
+    });
   });
 
   /* --- Ключи приложения площадки ------------------------------------------- */

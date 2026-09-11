@@ -20,6 +20,7 @@ import { PublicError } from '../middleware/errors.js';
 import { mediaPath, registerAsset, forgetAssetByPath } from '../services/media.js';
 import { imageTypeOf } from '../lib/image-type.js';
 import { getNewsBySlug } from '../services/news.js';
+import { attachNewsImage } from '../services/news-images.js';
 import { getLessonBySlug } from '../services/lessons.js';
 import { getShortBySlug, setShortFile } from '../services/shorts.js';
 import { probeFrameSize, runFfmpeg, ffmpegArgsForCover } from '../lib/ffmpeg.js';
@@ -188,23 +189,9 @@ export function uploadRoutes(config, pool) {
     const type = imageTypeOf(bytes);
     if (!type) throw new PublicError('Это не картинка: принимаются png, jpeg и webp', 415);
 
-    const dir = `news-${news.id}`;
-    await mkdir(mediaPath(config, dir), { recursive: true });
-    // Порядок — следующий за последней картинкой: автор грузит их по одной, и
-    // они встают в слайдер в том порядке, в каком он их выбирал.
-    const position = news.images.length + 1;
-    const relative = `${dir}/kartinka-${position}.${type}`;
-    await writeFile(mediaPath(config, relative), bytes);
-
-    const asset = await registerAsset(pool, config, {
-      newsId: news.id,
-      kind: 'image',
-      relativePath: relative,
-      bytes: bytes.length,
-      position
-    });
-
-    res.json({ assetId: asset.id, url: `/media/asset/${asset.id}`, bytes: bytes.length });
+    // Путь один с нарисованной картинкой: имя файла случайное, а место в ленте
+    // — следующее за последней. См. src/services/news-images.js.
+    res.json(await attachNewsImage(pool, config, news.id, bytes, type));
   });
 
   /**
