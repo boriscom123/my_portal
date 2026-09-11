@@ -172,6 +172,45 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
     });
   }
 
+  // Урок частями видео — отдельной кнопкой, следом за анонсом: анонс остаётся,
+  // пост с частями — для просмотра прямо в ленте канала. Проверки здесь те же,
+  // что сделает шаг очереди, но отказ сразу на экране лучше, чем через минуту в
+  // состоянии публикации.
+  for (const [platform, base, job] of [
+    ['telegram_parts', 'telegram', JOBS.publishTelegramParts],
+    ['max_parts', 'max', JOBS.publishMaxParts]
+  ]) {
+    router.post(`/lessons/:slug/publish/${platform}`, async (req, res) => {
+      const lesson = await getLessonBySlug(pool, req.params.slug, { includeDrafts: true });
+      if (!lesson) throw new PublicError('Урок не найден', 404);
+
+      const app = await channelApp(pool, config, base);
+      if (!app.configured) {
+        throw new PublicError(`Канал ${base} не настроен — заполните его в настройках`, 400);
+      }
+
+      const announced = (await publicationsFor(pool, lesson.id)).some(
+        (item) => item.platform === base && item.state === 'published'
+      );
+      if (!announced) throw new PublicError('Сначала отправьте анонс урока в этот канал', 409);
+
+      const video = pickVideoAsset(await assetsOfLesson(pool, lesson.id));
+      if (!video) throw new PublicError('Записи урока нет в буфере — загрузите её заново', 409);
+
+      const publication = await startPublication(pool, {
+        lessonId: lesson.id,
+        platform,
+        assetId: video.id,
+        mode: 'auto'
+      });
+      await addJob(req.app.locals.queue, job, {
+        lessonId: lesson.id,
+        publicationId: publication.id
+      });
+      res.json({ publicationId: publication.id, state: 'queued' });
+    });
+  }
+
   // «Проверить»: автор открыл ролик в студии — спрашиваем площадку и снимаем
   // замок с ссылки в карточке. Опрашивать по расписанию незачем: это работа
   // ради одного нажатия раз в неделю.

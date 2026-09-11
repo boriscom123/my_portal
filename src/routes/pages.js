@@ -381,6 +381,24 @@ export function pageRoutes(config, pool) {
               action: 'Отправить анонс',
               needsCover: true,
               configured: app.configured
+            })),
+            // Урок частями видео — следом за анонсом в тот же канал: кнопка
+            // заперта, пока анонс не ушёл (needsAnnouncement).
+            channelApp(pool, config, 'telegram').then((app) => ({
+              name: 'telegram_parts',
+              title: 'Telegram — видео урока',
+              action: 'Отправить видео урока',
+              needsCover: false,
+              needsAnnouncement: 'telegram',
+              configured: app.configured
+            })),
+            channelApp(pool, config, 'max').then((app) => ({
+              name: 'max_parts',
+              title: 'MAX — видео урока',
+              action: 'Отправить видео урока',
+              needsCover: false,
+              needsAnnouncement: 'max',
+              configured: app.configured
             }))
           ])
         ).filter((platform) => platform.configured),

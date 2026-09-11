@@ -362,6 +362,13 @@ ${
             // которые уже ушли, вторым нажатием не обновятся — уедет вторая
             // копия, и убирать её придётся руками на самой площадке.
             const sendable = !publication || publication.state === 'failed';
+            // Части видео идут следом за анонсом: без него пост с частями
+            // оказался бы в канале без представления урока.
+            const announced =
+              !platform.needsAnnouncement ||
+              publications.some(
+                (item) => item.platform === platform.needsAnnouncement && item.state === 'published'
+              );
 
             return `<div class="platform-row">
               <p><strong>${escapeHtml(platform.title)}</strong>: ${
@@ -397,7 +404,9 @@ ${
                          data-publish="${escapeHtml(platform.name)}"
                          value="${escapeHtml(lesson.slug)}"
                          ${
-                           platform.needsCover && !lesson.coverUrl
+                           !announced
+                             ? 'disabled title="Сначала отправьте анонс в этот канал"'
+                             : platform.needsCover && !lesson.coverUrl
                              ? 'disabled title="Сначала нужна обложка"'
                              : hasSource
                                ? busy
