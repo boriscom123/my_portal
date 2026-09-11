@@ -637,8 +637,9 @@ export function pageRoutes(config, pool) {
                 idLabel: 'Instagram App ID',
                 secretLabel: 'Instagram App Secret',
                 hint:
-                  'Нужен профессиональный аккаунт и приложение Meta типа Business. ' +
-                  'Страница в Facebook НЕ нужна. Порядок расписан в docs/instagram-setup.md.',
+                  'Нужен профессиональный аккаунт и приложение Meta со сценарием ' +
+                  '«Manage messaging & content on Instagram». Страница в Facebook НЕ ' +
+                  'нужна. Порядок расписан в docs/instagram-setup.md.',
                 next: 'Заведите приложение по инструкции и вставьте ключи — они понадобятся выкладке.',
                 // Выкладка готова: остаётся подключить аккаунт.
                 connect: '/api/integrations/instagram/connect?from=/settings'

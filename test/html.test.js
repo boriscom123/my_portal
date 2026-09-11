@@ -164,6 +164,69 @@ test('настройки открыты и гостю, но уведомлени
   assert.ok(!viewer.includes('/admin/'), 'зрителю показали разделы автора');
 });
 
+test('блоки настроек сворачиваются, и браузер это помнит', async () => {
+  const { settingsPage } = await import('../src/views/settings.js');
+  const author = settingsPage({
+    config,
+    user: { displayName: 'Автор', role: 'admin' },
+    shortPlatforms: [
+      {
+        name: 'instagram',
+        title: 'Instagram',
+        idLabel: 'Instagram App ID',
+        secretLabel: 'Instagram App Secret',
+        hint: 'подсказка',
+        next: 'дальше',
+        clientId: '',
+        hasSecret: false,
+        redirectUri: 'https://example.test/callback'
+      }
+    ],
+    channels: [
+      {
+        name: 'telegram',
+        title: 'Канал Telegram',
+        hint: 'подсказка',
+        placeholder: '@kanal',
+        needsToken: true,
+        tokenOptional: true,
+        channel: '',
+        configured: false,
+        hasToken: false
+      }
+    ]
+  });
+
+  // Ни одного несворачиваемого блока: иначе он один торчал бы во всю высоту
+  // посреди свёрнутых.
+  assert.ok(!author.includes('<section class="card"'), 'остался несворачиваемый блок');
+
+  // Имя блока постоянное и латиницей: по нему браузер помнит, что свёрнуто, и
+  // переименование заголовка не должно раскрывать блок у автора заново.
+  // По умолчанию всё раскрыто — как было до сворачивания.
+  const blocks = [
+    ...author.matchAll(/<details class="card settings-block" data-block="([a-z-]+)" open>\s*<summary/g)
+  ].map((match) => match[1]);
+  assert.deepEqual(blocks, [
+    'appearance',
+    'notifications',
+    'author',
+    'youtube',
+    'platform-instagram',
+    'channel-telegram',
+    'sources'
+  ]);
+  assert.equal((author.match(/<details class="card/g) ?? []).length, blocks.length);
+
+  const styles = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
+  // Safari рисует свой треугольник и без ::marker — рядом со своей стрелкой их
+  // было бы две.
+  assert.match(styles, /\.settings-block > summary::-webkit-details-marker\s*\{\s*display: none;/);
+
+  const script = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
+  assert.match(script, /'settings-collapsed'/);
+});
+
 test('летающий знак лежит отдельным слоем и не ловит нажатия', async () => {
   const html = layout({ config, title: 'Т', description: 'о', body: '' });
   // Слой отдельный, а не тот же узел, что в шапке: вырывать знак из разметки

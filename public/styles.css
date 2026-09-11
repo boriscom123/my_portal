@@ -484,6 +484,61 @@ main {
   padding: clamp(20px, 3vw, 26px);
 }
 
+/* Сворачиваемые блоки настроек. Нажимается вся строка заголовка, а не
+   крошечный треугольник: на телефоне в него не попасть. Стрелка своя —
+   смотрит вниз у раскрытого блока и вправо у свёрнутого. */
+.settings-block > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: var(--tap-target);
+  cursor: pointer;
+  list-style: none;
+  -webkit-tap-highlight-color: transparent;
+}
+/* Safari рисует свой треугольник и без ::marker, и без list-style. */
+.settings-block > summary::-webkit-details-marker {
+  display: none;
+}
+.settings-block > summary h2,
+.settings-block > summary h3 {
+  margin: 0;
+}
+.settings-block > summary::after {
+  content: '';
+  flex-shrink: 0;
+  width: 9px;
+  height: 9px;
+  margin-right: 4px;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(45deg);
+  transition: transform 0.2s ease;
+}
+.settings-block:not([open]) > summary::after {
+  transform: rotate(-45deg);
+}
+/* Свёрнутый блок — строка, а не карточка: с полными отступами девять
+   свёрнутых блоков занимали почти экран высотой. */
+.settings-block:not([open]) {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+.settings-block[open] > summary {
+  margin-bottom: 12px;
+}
+.settings-block > summary:focus-visible {
+  outline: 2px solid var(--brand-2);
+  outline-offset: 4px;
+  border-radius: 6px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .settings-block > summary::after {
+    transition: none;
+  }
+}
+
 footer {
   padding: 20px clamp(var(--gap), 4vw, 48px);
   border-top: 1px solid var(--line);

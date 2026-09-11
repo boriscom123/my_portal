@@ -7,6 +7,10 @@
 // Страница открыта всем, а не только автору: тема и уведомления — настройки
 // зрителя. Подключения площадок живут отдельно, в кабинете, и ссылка туда
 // показывается только автору.
+// Каждый блок сворачивается: блоков у автора под десяток, и нужный терялся
+// в прокрутке. Сворачивает сам браузер (details), поэтому без скрипта это
+// тоже работает; скрипт в public/app.js только помнит, что свёрнуто. Имя
+// блока в data-block постоянное — по нему и помнит.
 // Вызывается из src/routes/pages.js по адресу /settings.
 import { escapeHtml } from '../lib/html.js';
 import { layout } from './layout.js';
@@ -28,8 +32,8 @@ export function settingsPage({
     body: `
 <h1>Настройки</h1>
 
-<section class="card">
-  <h2>Оформление</h2>
+<details class="card settings-block" data-block="appearance" open>
+  <summary><h2>Оформление</h2></summary>
   <p class="hint">
     По умолчанию портал берёт тему из настроек устройства. Кнопка перебивает
     её: выбор хранится в этом браузере и на другом устройстве не появится.
@@ -37,10 +41,10 @@ export function settingsPage({
   <p class="form-row">
     <button class="button" type="button" data-theme-toggle>Светлая или тёмная</button>
   </p>
-</section>
+</details>
 
-<section class="card">
-  <h2>Уведомления о новых уроках</h2>
+<details class="card settings-block" data-block="notifications" open>
+  <summary><h2>Уведомления о новых уроках</h2></summary>
   ${
     user
       ? `<p class="hint">
@@ -55,21 +59,20 @@ export function settingsPage({
          </p>`
       : '<p class="hint">Уведомления приходят вошедшим: <a href="/login">войдите</a>, чтобы включить.</p>'
   }
-</section>
+</details>
 
 ${
   user?.role === 'admin'
-    ? `<section class="card">
-  <h2>Для автора</h2>
+    ? `<details class="card settings-block" data-block="author" open>
+  <summary><h2>Для автора</h2></summary>
   <p class="form-row">
     <a class="button" href="/lessons">Уроки</a>
     <a class="button" href="/admin/upload">Загрузка и Яндекс Диск</a>
   </p>
-</section>
+</details>
 
-<section class="card">
-  <h2>Площадки</h2>
-  <h3>YouTube</h3>
+<details class="card settings-block" data-block="youtube" open>
+  <summary><h2>Площадки · YouTube</h2></summary>
   <p class="hint">
     Ключи берутся в консоли Google Cloud — отдельным проектом, не тем, где живёт
     вход на портал. Порядок расписан в docs/youtube-setup.md.
@@ -118,12 +121,12 @@ ${
            </p>`
       : '<p class="hint">Сохраните ключи — после этого появится кнопка подключения канала.</p>'
   }
-</section>
+</details>
 
 ${shortPlatforms
   .map(
-    (platform) => `<section class="card">
-  <h3>${escapeHtml(platform.title)}</h3>
+    (platform) => `<details class="card settings-block" data-block="platform-${escapeHtml(platform.name)}" open>
+  <summary><h3>${escapeHtml(platform.title)}</h3></summary>
   <p class="hint">${escapeHtml(platform.hint)}</p>
   <form data-short-platform="${escapeHtml(platform.name)}">
     <label>${escapeHtml(platform.idLabel)}
@@ -163,14 +166,14 @@ ${shortPlatforms
         ? '<p class="hint">Ключи сохранены. Подключение аккаунта — следующий шаг работы.</p>'
         : ''
   }
-</section>`
+</details>`
   )
   .join('')}
 
 ${channels
   .map(
-    (channel) => `<section class="card">
-  <h3>${escapeHtml(channel.title)}</h3>
+    (channel) => `<details class="card settings-block" data-block="channel-${escapeHtml(channel.name)}" open>
+  <summary><h3>${escapeHtml(channel.title)}</h3></summary>
   <p class="hint">${escapeHtml(channel.hint)}</p>
   <form data-channel-app="${escapeHtml(channel.name)}">
     <label>Адрес канала
@@ -215,12 +218,12 @@ ${channels
         : ''
     }
   </p>
-</section>`
+</details>`
   )
   .join('')}
 
-<section class="card">
-  <h2>Источники анонсов</h2>
+<details class="card settings-block" data-block="sources" open>
+  <summary><h2>Источники анонсов</h2></summary>
   <p class="hint">
     Их ленты портал показывает в форме новости — по кнопке «Свежие анонсы».
     Выключенный источник остаётся в списке, но не спрашивается.
@@ -250,7 +253,7 @@ ${channels
       <button class="button-brand" type="submit">Добавить источник</button>
     </div>
   </form>
-</section>`
+</details>`
     : ''
 }`
   });

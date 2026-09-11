@@ -188,6 +188,32 @@ function updateThemeColor() {
   if (tag && background) tag.setAttribute('content', background);
 }
 
+// Свёрнутые блоки настроек. Сворачивает сам браузер (details) — скрипт только
+// помнит, что свёрнуто, в этом браузере, как и тему. Без хранилища блоки
+// просто раскрыты, как было до сворачивания.
+const COLLAPSED_KEY = 'settings-collapsed';
+const settingsBlocks = [...document.querySelectorAll('details[data-block]')];
+if (settingsBlocks.length) {
+  let collapsed = [];
+  try {
+    const stored = JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? '[]');
+    if (Array.isArray(stored)) collapsed = stored;
+  } catch {
+    // Приватное окно или испорченная запись: все блоки раскрыты.
+  }
+  for (const block of settingsBlocks) {
+    if (collapsed.includes(block.dataset.block)) block.open = false;
+    block.addEventListener('toggle', () => {
+      const closed = settingsBlocks.filter((item) => !item.open).map((item) => item.dataset.block);
+      try {
+        localStorage.setItem(COLLAPSED_KEY, JSON.stringify(closed));
+      } catch {
+        // Не запомнили — не беда: блок свёрнут до перезагрузки страницы.
+      }
+    });
+  }
+}
+
 function applyTheme(theme) {
   if (theme) document.documentElement.dataset.theme = theme;
   else delete document.documentElement.dataset.theme;
