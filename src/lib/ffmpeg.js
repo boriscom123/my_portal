@@ -232,6 +232,32 @@ export function ffmpegArgsForTrim({ listPath, output }) {
 }
 
 /**
+ * Аргументы для части записи — без пережатия.
+ * Резка без пережатия встаёт только на опорный кадр, поэтому часть начинается
+ * чуть раньше заказанного — до интервала опорных кадров (у записей заказчика
+ * 5 секунд, у смонтированных — 2). Зато часовой урок режется за секунды, а не за
+ * полчаса, и качество исходное.
+ * Вызывается из src/jobs/publish-lesson-parts.js.
+ */
+export function ffmpegArgsForPart({ input, output, startMs, endMs = null }) {
+  return [
+    '-hide_banner',
+    '-loglevel', 'error',
+    // Перемотка до входа: быстрая, по опорным кадрам.
+    '-ss', String(startMs / 1000),
+    '-i', input,
+    ...(endMs === null ? [] : ['-t', String((endMs - startMs) / 1000)]),
+    '-map', '0:v:0',
+    '-map', '0:a?',
+    '-c', 'copy',
+    '-avoid_negative_ts', 'make_zero',
+    '-movflags', '+faststart',
+    '-y',
+    output
+  ];
+}
+
+/**
  * Разбирает вывод silencedetect в промежутки тишины.
  * Вынесено отдельно от запуска: разбор чужого вывода — то место, где ошибка
  * тихая, а проверить её без ffmpeg можно только так.
