@@ -46,7 +46,10 @@ export const JOBS = {
   refreshPost: 'refreshPost',
   // Картинка к новости, нарисованная моделью. Довесок, как и обложка урока:
   // в конвейер урока не входит.
-  makeNewsImage: 'makeNewsImage'
+  makeNewsImage: 'makeNewsImage',
+  // Урок в канал частями видео — следом за анонсом, своей кнопкой.
+  publishTelegramParts: 'publishTelegramParts',
+  publishMaxParts: 'publishMaxParts'
 };
 
 /**
@@ -153,7 +156,11 @@ const NO_RETRY_JOBS = new Set([
   // неудаче и потом молча менял обложку. Повторить автор может одной кнопкой.
   JOBS.makeCoverImage,
   // Картинка к новости — по той же причине.
-  JOBS.makeNewsImage
+  JOBS.makeNewsImage,
+  // Части урока — как анонсы: повтор после неясного отказа — второй пост.
+  // Повтор кнопкой продолжает с непришедшей части (ход в publications.details).
+  JOBS.publishTelegramParts,
+  JOBS.publishMaxParts
 ]);
 
 /**

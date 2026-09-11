@@ -46,9 +46,16 @@ import { channelApp } from './services/platform-apps.js';
 import {
   postToTelegram,
   postVideoToTelegram,
-  editTelegramPost
+  editTelegramPost,
+  postPartsToTelegram
 } from './services/platforms/telegram-channel.js';
-import { postToMax, postVideoToMax, editMaxPost } from './services/platforms/max-channel.js';
+import {
+  postToMax,
+  postVideoToMax,
+  editMaxPost,
+  postPartsToMax
+} from './services/platforms/max-channel.js';
+import { makePublishLessonParts } from './jobs/publish-lesson-parts.js';
 import { makePublishInstagram } from './jobs/publish-instagram.js';
 import { instagramAccess } from './services/platforms/instagram-auth.js';
 import {
@@ -94,13 +101,15 @@ const telegramAdapter = {
   app: channelApp,
   post: (args) => postToTelegram({ ...args, ...telegramApi }),
   postVideo: (args) => postVideoToTelegram({ ...args, ...telegramApi }),
-  edit: (args) => editTelegramPost({ ...args, ...telegramApi })
+  edit: (args) => editTelegramPost({ ...args, ...telegramApi }),
+  postParts: (args) => postPartsToTelegram({ ...args, ...telegramApi })
 };
 const maxAdapter = {
   app: channelApp,
   post: postToMax,
   postVideo: postVideoToMax,
-  edit: editMaxPost
+  edit: editMaxPost,
+  postParts: postPartsToMax
 };
 
 // Обработчики шагов конвейера. Добавляются по мере готовности.
@@ -141,6 +150,9 @@ const handlers = {
   }),
   [JOBS.publishTelegram]: makePublishChannel(config, pool, 'telegram', telegramAdapter),
   [JOBS.publishMax]: makePublishChannel(config, pool, 'max', maxAdapter),
+  // Урок частями видео — следом за анонсом, в тот же канал.
+  [JOBS.publishTelegramParts]: makePublishLessonParts(config, pool, 'telegram_parts', telegramAdapter),
+  [JOBS.publishMaxParts]: makePublishLessonParts(config, pool, 'max_parts', maxAdapter),
   [JOBS.refreshChannels]: makeRefreshChannels(config, pool, {
     telegram: telegramAdapter,
     max: maxAdapter
