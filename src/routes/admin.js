@@ -8,7 +8,12 @@
 import { Router } from 'express';
 import { requireAdmin } from '../middleware/guards.js';
 import { PublicError } from '../middleware/errors.js';
-import { saveLesson, setLessonTags, getLessonBySlug } from '../services/lessons.js';
+import {
+  saveLesson,
+  setLessonTags,
+  getLessonBySlug,
+  renameLessonSlug
+} from '../services/lessons.js';
 import { createLesson, deleteLesson } from '../services/lesson-admin.js';
 import { notifyAboutLesson } from '../services/notify/lesson.js';
 import { rm } from 'node:fs/promises';
@@ -84,6 +89,17 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
       // поднимать урок наверх ленты как новый.
       publishedAt: publish ? (current.publishedAt ?? new Date()) : null
     });
+
+    // Адрес урока — из заголовка, но только пока урок никуда не ушёл. При
+    // заведении заголовка ещё нет, и адрес выходит временным, с датой; здесь
+    // автор пишет настоящий. После публикации адрес закрепляется навсегда: он
+    // уже стоит в описании ролика на YouTube и в постах каналов.
+    const wentOut =
+      current.status === 'published' ||
+      (await publicationsFor(pool, lesson.id)).some((item) => item.state === 'published');
+    if (!wentOut) {
+      lesson.slug = await renameLessonSlug(pool, { lessonId: lesson.id, title });
+    }
 
     // Главы приходят текстом, по строке на главу: автор правит ровно то, что
     // увидит зритель в описании ролика. Строки без времени — не главы, и

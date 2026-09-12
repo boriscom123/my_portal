@@ -452,6 +452,16 @@ export function initPage() {
           })
         });
         if (!answer) return;
+        // Адрес урока собирается из заголовка, пока урок никуда не ушёл.
+        // Сменился — уходим на новую страницу: прежнего адреса больше нет, и
+        // следующее нажатие на этой странице получило бы «урок не найден».
+        if (answer.lesson?.slug && answer.lesson.slug !== reviewForm.dataset.approve) {
+          toast(publish ? 'Урок на витрине.' : 'Черновик сохранён.');
+          setTimeout(() => {
+            location.href = `/admin/lesson/${answer.lesson.slug}`;
+          }, 1500);
+          return;
+        }
         if (publish) {
           toast('Урок на витрине.');
           // Состояние урока на странице написано словом «черновик»: после

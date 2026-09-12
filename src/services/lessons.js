@@ -5,6 +5,8 @@
 // повторяться в каждом маршруте и каждом шаблоне — там его однажды забудут.
 // Вызывается из src/routes/lessons.js и src/routes/pages.js.
 
+import { slugify, uniqueSlug } from '../lib/slug.js';
+
 // Сколько уроков отдаём за раз. Лента бесконечной не бывает, а без предела
 // первый же год работы портала превратит главную в мегабайт HTML.
 const DEFAULT_LIMIT = 20;
@@ -166,6 +168,35 @@ export async function saveLesson(pool, lesson) {
     ]
   );
   return toLesson(rows[0]);
+}
+
+/**
+ * Пересобирает адрес урока из заголовка и отдаёт новый.
+ *
+ * Зачем: адрес собирается при заведении урока, когда заголовка ещё нет — тогда
+ * он временный, с датой («Урок от 2026-09-10»). Автор пишет настоящий заголовок
+ * на экране проверки, и адрес должен стать по нему, а не остаться датой.
+ * Из заголовка вроде «!!! ???» адреса не выходит — тогда адрес по номеру урока:
+ * урок без адреса не открыть.
+ *
+ * Вызывать можно только пока урок никуда не ушёл: после публикации адрес стоит
+ * в описании ролика на YouTube и в постах каналов, и менять его значит ломать
+ * те ссылки. Это решает вызывающий — src/routes/admin.js при утверждении.
+ */
+export async function renameLessonSlug(pool, { lessonId, title }) {
+  // Свой адрес из занятых исключаем: иначе заголовок, оставленный без правки,
+  // превращал бы «rabota-s-docker» в «rabota-s-docker-2».
+  const { rows: taken } = await pool.query('SELECT slug FROM lessons WHERE id <> $1', [lessonId]);
+  const base = slugify(title) || String(lessonId);
+  const slug = uniqueSlug(
+    base,
+    taken.map((row) => row.slug)
+  );
+  const { rows } = await pool.query('UPDATE lessons SET slug = $2 WHERE id = $1 RETURNING slug', [
+    lessonId,
+    slug
+  ]);
+  return rows[0].slug;
 }
 
 /** Заменяет набор тегов урока целиком. Незнакомые теги заводятся на лету. */
