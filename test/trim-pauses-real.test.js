@@ -9,7 +9,7 @@ import { spawn } from 'node:child_process';
 import { makeTrimPauses } from '../src/jobs/trim-pauses.js';
 import { saveLesson } from '../src/services/lessons.js';
 import { registerAsset } from '../src/services/media.js';
-import { probeDuration } from '../src/lib/ffmpeg.js';
+import { probeDuration, detectSilence } from '../src/lib/ffmpeg.js';
 import { withTestDb, skipWithoutDb } from './helpers/db.js';
 
 const hasFfmpeg = await new Promise((resolve) => {
@@ -22,14 +22,15 @@ const hasFfmpeg = await new Promise((resolve) => {
  * Ролик на минуту со звуком в первые и последние десять секунд и тишиной
  * посередине. Настоящий файл: монтаж меряет именно звук, и на ролике с ровным
  * тоном по всей длине резать было бы нечего.
+ * `muted` — когда звук выключен, выражение для фильтра volume.
  */
-function makeSample(file) {
+function makeSample(file, muted = 'between(t,10,50)') {
   return new Promise((resolve, reject) => {
     const child = spawn('ffmpeg', [
       '-hide_banner', '-loglevel', 'error',
       '-f', 'lavfi', '-i', 'testsrc=size=320x240:rate=10:duration=60',
       '-f', 'lavfi', '-i', 'sine=frequency=440:duration=60',
-      '-filter_complex', "[1:a]volume=enable='between(t,10,50)':volume=0[a]",
+      '-filter_complex', `[1:a]volume=enable='${muted}':volume=0[a]`,
       '-map', '0:v', '-map', '[a]',
       '-shortest', '-pix_fmt', 'yuv420p', '-y', file
     ]);
@@ -38,12 +39,12 @@ function makeSample(file) {
   });
 }
 
-async function seed(pool, settings) {
+async function seed(pool, settings, muted) {
   const config = { media: { dir: await mkdtemp(path.join(tmpdir(), 'portal-trim-')), ttlHours: 168 } };
   const lesson = await saveLesson(pool, { slug: 'urok', title: 'Урок', durationSeconds: 60 });
   await mkdir(path.join(config.media.dir, 'urok'), { recursive: true });
   const source = path.join(config.media.dir, 'urok/source.mp4');
-  await makeSample(source);
+  await makeSample(source, muted);
   const asset = await registerAsset(pool, config, {
     lessonId: lesson.id,
     kind: 'source',
@@ -116,6 +117,32 @@ test('запись становится короче, а субтитры к н�
       [lessonId]
     );
     assert.equal(saved[0].ranges?.length, 2, 'отрезки монтажа не сохранены');
+  });
+});
+
+test('тишина в начале записи вырезается, а не сдвигает всю запись', skipWithoutDb, async (t) => {
+  if (!hasFfmpeg) return t.skip('ffmpeg не установлен');
+
+  await withTestDb(async (pool) => {
+    // Речь начинается на пятой секунде, а опорный кадр у ролика один — в нуле.
+    // Склейка по списку отдаёт кадры от опорного кадра до начала куска с
+    // отрицательными временами, и без -copyts ffmpeg сдвигал на них всю запись:
+    // тишина оставалась в начале, а субтитры шли впереди на эти секунды.
+    const { config, lessonId } = await seed(
+      pool,
+      { cutPauses: true, minPauseSeconds: 2 },
+      'not(between(t,5,15))'
+    );
+    await makeTrimPauses(config, pool)({ lessonId });
+
+    const trimmed = path.join(config.media.dir, `lesson-${lessonId}/trimmed.mp4`);
+    const silences = await detectSilence(trimmed, { minPauseSeconds: 0.5 });
+    const leading = silences.find((silence) => silence.startMs === 0);
+    // Запас монтажа — четверть секунды; тишины длиннее полусекунды в начале
+    // смонтированной записи быть не должно.
+    assert.ok(!leading, `звук начинается на ${leading?.endMs} мс вместо самого начала`);
+    const seconds = await probeDuration(trimmed);
+    assert.ok(seconds < 11.5, `в файле ${seconds} с вместо десяти с половиной`);
   });
 });
 
