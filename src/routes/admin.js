@@ -249,7 +249,9 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
     });
     const state = privacy === 'public' ? 'published' : publication.state;
     if (state !== publication.state) {
-      await markPublicationState(pool, publication.id, { state });
+      // Жалоба выкладки («субтитры не встали») остаётся: ролик стал публичным,
+      // но то, что к нему не прикрепилось, от этого не прикрепилось.
+      await markPublicationState(pool, publication.id, { state, error: publication.error });
       // Ролик стал виден зрителю — в постах каналов должна появиться ссылка на
       // него. Правкой уже отправленных постов, а не новыми.
       await addJob(req.app.locals.queue, JOBS.refreshChannels, { lessonId: lesson.id });

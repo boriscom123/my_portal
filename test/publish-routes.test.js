@@ -145,6 +145,47 @@ test('«Проверить» переводит открытый ролик в p
   });
 });
 
+test('«Проверить» не затирает жалобу выкладки', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const { lesson, adminId } = await seed(pool);
+    await connectChannel(pool);
+    const { id } = await startPublication(pool, {
+      lessonId: lesson.id,
+      platform: 'youtube',
+      assetId: null,
+      mode: 'semi'
+    });
+    // Ролик уехал, а субтитры — нет: жалоба пишется рядом с публикацией. Раньше
+    // перевод в published по кнопке стирал её, и причина пропадала бесследно.
+    await pool.query(
+      `UPDATE publications SET state = 'ready', external_id = 'video-1',
+                               error = 'субтитры не встали: отказ' WHERE id = $1`,
+      [id]
+    );
+
+    const app = finalize(createApp({
+      config,
+      pool,
+      queue: { add: async () => {} },
+      fetchImpl: async () => ({
+        ok: true,
+        json: async () => ({ items: [{ status: { privacyStatus: 'public' } }] })
+      })
+    }));
+
+    await withServer(app, async (base) => {
+      await fetch(`${base}/api/admin/lessons/urok/publish/youtube/check`, {
+        method: 'POST',
+        headers: asAdmin(adminId)
+      });
+    });
+
+    const [publication] = await publicationsFor(pool, lesson.id);
+    assert.equal(publication.state, 'published');
+    assert.equal(publication.error, 'субтитры не встали: отказ');
+  });
+});
+
 test('всё ещё приватный ролик остаётся ready', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
     const { lesson, adminId } = await seed(pool);
