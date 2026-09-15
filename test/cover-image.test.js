@@ -358,7 +358,7 @@ test('запрос для обложки даёт текстовая модел�
     assert.equal(fromTemplate.promptSource, 'template');
     // Шаблон держит смысл предметной сценой, а не запретами: отрицаний в нём
     // нет вовсе, модель рисования читает их наоборот.
-    assert.match(prompts[1], /concrete physical scene/);
+    assert.match(prompts[1], /concrete scene/);
   });
 });
 

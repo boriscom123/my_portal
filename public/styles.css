@@ -2145,3 +2145,20 @@ label[for='cover-file'] {
   border-color: transparent;
   color: #fff;
 }
+
+/* Проекты в форме новости — за кнопками. Кнопка — сама строка summary: свой
+   треугольник браузера рядом с кнопкой смотрелся бы лишним. */
+.project-picker {
+  margin: 0 0 var(--gap);
+}
+.project-picker > summary {
+  display: inline-flex;
+  cursor: pointer;
+  list-style: none;
+}
+.project-picker > summary::-webkit-details-marker {
+  display: none;
+}
+.project-picker[open] > summary {
+  margin-bottom: 10px;
+}

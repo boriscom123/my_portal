@@ -491,6 +491,24 @@ test('запрос для картинки к новости — по-англи
   assert.match(prompt, /Текст заметки про модель/);
 });
 
+test('запросы на картинки — без цветовой схемы и заводских сцен, про IT и AI', () => {
+  // Заказчик 2026-09-15: картинки выходили тёмными, а сюжеты — как с
+  // механического завода. Причина была прямо в запросах: заданная тёмная
+  // палитра и «механизм, мастерская, конвейер». Цвет выбирает рисовальщик под
+  // сюжет, а сюжет — из мира IT и AI.
+  const prompts = {
+    news: buildImagePrompt('Вышла новая модель', 'Текст заметки.'),
+    cover: buildCoverImagePrompt({ title: 'Портал на VPS', tags: ['vps'] }),
+    lessonTexts: buildPrompt('Разбираем докер компоуз', '')
+  };
+  for (const [name, prompt] of Object.entries(prompts)) {
+    assert.doesNotMatch(prompt, /тёмный фон|синие и фиолетовые|оранжев/i, `${name}: осталась палитра`);
+    assert.doesNotMatch(prompt, /мастерск|конвейер|механизм/i, `${name}: остался завод`);
+    assert.match(prompt, /IT/, `${name}: нет привязки к IT`);
+    assert.match(prompt, /искусственн|нейросет/i, `${name}: нет привязки к AI`);
+  }
+});
+
 test('ответ рисовальщика разбирается, пустой — отказ', () => {
   const parsed = parseImagePrompt({
     candidates: [

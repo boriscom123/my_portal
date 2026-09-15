@@ -184,7 +184,7 @@ test('шаг рисует по запросу автора, по Gemini без �
       }
     })({ newsId: item.id });
     assert.equal(byTemplate.promptSource, 'template');
-    assert.match(images.prompts[2], /concrete physical scene/);
+    assert.match(images.prompts[2], /concrete scene/);
     assert.equal((await getNewsById(pool, item.id)).images.length, 3);
   });
 });

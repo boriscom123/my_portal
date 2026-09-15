@@ -8,6 +8,7 @@ import {
   parseDrawingResponse,
   describeDrawingFailure,
   coverPromptTemplate,
+  newsPromptTemplate,
   checkDrawingToken,
   stripNegations,
   DRAWING_URL,
@@ -173,9 +174,25 @@ test('токен проверяется бесплатным запросом, �
 
 test('шаблонный запрос просит предметную сцену, а не значок видео', () => {
   const prompt = coverPromptTemplate({ title: 'Т', tags: [] });
-  assert.match(prompt, /concrete physical scene/);
+  assert.match(prompt, /concrete scene/);
   // Даже в запрете: слово «play» в запросе и рисует кнопку play.
   assert.ok(!/play|video|screen/i.test(prompt), `в шаблоне слово про видео: ${prompt}`);
+});
+
+test('запасные шаблоны — без цветовой схемы и заводских сцен, про IT и AI', () => {
+  // Картинки выходили тёмными и «с механического завода»: палитра и мастерская
+  // были прямо в шаблоне. Цвет выбирает рисовальщик, сюжет — из мира IT и AI.
+  for (const prompt of [
+    coverPromptTemplate({ title: 'Т', tags: [] }),
+    newsPromptTemplate({ title: 'Т' })
+  ]) {
+    assert.ok(
+      !/dark background|violet|orange|workshop|conveyor|machine/i.test(prompt),
+      `в шаблоне палитра или завод: ${prompt}`
+    );
+    assert.match(prompt, /server|chip|data/i);
+    assert.match(prompt, /neural network|artificial intelligence/i);
+  }
 });
 
 test('отрицания вычищаются из запроса целыми кусками', () => {

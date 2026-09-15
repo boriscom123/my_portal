@@ -68,10 +68,13 @@ export function describeDrawingFailure(status, detail = '') {
 
 // Сцена и стиль — общие для обложки урока и картинки к новости. Без
 // отрицаний и без слов про видео: модель рисования читает их наоборот.
+// Сцена — из мира IT и искусственного интеллекта, а цвета выбирает рисовальщик:
+// с заданной тёмной палитрой и «мастерской» картинки выходили тёмными и как с
+// механического завода, а не с IT-портала.
 const SCENE_STYLE = [
-  'Show a concrete physical scene with real-world objects (a machine, a workshop, a conveyor, tools) as a visual metaphor of the topic.',
-  'Simple composition readable at thumbnail size, plain surfaces, clean flat shapes.',
-  'Dark background, deep blue and violet tones, a single warm orange accent, soft glow.'
+  'Show a concrete scene from the world of IT and artificial intelligence (servers, circuit boards and chips, glowing data streams, neural network nodes, cloud infrastructure, a developer workspace) as a visual metaphor of the topic.',
+  'Simple composition readable at thumbnail size, clean flat shapes.',
+  'Modern tech illustration style for an IT portal, colors chosen to suit the scene.'
 ];
 
 /**

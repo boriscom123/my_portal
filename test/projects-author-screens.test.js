@@ -86,6 +86,13 @@ test('заведение урока и форма новости спрашив�
 
       const created = await (await fetch(`${base}/news/new`, { headers })).text();
       assert.match(created, /<option value="" selected>Без проекта<\/option>/);
+
+      // В новости проекты спрятаны за кнопками: у новой оба блока свёрнуты.
+      assert.match(created, /<details class="project-picker">\s*<summary[^>]*>Добавить основной проект<\/summary>/);
+      assert.match(created, /<details class="project-picker">\s*<summary[^>]*>Добавить связанные проекты<\/summary>/);
+      // У новости с проектом блок основного сразу открыт — видно, что стоит.
+      assert.match(edit, /<details class="project-picker" open>\s*<summary[^>]*>Добавить основной проект<\/summary>/);
+      assert.match(edit, /<details class="project-picker">\s*<summary[^>]*>Добавить связанные проекты<\/summary>/);
     });
   });
 });

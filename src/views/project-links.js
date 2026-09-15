@@ -16,7 +16,13 @@ import { escapeHtml } from '../lib/html.js';
  * locked — основной заперт (урок в серии): выключенный select форма не шлёт,
  * и сервер берёт проект серии. Текст подсказки приходит готовой разметкой.
  */
-export function projectFields({ projects = [], mainId = null, relatedIds = [], locked = null }) {
+export function projectFields({
+  projects = [],
+  mainId = null,
+  relatedIds = [],
+  locked = null,
+  collapsible = false
+}) {
   const options = projects
     .map(
       (project) =>
@@ -40,17 +46,32 @@ export function projectFields({ projects = [], mainId = null, relatedIds = [], l
     .join('');
 
   // Проект необязателен: «Без проекта» — законный выбор и стоит первым.
-  return `<label>Основной проект
+  const mainBlock = `<label>Основной проект
     <select name="mainSlug"${locked ? ' disabled' : ''}>
       <option value=""${mainId ? '' : ' selected'}>Без проекта</option>
       ${options}
     </select>
   </label>
-  ${locked ? `<p class="hint">${locked}</p>` : ''}
-  <fieldset class="project-related">
+  ${locked ? `<p class="hint">${locked}</p>` : ''}`;
+  const relatedBlock = `<fieldset class="project-related">
     <legend>Связанные проекты</legend>
     ${checkboxes}
   </fieldset>`;
+
+  if (!collapsible) return `${mainBlock}\n  ${relatedBlock}`;
+
+  // Свёрнуто за кнопками — в форме новости, где проект нужен не всякой
+  // заметке, а открытые поля отнимали место у текста. Блок с уже выбранным
+  // проектом открыт сразу: иначе не видно, что стоит. details, а не свой
+  // скрипт: раскрывается и без него, а поля внутри уходят с формой как обычно.
+  return `<details class="project-picker"${mainId ? ' open' : ''}>
+    <summary class="button">Добавить основной проект</summary>
+    ${mainBlock}
+  </details>
+  <details class="project-picker"${relatedIds.length ? ' open' : ''}>
+    <summary class="button">Добавить связанные проекты</summary>
+    ${relatedBlock}
+  </details>`;
 }
 
 /**

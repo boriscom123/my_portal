@@ -52,7 +52,9 @@ function newsForm(item = null, projects = []) {
     projects,
     // Новая новость — без проекта, пока его не выбрали; у существующей — её собственный.
     mainId: item?.projects?.main?.id ?? null,
-    relatedIds: (item?.projects?.related ?? []).map((project) => project.id)
+    relatedIds: (item?.projects?.related ?? []).map((project) => project.id),
+    // В новости проекты — за кнопками: нужны они не всякой заметке.
+    collapsible: true
   })}
   <p class="hint">
     Ссылки пишите прямо в тексте — портал сделает их кликабельными. Картинки
