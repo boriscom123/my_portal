@@ -96,6 +96,20 @@ test('урок идёт во всю ширину, а не карточкой в 
   assert.doesNotMatch(page, /class="lessons-grid"/);
 });
 
+test('на главной автор видит значок правки у урока и у новости, зритель — нет', () => {
+  // Заказчику неудобно сначала идти в раздел, а уже там — к значку правки:
+  // значок стоит и на главной, как в «Уроках» и «Новостях».
+  const lessons = [lesson('urok', 'Урок', '02')];
+  const news = [newsItem('novost', 'Новость', '03')];
+
+  const author = feedPage({ config, lessons, news, user: { role: 'admin' } });
+  assert.match(author, /<a class="edit" href="\/admin\/lesson\/urok"[^>]*>✎<\/a>/);
+  assert.match(author, /<a class="edit" href="\/news\/novost\/edit"[^>]*>✎<\/a>/);
+
+  const guest = feedPage({ config, lessons, news, user: null });
+  assert.doesNotMatch(guest, /class="edit"/);
+});
+
 test('соседние новости встают в один ряд, а урок его разрывает', () => {
   const page = feedPage({
     config,

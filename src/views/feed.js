@@ -47,7 +47,14 @@ function lessonCard(lesson, isAdmin, fresh = false) {
         ? ` · <span class="badge${lesson.pipelineState === 'failed' ? ' danger' : ''}">${escapeHtml(state)}</span>`
         : ''
     }</p>
-    <h3><a href="/lesson/${encodeURIComponent(lesson.slug)}">${escapeHtml(lesson.title)}</a></h3>
+    <h3><a href="/lesson/${encodeURIComponent(lesson.slug)}">${escapeHtml(lesson.title)}</a>${
+      // Автору — значок правки прямо на главной, как в «Уроках»: не ходить
+      // сначала в раздел, чтобы открыть урок.
+      isAdmin
+        ? ` <a class="edit" href="/admin/lesson/${encodeURIComponent(lesson.slug)}"
+             title="Открыть урок" aria-label="Открыть урок">✎</a>`
+        : ''
+    }</h3>
     <p class="card-text">${escapeHtml(lesson.description)}</p>
     ${projectLinks(lesson.projects, '/lessons')}
     ${
@@ -79,7 +86,7 @@ function lessonCard(lesson, isAdmin, fresh = false) {
  * бейдж «Новость». Вперемешку без различий лента читалась бы как сломанная — человек не
  * понимал бы, почему одни карточки открывают видео, а другие текст.
  */
-function newsCard(item, fresh = false) {
+function newsCard(item, isAdmin = false, fresh = false) {
   return `<article class="lesson-card news-in-feed">
   ${
     item.images.length
@@ -92,7 +99,13 @@ function newsCard(item, fresh = false) {
   <div class="card-body">
     ${item.images.length ? '' : kindBadge('news', fresh)}
     <p class="meta">${escapeHtml(formatDate(item.publishedAt))}</p>
-    <h3><a href="/news/${encodeURIComponent(item.slug)}">${escapeHtml(item.title)}</a></h3>
+    <h3><a href="/news/${encodeURIComponent(item.slug)}">${escapeHtml(item.title)}</a>${
+      // Автору — значок правки прямо на главной, как в «Новостях».
+      isAdmin
+        ? ` <a class="edit" href="/news/${encodeURIComponent(item.slug)}/edit"
+             title="Править новость" aria-label="Править новость">✎</a>`
+        : ''
+    }</h3>
     <p class="card-text">${escapeHtml(item.body).slice(0, 220)}</p>
     ${projectLinks(item.projects, '/news')}
   </div>
@@ -119,7 +132,7 @@ export function feedPage({ config, lessons, news = [], user, tag = null }) {
     ...news.map((item) => ({
       kind: 'news',
       at: item.publishedAt,
-      html: newsCard(item, item === freshNews)
+      html: newsCard(item, user?.role === 'admin', item === freshNews)
     }))
   ].sort((first, second) => new Date(second.at) - new Date(first.at));
 
