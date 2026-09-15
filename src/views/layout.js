@@ -88,7 +88,6 @@ ${
     <a href="/news">Новости</a>
     <a href="/lessons">Уроки</a>
     <a href="/shorts">Коротко</a>
-    <a href="/feedback">Обратная связь</a>
     <a href="/settings">Настройки</a>
     ${
       user
@@ -135,6 +134,9 @@ ${
            <a href="${escapeHtml(config.repoUrl)}" rel="noopener" target="_blank">Исходный код</a>`
         : ''
     }
+    <!-- «Обратная связь» — здесь, а не в шапке: разделы там теснились, а
+         написать автору ищут внизу, рядом с остальными служебными ссылками. -->
+    <a href="/feedback">Обратная связь</a>
     <a href="/privacy">Конфиденциальность</a>
     <a href="/terms">Условия</a>
   </span>

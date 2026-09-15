@@ -113,7 +113,11 @@ test('разделы в шапке лежат в меню, работающем 
 
   const nav = html.slice(html.indexOf('<nav class="nav">'), html.indexOf('</nav>'));
   assert.match(nav, /href="\/search"/);
-  assert.match(nav, /href="\/feedback"/);
+  // «Обратная связь» — в подвале, рядом с правовыми ссылками: заказчик
+  // 2026-09-15 убрал её из шапки, где она теснила разделы.
+  assert.doesNotMatch(nav, /href="\/feedback"/);
+  const footer = html.slice(html.indexOf('<footer>'), html.indexOf('</footer>'));
+  assert.match(footer, /<a href="\/feedback">Обратная связь<\/a>/);
   // Тема и уведомления уехали в раздел настроек: в шапке они были двумя
   // значками без подписей, и на телефоне их принимали за украшение.
   assert.match(nav, /href="\/settings"/);
