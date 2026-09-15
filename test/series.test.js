@@ -426,6 +426,8 @@ test('в списке уроков — обложка и место в сери�
         await fetch(`${base}/lessons`, { headers: { ...headers, Accept: 'text/html' } })
       ).text();
       assert.match(author, /урок 3 из 4/);
+      // Состояние Яндекс Диска — в настройках, в списке уроков ему не место.
+      assert.doesNotMatch(author, /Яндекс Диск:/);
     });
   });
 });

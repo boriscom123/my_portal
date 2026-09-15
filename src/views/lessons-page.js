@@ -73,7 +73,7 @@ function lessonCard(lesson, isAdmin) {
 </article>`;
 }
 
-export function lessonsPage({ config, user, lessons, series = [], diskConnected = false }) {
+export function lessonsPage({ config, user, lessons, series = [] }) {
   const isAdmin = user?.role === 'admin';
   // Пока что-то считается, страница перечитывается сама: иначе автор смотрит
   // на «обрабатывается» и жмёт перезагрузку вручную каждые полминуты. Форма
@@ -95,19 +95,9 @@ export function lessonsPage({ config, user, lessons, series = [], diskConnected 
     ? ` <a class="add" href="/lessons/new" title="Завести урок" aria-label="Завести урок">+</a>`
     : ''
 }</h1>
-${
-  isAdmin
-    ? `<p class="hint">
-  Яндекс Диск: ${
-    diskConnected
-      ? 'подключён — записи можно брать оттуда'
-      : '<a href="/admin/upload">не подключён</a>'
-  }
-</p>`
-    : ''
-}
-
-
+<!-- Состояние Яндекс Диска здесь больше не показывается: оно живёт в
+     настройках, рядом с самим подключением. В списке уроков это была строка,
+     которая ничего не давала сделать. -->
 
 ${
   series.length

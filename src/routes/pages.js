@@ -226,8 +226,7 @@ export function pageRoutes(config, pool) {
         lessons: await listLessons(pool, { includeDrafts: isAdmin }),
         // Серии впереди списка: курс из восьми уроков человеку полезнее
         // восьми отдельных строк, между которыми он выбирает наугад.
-        series: await listSeries(pool, { includeDrafts: isAdmin }),
-        diskConnected: isAdmin ? await diskConnected() : false
+        series: await listSeries(pool, { includeDrafts: isAdmin })
       })
     );
   });
