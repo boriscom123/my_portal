@@ -1,6 +1,6 @@
 import { keyToBytes } from './push-key.js';
 import { startNavigation } from './navigation.js';
-import { toast, request, reportError } from './ui.js';
+import { toast, request, reportError, bindProjectFields, projectValues } from './ui.js';
 
 // Помощники живут в ui.js; реэкспорт — чтобы не рвать чужие импорты.
 export { toast, request };
@@ -434,6 +434,89 @@ function initPage() {
         location.reload();
       } catch (error) {
         toast(`Не убрался: ${error.message}`, true);
+      }
+    });
+  }
+
+  /* --- Проекты и серии в настройках --------------------------------------- */
+
+  // Форма без адреса проекта заводит новый, с адресом — правит его.
+  for (const projectForm of document.querySelectorAll('[data-project-form]')) {
+    projectForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const fields = new FormData(projectForm);
+      try {
+        const answer = await request('/api/admin/projects', {
+          method: 'POST',
+          body: JSON.stringify({
+            slug: projectForm.dataset.projectForm || null,
+            title: fields.get('title'),
+            description: fields.get('description')
+          })
+        });
+        if (!answer) return;
+        toast(projectForm.dataset.projectForm ? 'Проект сохранён.' : 'Проект заведён.');
+        setTimeout(() => location.reload(), 900);
+      } catch (error) {
+        toast(`Не сохранилось: ${error.message}`, true);
+      }
+    });
+  }
+
+  // Удаление называет, сколько материалов останется без основного проекта:
+  // «вы уверены?» здесь ничего бы не сказало.
+  for (const remove of document.querySelectorAll('[data-project-delete]')) {
+    remove.addEventListener('click', async () => {
+      const orphans = Number(remove.getAttribute('data-main-count'));
+      const warning = orphans
+        ? `Удалить проект? У ${orphans} материалов он основной — они останутся без основного проекта.`
+        : 'Удалить проект? Материалы останутся, уйдут только пометки.';
+      if (!confirm(warning)) return;
+      try {
+        const answer = await request(`/api/admin/projects/${remove.dataset.projectDelete}`, {
+          method: 'DELETE'
+        });
+        if (answer) location.reload();
+      } catch (error) {
+        toast(`Не удалилось: ${error.message}`, true);
+      }
+    });
+  }
+
+  for (const seriesSettings of document.querySelectorAll('[data-series-settings]')) {
+    bindProjectFields(seriesSettings);
+    seriesSettings.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const fields = new FormData(seriesSettings);
+      try {
+        const answer = await request('/api/admin/series', {
+          method: 'POST',
+          body: JSON.stringify({
+            slug: seriesSettings.dataset.seriesSettings || null,
+            title: fields.get('title'),
+            description: fields.get('description'),
+            ...projectValues(fields)
+          })
+        });
+        if (!answer) return;
+        toast(seriesSettings.dataset.seriesSettings ? 'Серия сохранена.' : 'Серия заведена.');
+        setTimeout(() => location.reload(), 900);
+      } catch (error) {
+        toast(`Не сохранилось: ${error.message}`, true);
+      }
+    });
+  }
+
+  for (const remove of document.querySelectorAll('[data-series-settings-delete]')) {
+    remove.addEventListener('click', async () => {
+      if (!confirm('Удалить серию? Уроки останутся, они просто перестанут быть связанными.')) return;
+      try {
+        const answer = await request(`/api/admin/series/${remove.dataset.seriesSettingsDelete}`, {
+          method: 'DELETE'
+        });
+        if (answer) location.reload();
+      } catch (error) {
+        toast(`Не удалилось: ${error.message}`, true);
       }
     });
   }

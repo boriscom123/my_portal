@@ -211,6 +211,8 @@ test('блоки настроек сворачиваются, и браузер 
     'appearance',
     'notifications',
     'author',
+    'projects',
+    'series',
     'youtube',
     'platform-instagram',
     'channel-telegram',

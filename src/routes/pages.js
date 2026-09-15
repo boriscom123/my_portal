@@ -22,6 +22,7 @@ import {
   seriesNavigation,
   relatedLessons
 } from '../services/series.js';
+import { listProjects, projectsFor } from '../services/projects.js';
 import { seriesPage } from '../views/series.js';
 import {
   shortsListPage,
@@ -728,6 +729,17 @@ export function pageRoutes(config, pool) {
           })()
         : null;
 
+    // Проекты и серии — только автору: зрителю эти разделы не показываются.
+    const isAuthor = user?.role === 'admin';
+    const projects = isAuthor ? await listProjects(pool) : [];
+    const seriesList = isAuthor ? await listSeries(pool, { includeDrafts: true }) : [];
+    const seriesLinks = await projectsFor(
+      pool,
+      'series',
+      seriesList.map((item) => item.id)
+    );
+    for (const item of seriesList) item.projects = seriesLinks.get(item.id);
+
     res.type('html').send(
       settingsPage({
         config,
@@ -738,7 +750,9 @@ export function pageRoutes(config, pool) {
         drawing,
         // Источники анонсов правит автор: сегодня их девять, завтра появится
         // NVIDIA.
-        sources: user?.role === 'admin' ? await listSources(pool) : []
+        sources: user?.role === 'admin' ? await listSources(pool) : [],
+        projects,
+        seriesList
       })
     );
   });

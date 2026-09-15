@@ -14,6 +14,7 @@
 // Вызывается из src/routes/pages.js по адресу /settings.
 import { escapeHtml } from '../lib/html.js';
 import { layout } from './layout.js';
+import { projectFields } from './project-links.js';
 
 export function settingsPage({
   config,
@@ -22,7 +23,9 @@ export function settingsPage({
   channels = [],
   shortPlatforms = [],
   drawing = null,
-  sources = []
+  sources = [],
+  projects = [],
+  seriesList = []
 }) {
   return layout({
     config,
@@ -70,6 +73,95 @@ ${
     <a class="button" href="/lessons">Уроки</a>
     <a class="button" href="/admin/upload">Загрузка и Яндекс Диск</a>
   </p>
+</details>
+
+<details class="card settings-block" data-block="projects" open>
+  <summary><h2>Проекты</h2></summary>
+  <p class="hint">
+    Проект — пометка уроков, новостей и серий: по кнопке проекта на карточке
+    зритель видит только его материалы. Адрес проекта собирается из названия
+    один раз и потом не меняется — иначе сломались бы ссылки с фильтром.
+  </p>
+  <ul class="settings-list">
+    ${projects
+      .map(
+        (project) => `<li>
+      <form data-project-form="${escapeHtml(project.slug)}">
+        <label>Название
+          <input name="title" value="${escapeHtml(project.title)}" maxlength="200" required>
+        </label>
+        <label>Описание
+          <textarea name="description" rows="2" maxlength="1000">${escapeHtml(project.description)}</textarea>
+        </label>
+        <p class="meta">уроков ${project.lessonCount} · новостей ${project.newsCount} · серий ${project.seriesCount}</p>
+        <div class="form-row">
+          <button class="button" type="submit">Сохранить</button>
+          <button class="button" type="button" data-project-delete="${escapeHtml(project.slug)}"
+            data-main-count="${project.mainCount}">Удалить</button>
+        </div>
+      </form>
+    </li>`
+      )
+      .join('')}
+  </ul>
+  <form data-project-form="">
+    <label>Название
+      <input name="title" placeholder="IDLE игра" maxlength="200" required>
+    </label>
+    <label>Описание
+      <textarea name="description" rows="2" maxlength="1000"></textarea>
+    </label>
+    <div class="form-row">
+      <button class="button-brand" type="submit">Завести проект</button>
+    </div>
+  </form>
+</details>
+
+<details class="card settings-block" data-block="series" open>
+  <summary><h2>Серии</h2></summary>
+  <p class="hint">
+    Порядок уроков в серии — стрелками на странице серии или номером на экране
+    урока. Основной проект серии получают все её уроки.
+  </p>
+  <ul class="settings-list">
+    ${seriesList
+      .map(
+        (series) => `<li>
+      <form data-series-settings="${escapeHtml(series.slug)}">
+        <label>Название
+          <input name="title" value="${escapeHtml(series.title)}" maxlength="200" required>
+        </label>
+        <label>Описание
+          <textarea name="description" rows="2" maxlength="1000">${escapeHtml(series.description)}</textarea>
+        </label>
+        ${projectFields({
+          projects,
+          mainId: series.projects?.main?.id ?? null,
+          relatedIds: (series.projects?.related ?? []).map((item) => item.id)
+        })}
+        <p class="meta">уроков ${series.lessonCount} ·
+          <a href="/series/${encodeURIComponent(series.slug)}">страница серии</a></p>
+        <div class="form-row">
+          <button class="button" type="submit">Сохранить</button>
+          <button class="button" type="button" data-series-settings-delete="${escapeHtml(series.slug)}">Удалить</button>
+        </div>
+      </form>
+    </li>`
+      )
+      .join('')}
+  </ul>
+  <form data-series-settings="">
+    <label>Название
+      <input name="title" placeholder="Игра с нуля" maxlength="200" required>
+    </label>
+    <label>Описание
+      <textarea name="description" rows="2" maxlength="1000"></textarea>
+    </label>
+    ${projectFields({ projects, mainId: projects[0]?.id ?? null })}
+    <div class="form-row">
+      <button class="button-brand" type="submit">Завести серию</button>
+    </div>
+  </form>
 </details>
 
 <details class="card settings-block" data-block="youtube" open>

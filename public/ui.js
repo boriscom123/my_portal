@@ -83,3 +83,27 @@ export async function request(url, options = {}) {
   }
   return res.json();
 }
+
+/**
+ * Поля проектов в форме: галочка основного проекта прячется и снимается —
+ * основным и связанным сразу проект не бывает.
+ * Вызывается из public/app.js и public/admin.js для форм с полями проектов.
+ */
+export function bindProjectFields(form) {
+  const main = form.querySelector('select[name="mainSlug"]');
+  if (!main) return;
+  const sync = () => {
+    for (const label of form.querySelectorAll('[data-related]')) {
+      const isMain = label.dataset.related === main.value;
+      label.hidden = isMain;
+      if (isMain) label.querySelector('input').checked = false;
+    }
+  };
+  main.addEventListener('change', sync);
+  sync();
+}
+
+/** Поля проектов формы в том виде, в котором их ждёт API. */
+export function projectValues(fields) {
+  return { mainSlug: fields.get('mainSlug') ?? '', relatedSlugs: fields.getAll('relatedSlugs') };
+}

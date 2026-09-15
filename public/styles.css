@@ -2087,3 +2087,32 @@ label[for='cover-file'] {
   flex-wrap: wrap;
   margin-bottom: 8px;
 }
+
+/* --- Проекты и серии в настройках ---------------------------------------- */
+
+/* Список правок в разделе: каждая строка — своя маленькая форма, отбитая
+   чертой, чтобы «Сохранить» одной не читалось как кнопка соседней. */
+.settings-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--gap);
+  display: grid;
+  gap: 16px;
+}
+.settings-list > li {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 16px;
+}
+/* Связанные проекты — галочками в строку, без второй рамки внутри карточки. */
+.project-related {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+.project-related legend {
+  padding: 0;
+  margin-bottom: 6px;
+}
