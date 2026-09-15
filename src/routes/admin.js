@@ -627,8 +627,9 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
     if (!texts) throw new PublicError('Модель не подключена: нет ключа в настройках сервера', 503);
 
     try {
-      const { body } = await texts.suggestNews(title, source);
-      res.json({ body });
+      // Заголовок приходит поправленным и по-русски: из анонса он обычно английский.
+      const suggested = await texts.suggestNews(title, source);
+      res.json({ title: suggested.title, body: suggested.body });
     } catch (error) {
       // Отказ модели — не поломка портала: автор напишет текст сам, и сказать
       // ему надо именно это, а не показать чужую ошибку целиком.

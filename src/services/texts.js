@@ -138,7 +138,12 @@ ${summary ? `\nЧто пишет источник:\n${String(summary).trim()}\n`
 — пиши как автор о своей работе: без рекламных оборотов, без «мы рады
   сообщить», без восклицательных знаков.
 
-Верни JSON с единственным полем body.`;
+Заголовок: исходный часто английский — верни его на русском языке, коротко и
+по существу, без кликбейта и без восклицательных знаков. Названия продуктов,
+компаний, моделей и версий оставь как есть (Claude, Gemini, GPT-5, Docker).
+Если исходный уже русский и хорош — верни его, поправив только ошибки.
+
+Верни JSON с полями title и body: title — заголовок, body — текст заметки.`;
 }
 
 /**
@@ -227,8 +232,12 @@ export function buildCoverImagePrompt({ title, description = '', tags = [] }) {
 Верни JSON с единственным полем prompt.`;
 }
 
-/** Достаёт текст новости из ответа модели. */
-export function parseNewsResponse(body) {
+/**
+ * Достаёт заголовок и текст новости из ответа модели.
+ * Заголовок не пришёл — остаётся исходный, fallbackTitle: текст ценнее, и
+ * отказываться из-за заголовка незачем. Пустой текст — отказ.
+ */
+export function parseNewsResponse(body, fallbackTitle = '') {
   const text = body?.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!text) throw new Error('модель вернула пустой ответ');
 
@@ -240,7 +249,8 @@ export function parseNewsResponse(body) {
   }
   const news = String(parsed.body ?? '').trim();
   if (!news) throw new Error('модель не написала текст');
-  return news;
+  const title = String(parsed.title ?? '').trim() || String(fallbackTitle).trim();
+  return { title, body: news };
 }
 
 /**
@@ -465,15 +475,17 @@ export function createTexts(config, fetchImpl = fetch) {
         buildNewsPrompt(title, source),
         {
           type: 'object',
-          properties: { body: { type: 'string' } },
-          required: ['body']
+          // Заголовок — рядом с текстом: из анонса он обычно английский, и
+          // автору нужен русский. Чего нет в схеме, того модель не вернёт.
+          properties: { title: { type: 'string' }, body: { type: 'string' } },
+          required: ['title', 'body']
         },
         {
           timeoutMs: limits.timeoutMs ?? NEWS_MODEL_TIMEOUT_MS,
           totalMs: limits.totalMs ?? NEWS_TOTAL_MS
         }
       );
-      return { body: parseNewsResponse(body), model: name };
+      return { ...parseNewsResponse(body, title), model: name };
     },
 
     /** Запрос для картинки к заметке: рисует её портал, поправить можно в поле. */

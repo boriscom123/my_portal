@@ -287,6 +287,11 @@ test('запрос на текст новости просит не выдумы
   assert.match(prompt, /ГОТОВ К ПУБЛИКАЦИИ/);
   assert.match(prompt, /не давай автору заданий/);
   assert.doesNotMatch(prompt, /⟨/);
+  // Заголовок из анонса обычно английский: модель возвращает и его — по-русски,
+  // но с названиями продуктов как есть.
+  assert.match(prompt, /заголовок.*на русском/is);
+  assert.match(prompt, /названия продуктов/i);
+  assert.match(prompt, /полями title и body/);
 });
 
 test('без описания запрос всё равно собирается', () => {
@@ -297,10 +302,27 @@ test('без описания запрос всё равно собираетс�
 });
 
 test('текст новости разбирается, а пустой ответ — отказ', () => {
-  const parsed = parseNewsResponse({
-    candidates: [{ content: { parts: [{ text: JSON.stringify({ body: 'Коротко о деле.' }) }] } }]
-  });
-  assert.equal(parsed, 'Коротко о деле.');
+  const parsed = parseNewsResponse(
+    {
+      candidates: [
+        {
+          content: {
+            parts: [{ text: JSON.stringify({ title: ' Вышел Claude 5 ', body: 'Коротко о деле.' }) }]
+          }
+        }
+      ]
+    },
+    'Claude 5 is out'
+  );
+  assert.deepEqual(parsed, { title: 'Вышел Claude 5', body: 'Коротко о деле.' });
+
+  // Заголовок не пришёл — остаётся тот, что написал автор: текст ценнее, и
+  // отказываться из-за заголовка незачем.
+  const withoutTitle = parseNewsResponse(
+    { candidates: [{ content: { parts: [{ text: JSON.stringify({ body: 'Текст.' }) }] } }] },
+    'Claude 5 is out'
+  );
+  assert.deepEqual(withoutTitle, { title: 'Claude 5 is out', body: 'Текст.' });
 
   // Пустой текст лучше отдать отказом: подставить пустоту в поле — значит
   // сделать вид, что кнопка сработала.
@@ -375,9 +397,38 @@ test('медленная модель уступает следующей, а н
     }
   );
 
-  const { body } = await texts.suggestNews('Заголовок');
+  const { body, title } = await texts.suggestNews('Заголовок');
   assert.equal(body, 'Текст готов.');
+  // Модель заголовок не вернула — остаётся исходный.
+  assert.equal(title, 'Заголовок');
   assert.deepEqual(tried, ['medlennaya', 'bystraya']);
+});
+
+test('текст новости приходит вместе с русским заголовком', async () => {
+  const asked = [];
+  const texts = createTexts({ gemini: { apiKey: 'k', model: 'odna' } }, async (url, options) => {
+    asked.push(JSON.parse(options.body));
+    return {
+      ok: true,
+      json: async () => ({
+        candidates: [
+          {
+            content: {
+              parts: [{ text: JSON.stringify({ title: 'Вышел Claude 5', body: 'Текст.' }) }]
+            }
+          }
+        ]
+      })
+    };
+  });
+
+  const result = await texts.suggestNews('Claude 5 is out');
+  assert.equal(result.title, 'Вышел Claude 5');
+  assert.equal(result.body, 'Текст.');
+  // Схема — не формальность: чего в ней нет, модель не вернёт.
+  const schema = asked[0].generationConfig.responseSchema;
+  assert.ok(schema.properties.title, 'заголовка нет в схеме');
+  assert.ok(schema.required.includes('title'));
 });
 
 test('до третьей модели очередь доходит, даже когда две первые съели время', async () => {

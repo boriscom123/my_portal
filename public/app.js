@@ -660,7 +660,9 @@ function initPage() {
       });
       if (!answer) return;
       form.querySelector('[name=body]').value = answer.body;
-      toast('Текст написан. Поправьте и сохраните.');
+      // Заголовок — поправленный и по-русски; не пришёл — остаётся свой.
+      if (answer.title) form.querySelector('[name=title]').value = answer.title;
+      toast('Заголовок и текст написаны. Поправьте и сохраните.');
     } catch (error) {
       toast(`Не написалось: ${error.message}`, true);
     } finally {
