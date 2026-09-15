@@ -175,12 +175,13 @@ export async function inheritSeriesProject(db, lessonId, seriesId) {
 
 /**
  * Основной и связанные проекты материала целиком — блок проектов на экране.
- * Урок в серии с основным проектом держит проект серии: другой — отказ.
- * Серия меняет основной проект всем своим урокам.
+ * Проект необязателен: mainId пустой — основного нет, связанные ставятся и без
+ * него. Урок в серии с основным проектом держит проект серии: другой — отказ.
+ * Серия с проектом меняет основной проект всем своим урокам; снятый проект
+ * серии у уроков остаётся.
  */
-export async function setProjects(pool, kind, id, { mainId, relatedIds = [] }) {
-  if (!mainId) throw new ProjectError('no_main', 'Выберите основной проект');
-  const main = Number(mainId);
+export async function setProjects(pool, kind, id, { mainId = null, relatedIds = [] }) {
+  const main = mainId ? Number(mainId) : null;
 
   const client = await pool.connect();
   try {
@@ -200,10 +201,12 @@ export async function setProjects(pool, kind, id, { mainId, relatedIds = [] }) {
 
     const { table, column } = LINKS[kind];
     await client.query(`DELETE FROM ${table} WHERE ${column} = $1`, [id]);
-    await client.query(
-      `INSERT INTO ${table} (${column}, project_id, is_main) VALUES ($1, $2, true)`,
-      [id, main]
-    );
+    if (main) {
+      await client.query(
+        `INSERT INTO ${table} (${column}, project_id, is_main) VALUES ($1, $2, true)`,
+        [id, main]
+      );
+    }
     const related = [...new Set(relatedIds.map(Number))].filter((item) => item && item !== main);
     if (related.length) {
       await client.query(
@@ -213,7 +216,7 @@ export async function setProjects(pool, kind, id, { mainId, relatedIds = [] }) {
       );
     }
 
-    if (kind === 'series') {
+    if (kind === 'series' && main) {
       const { rows: lessons } = await client.query('SELECT id FROM lessons WHERE series_id = $1', [
         id
       ]);
@@ -232,44 +235,15 @@ export async function setProjects(pool, kind, id, { mainId, relatedIds = [] }) {
 }
 
 /**
- * Проект по умолчанию: основной у последнего заведённого материала — среди
- * уроков, новостей и серий вместе, — а если таких нет, первый проект.
- * null — проектов нет вовсе.
- */
-export async function defaultProjectId(db) {
-  const { rows } = await db.query(
-    `SELECT project_id FROM (
-       SELECT x.project_id, l.created_at FROM lesson_projects x
-         JOIN lessons l ON l.id = x.lesson_id WHERE x.is_main
-       UNION ALL
-       SELECT x.project_id, n.created_at FROM news_projects x
-         JOIN news n ON n.id = x.news_id WHERE x.is_main
-       UNION ALL
-       SELECT x.project_id, s.created_at FROM series_projects x
-         JOIN series s ON s.id = x.series_id WHERE x.is_main
-     ) recent
-     ORDER BY created_at DESC
-     LIMIT 1`
-  );
-  if (rows.length) return Number(rows[0].project_id);
-
-  const { rows: first } = await db.query('SELECT id FROM projects ORDER BY created_at, id LIMIT 1');
-  return first.length ? Number(first[0].id) : null;
-}
-
-/**
- * Проект для заведения материала: названный — если он есть, иначе по умолчанию.
- * Отказывает до заведения: материал без проекта не заводится.
+ * Проект для заведения материала. Проект необязателен: не выбран — null, и
+ * материал заводится без проекта; подстановки «по умолчанию» нет — автор сам
+ * решает, нужен ли проект. Выбранный, но несуществующий — отказ до заведения.
  */
 export async function resolveProjectId(db, projectId = null) {
-  if (projectId) {
-    const { rows } = await db.query('SELECT id FROM projects WHERE id = $1', [projectId]);
-    if (!rows.length) throw new ProjectError('not_found', 'Проект не найден');
-    return Number(rows[0].id);
-  }
-  const fallback = await defaultProjectId(db);
-  if (!fallback) throw new ProjectError('no_projects', 'Сначала заведите проект в настройках');
-  return fallback;
+  if (!projectId) return null;
+  const { rows } = await db.query('SELECT id FROM projects WHERE id = $1', [projectId]);
+  if (!rows.length) throw new ProjectError('not_found', 'Проект не найден');
+  return Number(rows[0].id);
 }
 
 /** Номера проектов по адресам из формы, в том же порядке. Неизвестный — отказ. */

@@ -1,5 +1,5 @@
 // Служба проектов: основной и связанные, серия задаёт проект урокам,
-// удаление проекта уносит только связи, проект по умолчанию.
+// удаление проекта уносит только связи, проект необязателен.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { saveLesson } from '../src/services/lessons.js';
@@ -13,7 +13,6 @@ import {
   deleteProject,
   projectsFor,
   setProjects,
-  defaultProjectId,
   resolveProjectId,
   projectIdsBySlugs
 } from '../src/services/projects.js';
@@ -61,10 +60,12 @@ test('основной и связанные: основной среди свя
     assert.equal(links.main.slug, 'idle-igra');
     assert.deepEqual(links.related.map((item) => item.id).sort(), [solo.id, notifier.id].sort());
 
-    await assert.rejects(
-      setProjects(pool, 'lesson', lesson.id, { mainId: null }),
-      isProjectError('no_main')
-    );
+    // Проект необязателен: основной снимается, связанные остаются и без него —
+    // по ним урок всё равно попадает в фильтр.
+    await setProjects(pool, 'lesson', lesson.id, { mainId: null, relatedIds: [notifier.id] });
+    const cleared = (await projectsFor(pool, 'lesson', [lesson.id])).get(lesson.id);
+    assert.equal(cleared.main, null);
+    assert.deepEqual(cleared.related.map((item) => item.id), [notifier.id]);
   });
 });
 
@@ -135,26 +136,35 @@ test('список проектов со счётчиками', skipWithoutDb, a
   });
 });
 
-test('проект по умолчанию — у последнего заведённого материала', skipWithoutDb, async () => {
+test('названный проект проверяется, неназванный — это «без проекта»', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
-    const { solo, idle, notifier } = await three(pool);
-    // Материалов нет — первый заведённый проект.
-    assert.equal(await defaultProjectId(pool), solo.id);
-
-    const lesson = await saveLesson(pool, { slug: 'urok', title: 'Урок' });
-    await setProjects(pool, 'lesson', lesson.id, { mainId: idle.id });
-    const item = await saveNews(pool, { title: 'Новость' });
-    await setProjects(pool, 'news', item.id, { mainId: notifier.id });
-    await pool.query(`UPDATE news SET created_at = now() + interval '1 minute' WHERE id = $1`, [
-      item.id
-    ]);
-    assert.equal(await defaultProjectId(pool), notifier.id);
-
+    const { idle } = await three(pool);
     assert.equal(await resolveProjectId(pool, idle.id), idle.id);
     await assert.rejects(resolveProjectId(pool, 999999), isProjectError('not_found'));
-
+    // Проект не выбран — материал заводится без проекта, подстановки нет.
+    assert.equal(await resolveProjectId(pool), null);
     await pool.query('DELETE FROM projects');
-    await assert.rejects(resolveProjectId(pool), isProjectError('no_projects'));
+    assert.equal(await resolveProjectId(pool), null);
+  });
+});
+
+test('серия без проекта урокам ничего не задаёт, снятый проект серии у уроков остаётся', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const { solo, idle } = await three(pool);
+    const series = await saveSeries(pool, { title: 'Серия' });
+    const lesson = await saveLesson(pool, { slug: 'urok', title: 'Урок' });
+    await setLessonSeries(pool, lesson.id, series.id);
+    // У серии проекта нет — урок выбирает сам.
+    await setProjects(pool, 'lesson', lesson.id, { mainId: solo.id });
+
+    await setProjects(pool, 'series', series.id, { mainId: idle.id });
+    assert.equal((await projectsFor(pool, 'lesson', [lesson.id])).get(lesson.id).main.id, idle.id);
+
+    await setProjects(pool, 'series', series.id, { mainId: null });
+    const links = (await projectsFor(pool, 'lesson', [lesson.id])).get(lesson.id);
+    assert.equal(links.main.id, idle.id, 'проект урока не пропал вместе с проектом серии');
+    // И теперь он свободен: серия больше ничего не задаёт.
+    await setProjects(pool, 'lesson', lesson.id, { mainId: solo.id });
   });
 });
 

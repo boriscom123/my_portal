@@ -157,7 +157,7 @@ ${
     <label>Описание
       <textarea name="description" rows="2" maxlength="1000"></textarea>
     </label>
-    ${projectFields({ projects, mainId: projects[0]?.id ?? null })}
+    ${projectFields({ projects })}
     <div class="form-row">
       <button class="button-brand" type="submit">Завести серию</button>
     </div>

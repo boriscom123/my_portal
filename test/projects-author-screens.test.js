@@ -50,7 +50,9 @@ test('экран урока: блок «Проект», у урока в сер�
     await withServer(app, async (base) => {
       const free = await (await fetch(`${base}/admin/lesson/svoy`, { headers })).text();
       assert.match(free, /<form data-lesson-projects="svoy"/);
-      assert.match(free, /<option value="solo-ai-journey" selected>/);
+      // Урок заведён без выбора — он без проекта, и это видно в выборе.
+      assert.match(free, /<option value="" selected>Без проекта<\/option>/);
+      assert.doesNotMatch(free, /<select name="mainSlug"[^>]*required/);
       assert.doesNotMatch(free, /<select name="mainSlug"[^>]*disabled/);
 
       const locked = await (await fetch(`${base}/admin/lesson/v-serii`, { headers })).text();
@@ -70,17 +72,20 @@ test('заведение урока и форма новости спрашив�
     const app = finalize(createApp({ config, pool, queue: { add: async () => {} } }));
 
     await withServer(app, async (base) => {
-      // Последний заведённый материал — новость в IDLE игре: он и по умолчанию.
+      // Новый урок — «Без проекта» по умолчанию, проект выбирают, когда нужен.
       const fresh = await (await fetch(`${base}/lessons/new`, { headers })).text();
-      assert.match(fresh, /<select name="projectSlug"[^>]*required/);
-      assert.match(fresh, /<option value="idle-igra" selected>/);
+      assert.match(fresh, /<select name="projectSlug"/);
+      assert.doesNotMatch(fresh, /<select name="projectSlug"[^>]*required/);
+      assert.match(fresh, /<option value="" selected>Без проекта<\/option>/);
+      assert.match(fresh, /<option value="idle-igra">/);
 
+      // У существующей новости — её собственный проект.
       const edit = await (await fetch(`${base}/news/${item.slug}/edit`, { headers })).text();
       assert.match(edit, /<select name="mainSlug"/);
       assert.match(edit, /<option value="idle-igra" selected>/);
 
       const created = await (await fetch(`${base}/news/new`, { headers })).text();
-      assert.match(created, /<option value="idle-igra" selected>/);
+      assert.match(created, /<option value="" selected>Без проекта<\/option>/);
     });
   });
 });

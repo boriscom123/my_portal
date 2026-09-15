@@ -22,12 +22,7 @@ import {
   seriesNavigation,
   relatedLessons
 } from '../services/series.js';
-import {
-  listProjects,
-  projectsFor,
-  defaultProjectId,
-  getProjectBySlug
-} from '../services/projects.js';
+import { listProjects, projectsFor, getProjectBySlug } from '../services/projects.js';
 import { seriesPage } from '../views/series.js';
 import {
   shortsListPage,
@@ -258,9 +253,7 @@ export function pageRoutes(config, pool) {
         config,
         user: await currentUser(pool, req),
         diskConnected: await diskConnected(),
-        projects: await listProjects(pool),
-        // По умолчанию — проект последнего заведённого материала.
-        defaultId: await defaultProjectId(pool)
+        projects: await listProjects(pool)
       })
     );
   });
@@ -585,9 +578,7 @@ export function pageRoutes(config, pool) {
       newsEditPage({
         config,
         user: await currentUser(pool, req),
-        projects: await listProjects(pool),
-        // Новой новости — проект последнего заведённого материала.
-        defaultId: await defaultProjectId(pool)
+        projects: await listProjects(pool)
       })
     );
   });
@@ -608,7 +599,6 @@ export function pageRoutes(config, pool) {
         user: await currentUser(pool, req),
         item,
         projects: await listProjects(pool),
-        defaultId: await defaultProjectId(pool),
         // Без токена рисования кнопка неактивна и объясняет, где его взять.
         drawingReady: Boolean((await loadDrawingSettings(pool, config)).token),
         // Выпуск и каналы живут здесь: на странице просмотра новость должна

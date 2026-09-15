@@ -12,8 +12,7 @@ export function lessonNewPage({
   config,
   user,
   diskConnected = false,
-  projects = [],
-  defaultId = null
+  projects = []
 }) {
   return layout({
     config,
@@ -27,16 +26,15 @@ export function lessonNewPage({
 
 <section class="card">
   <form id="new-lesson-form" data-new-lesson>
-    <!-- Проект — единственное, что здесь спрашивается: урок без проекта не
-         заводится, а по умолчанию стоит проект последнего материала. -->
+    <!-- Проект — единственное, что здесь спрашивается, и то по желанию: по
+         умолчанию урок заводится без проекта. -->
     <label>Проект
-      <select name="projectSlug" required>
+      <select name="projectSlug">
+        <option value="" selected>Без проекта</option>
         ${projects
           .map(
             (project) =>
-              `<option value="${escapeHtml(project.slug)}"${
-                project.id === defaultId ? ' selected' : ''
-              }>${escapeHtml(project.title)}</option>`
+              `<option value="${escapeHtml(project.slug)}">${escapeHtml(project.title)}</option>`
           )
           .join('')}
       </select>

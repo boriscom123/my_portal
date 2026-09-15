@@ -101,7 +101,7 @@ export async function saveSeries(pool, { slug = null, title, description = '', p
   }
 
   const base = slugify(name);
-  // Проект — до заведения: серия без проекта не заводится.
+  // Проект необязателен; выбранный проверяется до заведения.
   const mainProjectId = await resolveProjectId(pool, projectId);
   // Одинаковые названия у серий — редкость, но адрес обязан быть один на одну
   // серию, и падать на этом посреди заведения урока незачем.
@@ -115,7 +115,7 @@ export async function saveSeries(pool, { slug = null, title, description = '', p
      RETURNING *`,
     [base, name, String(description ?? '')]
   );
-  await setMainProject(pool, 'series', Number(rows[0].id), mainProjectId);
+  if (mainProjectId) await setMainProject(pool, 'series', Number(rows[0].id), mainProjectId);
   return toSeries(rows[0]);
 }
 

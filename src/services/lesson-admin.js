@@ -29,8 +29,8 @@ export async function createLesson(pool, { title = '', description = '', project
   const base = slugify(clean) || `urok-${date}`;
   const slug = uniqueSlug(base, taken.map((row) => row.slug));
 
-  // Проект выясняем до заведения: без проекта урок не заводится, и отказ
-  // должен случиться раньше, чем в базе появится урок.
+  // Проект необязателен. Выбранный проверяем до заведения: неизвестный проект —
+  // отказ раньше, чем в базе появится урок.
   const mainProjectId = await resolveProjectId(pool, projectId);
 
   const { rows } = await pool.query(
@@ -38,7 +38,7 @@ export async function createLesson(pool, { title = '', description = '', project
      VALUES ($1, $2, $3, 'draft') RETURNING id, slug, title`,
     [slug, clean, String(description ?? '')]
   );
-  await setMainProject(pool, 'lesson', Number(rows[0].id), mainProjectId);
+  if (mainProjectId) await setMainProject(pool, 'lesson', Number(rows[0].id), mainProjectId);
   return { id: Number(rows[0].id), slug: rows[0].slug, title: rows[0].title };
 }
 

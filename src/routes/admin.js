@@ -75,9 +75,7 @@ import {
 function projectFailure(error) {
   if (!(error instanceof ProjectError)) return error;
   const status =
-    { no_main: 400, empty_title: 400, not_found: 404, series_locked: 409, no_projects: 409 }[
-      error.code
-    ] ?? 400;
+    { empty_title: 400, not_found: 404, series_locked: 409 }[error.code] ?? 400;
   return new PublicError(error.message, status);
 }
 
@@ -351,8 +349,9 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
         projectId: mainId
       });
       if (!series) throw new PublicError('Серия не найдена', 404);
-      // Проекты серии правятся из настроек; смена основного переходит на уроки.
-      if (mainSlug) {
+      // Проекты серии правятся из настроек; смена основного переходит на уроки,
+      // пустой основной — «Без проекта».
+      if (typeof req.body?.mainSlug === 'string') {
         await setProjects(pool, 'series', series.id, {
           mainId,
           relatedIds: await projectIdsBySlugs(pool, relatedSlugsOf(req.body))
@@ -546,9 +545,9 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
         projectId: mainId
       });
       if (!item) throw new PublicError('Новость не найдена', 404);
-      // Форма шлёт проекты всегда. Запрос без них — API или старая страница:
-      // проекты тогда не трогаем, а новая новость уже получила проект по умолчанию.
-      if (mainSlug) {
+      // Форма шлёт проекты всегда, и пустой основной — это «Без проекта». Запрос
+      // без поля вовсе — API или старая страница: проекты тогда не трогаем.
+      if (typeof req.body?.mainSlug === 'string') {
         await setProjects(pool, 'news', item.id, {
           mainId,
           relatedIds: await projectIdsBySlugs(pool, relatedSlugsOf(req.body))

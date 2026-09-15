@@ -80,7 +80,7 @@ test('проект заводится, правится и удаляется', 
   });
 });
 
-test('проекты урока: основной обязателен, неизвестный — 404', skipWithoutDb, async () => {
+test('проекты урока: основной можно снять, неизвестный — 404', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
     const headers = await admin(pool);
     await saveProject(pool, { title: 'IDLE игра' });
@@ -91,8 +91,17 @@ test('проекты урока: основной обязателен, неиз
         relatedSlugs: ['solo-ai-journey']
       });
       assert.equal(ok.status, 200);
-      const empty = await post(base, headers, '/lessons/urok/projects', { relatedSlugs: [] });
-      assert.equal(empty.status, 400);
+      // «Без проекта» — законный выбор: основной снимается.
+      const empty = await post(base, headers, '/lessons/urok/projects', {
+        mainSlug: '',
+        relatedSlugs: []
+      });
+      assert.equal(empty.status, 200);
+      assert.equal((await getLessonBySlug(pool, 'urok', drafts)).projects.main, null);
+      await post(base, headers, '/lessons/urok/projects', {
+        mainSlug: 'idle-igra',
+        relatedSlugs: ['solo-ai-journey']
+      });
       const unknown = await post(base, headers, '/lessons/urok/projects', { mainSlug: 'net' });
       assert.equal(unknown.status, 404);
     });
@@ -150,6 +159,22 @@ test('новость и серия заводятся с выбранными п
       const series = await (
         await post(base, headers, '/series', { title: 'Серия', description: '', mainSlug: 'idle-igra' })
       ).json();
+
+      // Новость с «Без проекта» и связанным проектом: основного нет, связанный есть.
+      const loose = await (
+        await post(base, headers, '/news', {
+          title: 'Без проекта',
+          body: '',
+          mainSlug: '',
+          relatedSlugs: ['idle-igra']
+        })
+      ).json();
+      const looseItem = await getNewsBySlug(pool, loose.slug);
+      assert.equal(looseItem.projects.main, null);
+      assert.deepEqual(
+        looseItem.projects.related.map((project) => project.slug),
+        ['idle-igra']
+      );
       assert.equal(
         (await getSeriesBySlug(pool, series.slug, drafts)).projects.main.slug,
         'idle-igra'

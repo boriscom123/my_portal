@@ -120,14 +120,14 @@ export async function saveNews(pool, { slug = null, title, body = '', projectId 
   // Поэтому к адресу добавляется дата: она же помогает человеку понять, о
   // каком времени новость, ещё до перехода.
   const stamp = new Date().toISOString().slice(0, 10);
-  // Проект — до заведения: новость без проекта не заводится.
+  // Проект необязателен; выбранный проверяется до заведения.
   const mainProjectId = await resolveProjectId(pool, projectId);
   const { rows } = await pool.query(
     `INSERT INTO news (slug, title, body) VALUES ($1, $2, $3)
      RETURNING ${FIELDS}`,
     [`${slugify(name)}-${stamp}`, name, String(body ?? '')]
   );
-  await setMainProject(pool, 'news', Number(rows[0].id), mainProjectId);
+  if (mainProjectId) await setMainProject(pool, 'news', Number(rows[0].id), mainProjectId);
   return toNews(rows[0]);
 }
 

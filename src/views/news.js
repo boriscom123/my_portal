@@ -39,7 +39,7 @@ export function newsImages(images = []) {
 }
 
 /** Заготовка новости: текстом, как её пишет автор. */
-function newsForm(item = null, projects = [], defaultId = null) {
+function newsForm(item = null, projects = []) {
   return `<form class="card" data-news-form="${escapeHtml(item?.slug ?? '')}">
   <h2>${item ? 'Правка новости' : 'Новая новость'}</h2>
   <label>Заголовок
@@ -50,8 +50,8 @@ function newsForm(item = null, projects = [], defaultId = null) {
   </label>
   ${projectFields({
     projects,
-    // Новой новости — проект по умолчанию; у существующей — её собственный.
-    mainId: item ? (item.projects?.main?.id ?? null) : defaultId,
+    // Новая новость — без проекта, пока его не выбрали; у существующей — её собственный.
+    mainId: item?.projects?.main?.id ?? null,
     relatedIds: (item?.projects?.related ?? []).map((project) => project.id)
   })}
   <p class="hint">
@@ -248,8 +248,7 @@ export function newsEditPage({
   publications = [],
   platforms = [],
   drawingReady = false,
-  projects = [],
-  defaultId = null
+  projects = []
 }) {
   return layout({
     config,
@@ -261,7 +260,7 @@ export function newsEditPage({
 <p><a href="/news">← Новости</a></p>
 <h1>${item ? 'Правка новости' : 'Новая новость'}</h1>
 
-${newsForm(item, projects, defaultId)}
+${newsForm(item, projects)}
 
 ${item ? newsAdminBlock(item, publications, platforms) : ''}
 

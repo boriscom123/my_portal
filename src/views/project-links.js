@@ -39,18 +39,14 @@ export function projectFields({ projects = [], mainId = null, relatedIds = [], l
     )
     .join('');
 
+  // Проект необязателен: «Без проекта» — законный выбор и стоит первым.
   return `<label>Основной проект
-    <select name="mainSlug" required${locked ? ' disabled' : ''}>
-      ${mainId ? '' : '<option value="">— выберите проект —</option>'}
+    <select name="mainSlug"${locked ? ' disabled' : ''}>
+      <option value=""${mainId ? '' : ' selected'}>Без проекта</option>
       ${options}
     </select>
   </label>
   ${locked ? `<p class="hint">${locked}</p>` : ''}
-  ${
-    !mainId && !locked
-      ? '<p class="hint danger">Выберите проект: без него материал не попадёт в фильтр по проекту.</p>'
-      : ''
-  }
   <fieldset class="project-related">
     <legend>Связанные проекты</legend>
     ${checkboxes}

@@ -38,8 +38,11 @@ test('поля проектов: основной выбран, его гало�
   assert.match(locked, /<select name="mainSlug"[^>]*disabled/);
   assert.match(locked, /задаётся серией/);
 
-  const orphan = projectFields({ projects, mainId: null });
-  assert.match(orphan, /Выберите проект/);
+  // Проект необязателен: без основного выбран «Без проекта», не требование.
+  const loose = projectFields({ projects, mainId: null });
+  assert.match(loose, /<option value="" selected>Без проекта<\/option>/);
+  assert.doesNotMatch(loose, /required/);
+  assert.doesNotMatch(loose, /Выберите проект/);
 });
 
 test('автор видит разделы «Проекты» и «Серии», зритель — нет', skipWithoutDb, async () => {
