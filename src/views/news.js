@@ -8,6 +8,7 @@ import { escapeHtml } from '../lib/html.js';
 import { layout } from './layout.js';
 import { publicationLabel } from './publication-state.js';
 import { isDrawing } from '../services/cover-drawing.js';
+import { projectFields } from './project-links.js';
 
 /** Дата человеку: «8 сентября 2026». */
 function formatDate(value) {
@@ -38,7 +39,7 @@ export function newsImages(images = []) {
 }
 
 /** Заготовка новости: текстом, как её пишет автор. */
-function newsForm(item = null) {
+function newsForm(item = null, projects = [], defaultId = null) {
   return `<form class="card" data-news-form="${escapeHtml(item?.slug ?? '')}">
   <h2>${item ? 'Правка новости' : 'Новая новость'}</h2>
   <label>Заголовок
@@ -47,6 +48,12 @@ function newsForm(item = null) {
   <label>Текст
     <textarea name="body" rows="6" maxlength="4000">${escapeHtml(item?.body ?? '')}</textarea>
   </label>
+  ${projectFields({
+    projects,
+    // Новой новости — проект по умолчанию; у существующей — её собственный.
+    mainId: item ? (item.projects?.main?.id ?? null) : defaultId,
+    relatedIds: (item?.projects?.related ?? []).map((project) => project.id)
+  })}
   <p class="hint">
     Ссылки пишите прямо в тексте — портал сделает их кликабельными. Картинки
     добавляются после сохранения, на странице самой новости.
@@ -233,7 +240,9 @@ export function newsEditPage({
   item = null,
   publications = [],
   platforms = [],
-  drawingReady = false
+  drawingReady = false,
+  projects = [],
+  defaultId = null
 }) {
   return layout({
     config,
@@ -245,7 +254,7 @@ export function newsEditPage({
 <p><a href="/news">← Новости</a></p>
 <h1>${item ? 'Правка новости' : 'Новая новость'}</h1>
 
-${newsForm(item)}
+${newsForm(item, projects, defaultId)}
 
 ${item ? newsAdminBlock(item, publications, platforms) : ''}
 

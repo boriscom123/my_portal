@@ -16,6 +16,7 @@ import { chaptersBlock, validChapters } from '../lib/chapters.js';
 import { timeLabel } from './search.js';
 import { isDrawing } from '../services/cover-drawing.js';
 import { latestPerPlatform } from '../lib/latest-publications.js';
+import { projectFields } from './project-links.js';
 
 // Как назвать запись, уехавшую на площадку, рядом с состоянием выкладки.
 const VERSION_NAMES = { trimmed: 'смонтированная запись', source: 'полная запись' };
@@ -58,6 +59,7 @@ export function adminReviewPage({
   platforms = [],
   series = [],
   shorts = [],
+  projects = [],
   links
 }) {
   const state = stateLabel(lesson);
@@ -361,6 +363,30 @@ ${
             )}">Открыть серию</a>`
           : ''
       }
+    </div>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Проект</h2>
+  <p class="hint">
+    По кнопке проекта на карточке зритель видит только материалы этого проекта.
+    Основной — то, о чём урок; связанные — что он ещё затрагивает.
+  </p>
+  <form data-lesson-projects="${escapeHtml(lesson.slug)}">
+    ${projectFields({
+      projects,
+      mainId: lesson.projects?.main?.id ?? null,
+      relatedIds: (lesson.projects?.related ?? []).map((item) => item.id),
+      // Урок в серии держит проект серии: менять его — на самой серии.
+      locked: lesson.seriesId
+        ? `Основной проект задаётся серией — <a href="/series/${encodeURIComponent(
+            series.find((item) => item.id === lesson.seriesId)?.slug ?? ''
+          )}">поменять его на серии</a> или в настройках.`
+        : null
+    })}
+    <div class="form-row">
+      <button class="button-brand" type="submit">Сохранить проекты</button>
     </div>
   </form>
 </section>

@@ -526,6 +526,7 @@ function initPage() {
   // Формы новостей живут на публичных страницах: автор пишет новость там же,
   // где её читают. Поэтому обработчик здесь, а не в скрипте кабинета.
   const newsForm = document.querySelector('[data-news-form]');
+  if (newsForm) bindProjectFields(newsForm);
   newsForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
     const fields = new FormData(newsForm);
@@ -538,7 +539,8 @@ function initPage() {
         body: JSON.stringify({
           slug: newsForm.dataset.newsForm || null,
           title: fields.get('title'),
-          body: fields.get('body')
+          body: fields.get('body'),
+          ...projectValues(fields)
         })
       });
       if (!answer) return;

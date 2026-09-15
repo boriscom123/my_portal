@@ -5,9 +5,16 @@
 // что будет дальше.
 // Вызывается из src/routes/pages.js по адресу /lessons/new.
 import { assetUrl } from '../lib/assets.js';
+import { escapeHtml } from '../lib/html.js';
 import { layout } from './layout.js';
 
-export function lessonNewPage({ config, user, diskConnected = false }) {
+export function lessonNewPage({
+  config,
+  user,
+  diskConnected = false,
+  projects = [],
+  defaultId = null
+}) {
   return layout({
     config,
     user,
@@ -20,6 +27,20 @@ export function lessonNewPage({ config, user, diskConnected = false }) {
 
 <section class="card">
   <form id="new-lesson-form" data-new-lesson>
+    <!-- Проект — единственное, что здесь спрашивается: урок без проекта не
+         заводится, а по умолчанию стоит проект последнего материала. -->
+    <label>Проект
+      <select name="projectSlug" required>
+        ${projects
+          .map(
+            (project) =>
+              `<option value="${escapeHtml(project.slug)}"${
+                project.id === defaultId ? ' selected' : ''
+              }>${escapeHtml(project.title)}</option>`
+          )
+          .join('')}
+      </select>
+    </label>
     <div class="form-row">
       <button class="button-brand" type="submit">Завести урок</button>
     </div>

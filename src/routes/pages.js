@@ -22,7 +22,7 @@ import {
   seriesNavigation,
   relatedLessons
 } from '../services/series.js';
-import { listProjects, projectsFor } from '../services/projects.js';
+import { listProjects, projectsFor, defaultProjectId } from '../services/projects.js';
 import { seriesPage } from '../views/series.js';
 import {
   shortsListPage,
@@ -238,7 +238,10 @@ export function pageRoutes(config, pool) {
       lessonNewPage({
         config,
         user: await currentUser(pool, req),
-        diskConnected: await diskConnected()
+        diskConnected: await diskConnected(),
+        projects: await listProjects(pool),
+        // По умолчанию — проект последнего заведённого материала.
+        defaultId: await defaultProjectId(pool)
       })
     );
   });
@@ -356,6 +359,8 @@ export function pageRoutes(config, pool) {
         publications: await publicationsFor(pool, lesson.id),
         // Серии для выбора: в какую поставить этот урок.
         series: await listSeries(pool, { includeDrafts: true }),
+        // Все проекты — для выбора основного и связанных в блоке «Проект».
+        projects: await listProjects(pool),
         // Ролики, уже сделанные из нарезок этого урока: кнопка «Сделать
         // роликом» у такой нарезки не нужна, а ссылка на готовый — нужна.
         shorts: await shortsOfLesson(pool, lesson.id),
@@ -553,7 +558,15 @@ export function pageRoutes(config, pool) {
   // читать список, а на своей странице ей есть где развернуться.
   // Объявлены ДО /news/:slug: иначе «new» попало бы в него как адрес новости.
   router.get('/news/new', requireAdmin, async (req, res) => {
-    res.type('html').send(newsEditPage({ config, user: await currentUser(pool, req) }));
+    res.type('html').send(
+      newsEditPage({
+        config,
+        user: await currentUser(pool, req),
+        projects: await listProjects(pool),
+        // Новой новости — проект последнего заведённого материала.
+        defaultId: await defaultProjectId(pool)
+      })
+    );
   });
 
   router.get('/news/:slug/edit', requireAdmin, async (req, res) => {
@@ -571,6 +584,8 @@ export function pageRoutes(config, pool) {
         config,
         user: await currentUser(pool, req),
         item,
+        projects: await listProjects(pool),
+        defaultId: await defaultProjectId(pool),
         // Без токена рисования кнопка неактивна и объясняет, где его взять.
         drawingReady: Boolean((await loadDrawingSettings(pool, config)).token),
         // Выпуск и каналы живут здесь: на странице просмотра новость должна

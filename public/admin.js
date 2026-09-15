@@ -9,7 +9,7 @@
 // импорт по адресу без отпечатка давал браузеру ВТОРУЮ копию модуля — со
 // вторым обработчиком выхода, второй регистрацией service worker и второй
 // ракетой.
-import { toast, request } from './ui.js';
+import { toast, request, bindProjectFields, projectValues } from './ui.js';
 
 /**
  * Отправляет файл кусками, продолжая с места обрыва.
@@ -414,6 +414,26 @@ export function initPage() {
   // Заказчик так и потерял заготовку, полученную из расшифровки.
   // Серия урока. Отдельной формой от карточки: «сохранить черновик» не должно
   // ни ставить урок в серию, ни вынимать его оттуда нечаянно.
+  // Блок «Проект» на экране урока. Выключенный выбор основного (урок в серии)
+  // FormData не отдаёт — уходит пустая строка, и сервер берёт проект серии.
+  const lessonProjects = document.querySelector('[data-lesson-projects]');
+  if (lessonProjects) bindProjectFields(lessonProjects);
+  lessonProjects?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const button = lessonProjects.querySelector('button[type=submit]');
+    try {
+      await withButtonState(button, 'Сохраняю…', 'Сохранено', async () => {
+        const answer = await request(
+          `/api/admin/lessons/${lessonProjects.dataset.lessonProjects}/projects`,
+          { method: 'POST', body: JSON.stringify(projectValues(new FormData(lessonProjects))) }
+        );
+        if (answer) toast('Проекты урока сохранены.');
+      });
+    } catch (error) {
+      toast(`Не сохранилось: ${error.message}`, true);
+    }
+  });
+
   const seriesForm = document.querySelector('[data-lesson-series]');
   seriesForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -788,7 +808,7 @@ export function initPage() {
         // Урок получит временное имя с датой, настоящее придёт из расшифровки.
         const answer = await request('/api/admin/lessons', {
           method: 'POST',
-          body: JSON.stringify({})
+          body: JSON.stringify({ projectSlug: new FormData(newLessonForm).get('projectSlug') })
         });
         // Сразу открываем заведённый урок: следующее действие всё равно там.
         if (answer) location.href = `/admin/lesson/${answer.lesson.slug}`;
