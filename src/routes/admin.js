@@ -62,6 +62,29 @@ import { readVideoPrivacy } from '../services/platforms/youtube.js';
 
 import { rebuildSubtitles } from '../services/transcript.js';
 import { addJob, JOBS } from '../queue.js';
+import {
+  ProjectError,
+  saveProject,
+  deleteProject,
+  setProjects,
+  projectsFor,
+  projectIdsBySlugs
+} from '../services/projects.js';
+
+/** Отказ службы проектов — словами и с верным кодом ответа. */
+function projectFailure(error) {
+  if (!(error instanceof ProjectError)) return error;
+  const status =
+    { no_main: 400, empty_title: 400, not_found: 404, series_locked: 409, no_projects: 409 }[
+      error.code
+    ] ?? 400;
+  return new PublicError(error.message, status);
+}
+
+/** Адреса связанных проектов из тела запроса: форма шлёт их списком. */
+function relatedSlugsOf(body) {
+  return Array.isArray(body?.relatedSlugs) ? body.relatedSlugs.map(String).filter(Boolean) : [];
+}
 
 /** Теги строкой из формы — в список: «docker, vps» → ['docker', 'vps']. */
 export function parseTags(value) {
@@ -303,7 +326,8 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
     let series = null;
     if (title) {
       // Название важнее выбора из списка: человек вписал его последним.
-      series = await saveSeries(pool, { title });
+      // Серия, вписанная на экране урока, — про тот же проект, что и урок.
+      series = await saveSeries(pool, { title, projectId: lesson.projects?.main?.id ?? null });
     } else if (wanted) {
       series = await getSeriesBySlug(pool, wanted, { includeDrafts: true });
       if (!series) throw new PublicError('Серия не найдена', 404);
@@ -318,16 +342,73 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
 
   router.post('/series', async (req, res) => {
     try {
+      const mainSlug = req.body?.mainSlug ? String(req.body.mainSlug) : null;
+      const [mainId = null] = mainSlug ? await projectIdsBySlugs(pool, [mainSlug]) : [];
       const series = await saveSeries(pool, {
+        slug: req.body?.slug ? String(req.body.slug) : null,
+        title: String(req.body?.title ?? ''),
+        description: String(req.body?.description ?? ''),
+        projectId: mainId
+      });
+      if (!series) throw new PublicError('Серия не найдена', 404);
+      // Проекты серии правятся из настроек; смена основного переходит на уроки.
+      if (mainSlug) {
+        await setProjects(pool, 'series', series.id, {
+          mainId,
+          relatedIds: await projectIdsBySlugs(pool, relatedSlugsOf(req.body))
+        });
+      }
+      res.json({ slug: series.slug, title: series.title });
+    } catch (error) {
+      if (error instanceof ProjectError) throw projectFailure(error);
+      if (error instanceof PublicError) throw error;
+      throw new PublicError(error.message, 400);
+    }
+  });
+
+  // Проекты — пометка уроков, новостей и серий. Заводит и правит их автор в
+  // настройках; адрес собирается из названия один раз.
+  router.post('/projects', async (req, res) => {
+    try {
+      const project = await saveProject(pool, {
         slug: req.body?.slug ? String(req.body.slug) : null,
         title: String(req.body?.title ?? ''),
         description: String(req.body?.description ?? '')
       });
-      if (!series) throw new PublicError('Серия не найдена', 404);
-      res.json({ slug: series.slug, title: series.title });
+      if (!project) throw new PublicError('Проект не найден', 404);
+      res.json({ slug: project.slug, title: project.title });
     } catch (error) {
-      if (error instanceof PublicError) throw error;
-      throw new PublicError(error.message, 400);
+      throw projectFailure(error);
+    }
+  });
+
+  // Удаление уносит только связи: материалы остаются, а сколько из них
+  // осталось без основного проекта — называется в ответе.
+  router.delete('/projects/:slug', async (req, res) => {
+    const result = await deleteProject(pool, req.params.slug);
+    if (!result.deleted) throw new PublicError('Проект не найден', 404);
+    res.json(result);
+  });
+
+  // Блок «Проект» на экране урока. У урока в серии выбор основного заперт —
+  // форма его не шлёт, и основной берётся у серии.
+  router.post('/lessons/:slug/projects', async (req, res) => {
+    const lesson = await getLessonBySlug(pool, req.params.slug, { includeDrafts: true });
+    if (!lesson) throw new PublicError('Урок не найден', 404);
+    try {
+      let mainId = null;
+      if (req.body?.mainSlug) {
+        [mainId] = await projectIdsBySlugs(pool, [String(req.body.mainSlug)]);
+      } else if (lesson.seriesId) {
+        mainId =
+          (await projectsFor(pool, 'series', [lesson.seriesId])).get(lesson.seriesId)?.main?.id ??
+          null;
+      }
+      const relatedIds = await projectIdsBySlugs(pool, relatedSlugsOf(req.body));
+      await setProjects(pool, 'lesson', lesson.id, { mainId, relatedIds });
+      res.json({ ok: true });
+    } catch (error) {
+      throw projectFailure(error);
     }
   });
 
@@ -455,13 +536,28 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
   // Новости заводятся и правятся одним маршрутом: разделять их значило бы
   // разложить одно действие автора — «сохранить» — по двум адресам.
   router.post('/news', async (req, res) => {
-    const item = await saveNews(pool, {
-      slug: req.body?.slug ? String(req.body.slug) : null,
-      title: String(req.body?.title ?? ''),
-      body: String(req.body?.body ?? '')
-    });
-    if (!item) throw new PublicError('Новость не найдена', 404);
-    res.json({ slug: item.slug, title: item.title });
+    try {
+      const mainSlug = req.body?.mainSlug ? String(req.body.mainSlug) : null;
+      const [mainId = null] = mainSlug ? await projectIdsBySlugs(pool, [mainSlug]) : [];
+      const item = await saveNews(pool, {
+        slug: req.body?.slug ? String(req.body.slug) : null,
+        title: String(req.body?.title ?? ''),
+        body: String(req.body?.body ?? ''),
+        projectId: mainId
+      });
+      if (!item) throw new PublicError('Новость не найдена', 404);
+      // Форма шлёт проекты всегда. Запрос без них — API или старая страница:
+      // проекты тогда не трогаем, а новая новость уже получила проект по умолчанию.
+      if (mainSlug) {
+        await setProjects(pool, 'news', item.id, {
+          mainId,
+          relatedIds: await projectIdsBySlugs(pool, relatedSlugsOf(req.body))
+        });
+      }
+      res.json({ slug: item.slug, title: item.title });
+    } catch (error) {
+      throw projectFailure(error);
+    }
   });
 
   // Свежие анонсы официальных источников: автор выбирает подходящий и пишет о
@@ -974,9 +1070,13 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
   // автору незачем, а поправить можно потом.
   router.post('/lessons', async (req, res) => {
     try {
-      const lesson = await createLesson(pool, req.body ?? {});
+      const [projectId = null] = req.body?.projectSlug
+        ? await projectIdsBySlugs(pool, [String(req.body.projectSlug)])
+        : [];
+      const lesson = await createLesson(pool, { ...(req.body ?? {}), projectId });
       res.json({ lesson });
     } catch (error) {
+      if (error instanceof ProjectError) throw projectFailure(error);
       throw new PublicError(error.message, 400);
     }
   });
