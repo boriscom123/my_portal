@@ -54,6 +54,20 @@ test('у заголовка урока автор видит значок пра
   assert.doesNotMatch(guest, /class="edit"/);
 });
 
+test('под заголовком — серия и место урока в ней', () => {
+  // Заказчик 2026-09-15: где урок в курсе, видно сразу, а не только в блоке
+  // серии внизу страницы. Той же строкой, что на карточке в «Уроках».
+  const page = lessonPage({ config, lesson, comments: [], user: null, seriesNav });
+  assert.match(
+    page,
+    /<\/h1>\s*<p class="meta series-line">Серия «<a href="\/series\/portal">Портал<\/a>» · урок 2 из 3<\/p>/
+  );
+
+  // Урок вне серии — строки нет.
+  const alone = lessonPage({ config, lesson, comments: [], user: null });
+  assert.doesNotMatch(alone, /series-line/);
+});
+
 test('отзывы — сразу под оценкой, до серии и похожих', () => {
   const page = lessonPage({ config, lesson, comments: [], user: null, seriesNav });
   const rating = page.indexOf('class="rating"');

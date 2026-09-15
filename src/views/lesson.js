@@ -100,6 +100,15 @@ export function lessonPage({
          title="Открыть урок" aria-label="Открыть урок">✎</a>`
       : ''
   }</h1>
+  ${
+    // Где урок в курсе — сразу под заголовком, той же строкой, что на карточке
+    // в «Уроках», а не только в блоке серии внизу страницы.
+    seriesNav?.number
+      ? `<p class="meta series-line">Серия «<a href="/series/${encodeURIComponent(
+          seriesNav.series.slug
+        )}">${escapeHtml(seriesNav.series.title)}</a>» · урок ${seriesNav.number} из ${seriesNav.total}</p>`
+      : ''
+  }
   <p class="lead">${escapeHtml(lesson.description)}</p>
 
   ${
