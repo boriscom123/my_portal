@@ -81,6 +81,16 @@ export async function withTestDb(fn) {
   if (rows.length) {
     const names = rows.map((r) => `${SCHEMA}."${r.tablename}"`).join(', ');
     await pool.query(`TRUNCATE ${names} RESTART IDENTITY CASCADE`);
+    // Строки, которые заводит сама миграция, возвращаем: после миграций проект
+    // «Solo AI Journey» в базе есть всегда, и службы заведения уроков, новостей
+    // и серий на него рассчитывают. Без него каждый тест, заводящий урок,
+    // упирался бы в отказ «сначала заведите проект».
+    if (rows.some((r) => r.tablename === 'projects')) {
+      await pool.query(
+        `INSERT INTO ${SCHEMA}.projects (slug, title, description)
+         VALUES ('solo-ai-journey', 'Solo AI Journey', 'Портал видеоуроков: от идеи до продукта.')`
+      );
+    }
   }
 
   return fn(pool);
