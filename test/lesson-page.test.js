@@ -108,6 +108,31 @@ test('итоговая оценка — в процентах от низа шк
   assert.doesNotMatch(summary(7), /из 9/);
 });
 
+test('между оценкой и формой отзыва — ни черты, ни заголовка, ни пустой подписи', async () => {
+  // Заказчик 2026-09-15: оценка и форма — одно действие «оценить и сказать»,
+  // черта и заголовок «Отзывы» их разрывали, а «Пока никто не написал» лишь
+  // занимало место.
+  const empty = lessonPage({ config, lesson, comments: [], user: null });
+  const section = (page) => page.slice(page.indexOf('class="comments"'), page.indexOf('</section>', page.indexOf('class="comments"')));
+  assert.doesNotMatch(empty, /<h2>Отзывы<\/h2>/);
+  assert.doesNotMatch(empty, /Пока никто не написал/);
+  assert.doesNotMatch(section(empty), /<ul>/, 'пустой список отзывов остался');
+
+  // Отзывы есть — список на месте, только без заголовка над ним.
+  const withComments = lessonPage({
+    config,
+    lesson,
+    user: null,
+    comments: [{ status: 'published', author: { displayName: 'Зритель' }, body: 'Полезно' }]
+  });
+  assert.match(section(withComments), /<ul>[\s\S]*Полезно[\s\S]*<\/ul>/);
+  assert.doesNotMatch(withComments, /<h2>Отзывы<\/h2>/);
+
+  const styles = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
+  const rating = styles.slice(styles.indexOf('.rating {'), styles.indexOf('}', styles.indexOf('.rating {')));
+  assert.doesNotMatch(rating, /border-bottom/, 'черта под оценкой осталась');
+});
+
 test('отзывы — сразу под оценкой, до серии и похожих', () => {
   const page = lessonPage({ config, lesson, comments: [], user: null, seriesNav });
   const rating = page.indexOf('class="rating"');
