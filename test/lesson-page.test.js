@@ -90,6 +90,24 @@ test('девять значков оценки — всегда в одну ст
   assert.match(block('.rating-step'), /font-size: clamp\(/);
 });
 
+test('итоговая оценка — в процентах от низа шкалы', () => {
+  // Заказчик 2026-09-15: «7,5 из 9» читается хуже процентов. Шкала 1–9 идёт в
+  // 0–100%: низ — 0%, середина — 50%, верх — 100%.
+  const summary = (average, total = 3) => {
+    const page = lessonPage({ config, lesson, comments: [], user: null, rating: { total, average } });
+    return page.match(/<p class="rating-summary">([\s\S]*?)<\/p>/)?.[1].replace(/\s+/g, ' ').trim();
+  };
+  assert.equal(summary(7), '<b>75%</b> · 3 оценки');
+  assert.equal(summary(1, 1), '<b>0%</b> · 1 оценка');
+  assert.equal(summary(5, 5), '<b>50%</b> · 5 оценок');
+  assert.equal(summary(9, 2), '<b>100%</b> · 2 оценки');
+  // Дробное среднее — до целого процента: 7,2 → 77,5% → 78%.
+  assert.equal(summary(7.2), '<b>78%</b> · 3 оценки');
+
+  // «из 9» остаётся только в подписях кнопок шкалы для чтеца экрана — в итоге его нет.
+  assert.doesNotMatch(summary(7), /из 9/);
+});
+
 test('отзывы — сразу под оценкой, до серии и похожих', () => {
   const page = lessonPage({ config, lesson, comments: [], user: null, seriesNav });
   const rating = page.indexOf('class="rating"');

@@ -56,8 +56,11 @@ export function lessonPage({
         aria-label="${escapeHtml(value)} из 9 — ${escapeHtml(label)}">${emoji}</button>`
   ).join('');
 
+  // Итог — в процентах от низа шкалы: 1 — 0%, 5 — 50%, 9 — 100%. «7,5 из 9»
+  // читалось хуже, а доля от максимума давала бы низу шкалы странные 11%.
+  const ratingPercent = Math.round(((rating.average - 1) / 8) * 100);
   const ratingSummaryHtml = rating.total
-    ? `<p class="rating-summary"><b>${String(rating.average).replace('.', ',')}</b> из 9 ·
+    ? `<p class="rating-summary"><b>${ratingPercent}%</b> ·
        ${rating.total} ${plural(rating.total, ['оценка', 'оценки', 'оценок'])}</p>`
     : '<p class="rating-summary hint">Оценок пока нет — поставьте первую.</p>';
 
