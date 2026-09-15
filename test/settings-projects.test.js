@@ -43,6 +43,13 @@ test('поля проектов: основной выбран, его гало�
   assert.match(loose, /<option value="" selected>Без проекта<\/option>/);
   assert.doesNotMatch(loose, /required/);
   assert.doesNotMatch(loose, /Выберите проект/);
+
+  // Единственный проект уже основной — выбирать связанные не из чего. Пустой
+  // блок выглядел как «связанных нет вовсе»; вместо него — подсказка, где их
+  // завести.
+  const lonely = projectFields({ projects: [projects[0]], mainId: 1, collapsible: true });
+  assert.match(lonely, /Других проектов пока нет/);
+  assert.match(lonely, /href="\/settings"/);
 });
 
 test('автор видит разделы «Проекты» и «Серии», зритель — нет', skipWithoutDb, async () => {

@@ -58,7 +58,6 @@ export function adminReviewPage({
   publications = [],
   platforms = [],
   series = [],
-  shorts = [],
   projects = [],
   links
 }) {
@@ -329,6 +328,7 @@ ${
     следующий, а у серии будет своя страница со всем порядком. Номер в серии
     ставит урок на это место, остальные сдвигаются; пустой номер — в конец.
     Переставить можно и потом: номером здесь или стрелками на странице серии.
+    Новые серии заводятся <a href="/settings">в настройках</a>.
   </p>
   <form data-lesson-series="${escapeHtml(lesson.slug)}">
     <label>Серия
@@ -347,9 +347,6 @@ ${
     <label>Номер в серии
       <input name="position" type="number" min="1" step="1" inputmode="numeric"
              value="${lesson.seriesPosition ?? ''}" placeholder="в конец">
-    </label>
-    <label>…или новая серия — впишите название
-      <input name="title" maxlength="200" placeholder="Портал с нуля">
     </label>
     <div class="form-row">
       <button class="button-brand" type="submit">Сохранить серию</button>
@@ -375,6 +372,9 @@ ${
       projects,
       mainId: lesson.projects?.main?.id ?? null,
       relatedIds: (lesson.projects?.related ?? []).map((item) => item.id),
+      // Кнопками «Добавить основной проект» и «Добавить связанные проекты» —
+      // как в форме новости.
+      collapsible: true,
       // Урок в серии держит проект серии: менять его — на самой серии.
       locked: lesson.seriesId
         ? `Основной проект задаётся серией — <a href="/series/${encodeURIComponent(
@@ -616,45 +616,8 @@ ${
   }
 </section>
 
-<section class="card">
-  <h2>Вертикальные ролики</h2>
-  <p class="hint">
-    Нарезаются из мест, где вы говорите плотнее всего, а подписи вшиваются
-    внутрь видео. Поэтому собирать их стоит ПОСЛЕ того, как поправите титры:
-    иначе придётся резать заново. Сборка занимает пару минут.
-  </p>
-  ${
-    links.clips.length
-      ? `<ul class="clip-list">${links.clips
-          .map((item) => {
-            const short = shorts.find((made) => made.assetId === item.id);
-            return `<li>
-              <a href="${escapeHtml(item.url)}">${escapeHtml(item.name)}</a>
-              ${
-                short
-                  ? ` — <a href="/short/${encodeURIComponent(short.slug)}/edit">ролик «${escapeHtml(
-                      short.title
-                    )}»</a>`
-                  : `<button class="button" type="button" data-make-short="${item.id}"
-                       value="${escapeHtml(lesson.slug)}">Сделать роликом</button>`
-              }
-            </li>`;
-          })
-          .join('')}</ul>
-         <p class="hint">
-           Ссылка живёт час — посмотрите и решите, годится ли. «Сделать роликом»
-           заводит его в разделе «Коротко»: файл при этом остаётся здесь и
-           перестаёт стареть.
-         </p>`
-      : ''
-  }
-  <p class="form-row">
-    <button class="${links.clips.length ? 'button' : 'button-brand'}" type="button"
-      data-clips="${escapeHtml(lesson.slug)}" ${segments.length ? '' : 'disabled title="Сначала нужна расшифровка"'}>
-      ${links.clips.length ? 'Пересобрать ролики' : 'Собрать ролики'}
-    </button>
-  </p>
-</section>
+<!-- Вертикальные ролики собираются в разделе «Коротко»: там выбирается урок,
+     собираются нарезки и из них делаются ролики. -->
 
 <section class="card">
   <h2>Файлы в буфере</h2>

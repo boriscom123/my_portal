@@ -371,9 +371,6 @@ export function pageRoutes(config, pool) {
         series: await listSeries(pool, { includeDrafts: true }),
         // Все проекты — для выбора основного и связанных в блоке «Проект».
         projects: await listProjects(pool),
-        // Ролики, уже сделанные из нарезок этого урока: кнопка «Сделать
-        // роликом» у такой нарезки не нужна, а ссылка на готовый — нужна.
-        shorts: await shortsOfLesson(pool, lesson.id),
         // Площадки, у которых есть настройки: без ключей кнопка выкладки была бы
         // кнопкой, которая всегда отвечает отказом.
         platforms: (
@@ -430,13 +427,6 @@ export function pageRoutes(config, pool) {
           subtitles: assets
             .filter((row) => row.kind === 'subtitles')
             .map((row) => ({
-              name: row.path.split('/').pop(),
-              url: mediaLink(config, Number(row.id))
-            })),
-          clips: assets
-            .filter((row) => row.kind === 'clip')
-            .map((row) => ({
-              id: Number(row.id),
               name: row.path.split('/').pop(),
               url: mediaLink(config, Number(row.id))
             })),
@@ -504,8 +494,43 @@ export function pageRoutes(config, pool) {
   // правка отдельной страницей.
   router.get('/shorts', async (req, res) => {
     const user = await currentUser(pool, req);
-    const shorts = await listShorts(pool, { includeDrafts: user?.role === 'admin' });
-    res.type('html').send(shortsListPage({ config, user, shorts }));
+    const isAdmin = user?.role === 'admin';
+    const shorts = await listShorts(pool, { includeDrafts: isAdmin });
+    // Нарезки из уроков — только автору: выбор урока, его нарезки и сборка.
+    // Раньше это жило на экране урока; заказчик 2026-09-15 перенёс сюда.
+    let clipsPanel = null;
+    if (isAdmin) {
+      const lessons = await listLessons(pool, { includeDrafts: true, limit: 200 });
+      const chosen = req.query.lesson
+        ? await getLessonBySlug(pool, String(req.query.lesson), { includeDrafts: true })
+        : null;
+      let clips = [];
+      let made = [];
+      let hasTranscript = false;
+      if (chosen) {
+        // Нарезки лежат в буфере и наружу не смотрят: автору — подписанная
+        // ссылка на час, как было на экране урока.
+        const { rows } = await pool.query(
+          `SELECT id, path FROM assets WHERE lesson_id = $1 AND kind = 'clip' ORDER BY id`,
+          [chosen.id]
+        );
+        clips = rows.map((row) => ({
+          id: Number(row.id),
+          name: row.path.split('/').pop(),
+          url: mediaLink(config, Number(row.id))
+        }));
+        made = await shortsOfLesson(pool, chosen.id);
+        const {
+          rows: [count]
+        } = await pool.query(
+          'SELECT count(*)::int AS n FROM transcript_segments WHERE lesson_id = $1',
+          [chosen.id]
+        );
+        hasTranscript = count.n > 0;
+      }
+      clipsPanel = { lessons, chosen, clips, made, hasTranscript };
+    }
+    res.type('html').send(shortsListPage({ config, user, shorts, clipsPanel }));
   });
 
   // Объявлен ДО /short/:slug — иначе «new» попало бы в него как адрес ролика.

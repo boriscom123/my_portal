@@ -53,9 +53,18 @@ export function projectFields({
     </select>
   </label>
   ${locked ? `<p class="hint">${locked}</p>` : ''}`;
+  // Выбрать связанные не из чего — единственный проект уже основной. Пустой
+  // блок читался как «связанных проектов не бывает»; подсказка говорит, где их
+  // завести.
+  const candidates = projects.filter((project) => project.id !== mainId);
   const relatedBlock = `<fieldset class="project-related">
     <legend>Связанные проекты</legend>
     ${checkboxes}
+    ${
+      candidates.length
+        ? ''
+        : '<p class="hint">Других проектов пока нет — <a href="/settings">заведите их в настройках</a>.</p>'
+    }
   </fieldset>`;
 
   if (!collapsible) return `${mainBlock}\n  ${relatedBlock}`;

@@ -5,6 +5,7 @@
 // одного дела заставляли бы вспоминать, где что лежит.
 // Подключается из src/routes/pages.js.
 import { escapeHtml } from '../lib/html.js';
+import { assetUrl } from '../lib/assets.js';
 import { layout } from './layout.js';
 import { publicationLabel } from './publication-state.js';
 
@@ -26,7 +27,75 @@ export function shortPlayer(short) {
 }
 
 /** Список раздела. */
-export function shortsListPage({ config, user, shorts }) {
+/**
+ * Нарезки из уроков — для автора: выбор урока, его нарезки и сборка.
+ * Раньше блок жил на экране урока; заказчик 2026-09-15 перенёс его сюда, где
+ * ролики и живут. Выбор урока — обычной формой с адресом: работает и без
+ * скрипта, и страницу с выбранным уроком можно открыть по ссылке.
+ */
+function clipsPanelHtml({ lessons = [], chosen = null, clips = [], made = [], hasTranscript = false }) {
+  return `<section class="card">
+  <h2>Нарезки из уроков</h2>
+  <p class="hint">
+    Вертикальные ролики нарезаются из мест урока, где вы говорите плотнее всего,
+    а подписи вшиваются внутрь видео. Поэтому собирать их стоит
+    ПОСЛЕ того, как поправите титры: иначе придётся резать заново.
+    Сборка занимает пару минут.
+  </p>
+  <form action="/shorts" method="get" class="form-row">
+    <label>Урок
+      <select name="lesson">
+        <option value="">— выберите урок —</option>
+        ${lessons
+          .map(
+            (lesson) =>
+              `<option value="${escapeHtml(lesson.slug)}"${
+                chosen?.slug === lesson.slug ? ' selected' : ''
+              }>${escapeHtml(lesson.title)}</option>`
+          )
+          .join('')}
+      </select>
+    </label>
+    <button class="button" type="submit">Показать</button>
+  </form>
+  ${
+    chosen
+      ? `${
+          clips.length
+            ? `<ul class="clip-list">${clips
+                .map((item) => {
+                  const short = made.find((one) => one.assetId === item.id);
+                  return `<li>
+              <a href="${escapeHtml(item.url)}">${escapeHtml(item.name)}</a>
+              ${
+                short
+                  ? ` — <a href="/short/${encodeURIComponent(short.slug)}/edit">ролик «${escapeHtml(
+                      short.title
+                    )}»</a>`
+                  : `<button class="button" type="button" data-make-short="${item.id}"
+                       value="${escapeHtml(chosen.slug)}">Сделать роликом</button>`
+              }
+            </li>`;
+                })
+                .join('')}</ul>
+         <p class="hint">
+           Ссылка живёт час — посмотрите и решите, годится ли. «Сделать роликом»
+           заводит ролик в этом разделе: файл остаётся за уроком и перестаёт стареть.
+         </p>`
+            : '<p class="hint">Нарезок у этого урока ещё нет.</p>'
+        }
+  <p class="form-row">
+    <button class="${clips.length ? 'button' : 'button-brand'}" type="button"
+      data-clips="${escapeHtml(chosen.slug)}" ${hasTranscript ? '' : 'disabled title="Сначала нужна расшифровка"'}>
+      ${clips.length ? 'Пересобрать ролики' : 'Собрать ролики'}
+    </button>
+  </p>`
+      : ''
+  }
+</section>`;
+}
+
+export function shortsListPage({ config, user, shorts, clipsPanel = null }) {
   const isAdmin = user?.role === 'admin';
   return layout({
     config,
@@ -41,6 +110,8 @@ export function shortsListPage({ config, user, shorts }) {
         ? ` <a class="add" href="/shorts/new" title="Загрузить ролик" aria-label="Загрузить ролик">+</a>`
         : ''
     }</h1>
+
+${isAdmin && clipsPanel ? clipsPanelHtml(clipsPanel) : ''}
 
 ${
   shorts.length
@@ -67,6 +138,11 @@ ${
         )
         .join('')}</div>`
     : '<p class="hint">Роликов пока нет.</p>'
+}
+${
+  // Кнопки сборки и «Сделать роликом» слушает скрипт кабинета — автору он нужен
+  // и здесь.
+  isAdmin ? `<script src="${assetUrl('/admin.js')}" type="module"></script>` : ''
 }`
   });
 }

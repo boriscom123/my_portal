@@ -430,10 +430,35 @@ test('ролики собираются по нажатию, а не сами', 
           headers: { Accept: 'text/html', ...asAdmin(adminId) }
         })
       ).text();
-      // Кнопка есть всегда, и рядом сказано, почему собирать их надо после
-      // правки титров: подписи вшиваются внутрь видео.
-      assert.match(html, /data-clips="urok"/);
-      assert.match(html, /ПОСЛЕ того, как поправите титры/);
+      // Заказчик 2026-09-15: блок вертикальных роликов переехал с экрана урока
+      // в «Коротко», поле новой серии убрано — серии заводятся в настройках,
+      // проекты — кнопками, как в новости.
+      assert.doesNotMatch(html, /data-clips=/);
+      assert.doesNotMatch(html, /Вертикальные ролики<\/h2>/);
+      assert.doesNotMatch(html, /новая серия/);
+      assert.match(html, /<summary[^>]*>Добавить связанные проекты<\/summary>/);
+
+      // В «Коротко» автор выбирает урок, собирает нарезки и делает из них ролики.
+      const { rows: [clip] } = await pool.query(
+        `INSERT INTO assets (lesson_id, kind, path, bytes, expires_at)
+         SELECT id, 'clip', 'lesson-1/clip-1.mp4', 100, now() + interval '7 days'
+           FROM lessons WHERE slug = 'urok' RETURNING id`
+      );
+      const shorts = await (
+        await fetch(`${base}/shorts?lesson=urok`, {
+          headers: { Accept: 'text/html', ...asAdmin(adminId) }
+        })
+      ).text();
+      assert.match(shorts, /<select name="lesson"/);
+      assert.match(shorts, /<option value="urok" selected>/);
+      // Кнопка сборки — и рядом сказано, почему собирать надо после правки
+      // титров: подписи вшиваются внутрь видео.
+      assert.match(shorts, /data-clips="urok"/);
+      assert.match(shorts, /ПОСЛЕ того, как поправите титры/);
+      assert.match(shorts, new RegExp(`data-make-short="${clip.id}"`));
+
+      const guest = await (await fetch(`${base}/shorts`, { headers: { Accept: 'text/html' } })).text();
+      assert.doesNotMatch(guest, /<select name="lesson"/);
 
       const res = await fetch(`${base}/api/admin/lessons/urok/clips`, {
         method: 'POST',
