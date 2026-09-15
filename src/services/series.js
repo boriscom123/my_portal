@@ -6,7 +6,12 @@
 // пришлось бы вручную перебирать все прежние.
 // Вызывается из src/routes/pages.js, src/routes/admin.js и страницы урока.
 import { slugify } from '../lib/slug.js';
-import { resolveProjectId, setMainProject, projectsFor } from './projects.js';
+import {
+  resolveProjectId,
+  setMainProject,
+  projectsFor,
+  inheritSeriesProject
+} from './projects.js';
 
 /** Строка серии в виде, в котором её ждут шаблоны. */
 function toSeries(row) {
@@ -208,6 +213,9 @@ export async function setLessonSeries(pool, lessonId, seriesId, { position = nul
       others.splice(index, 0, Number(lessonId));
       await renumber(client, targetSeriesId, others);
       placed = index + 1;
+      // Серия задаёт основной проект своим урокам — в той же сделке, чтобы урок
+      // не оказался в серии с чужим проектом даже на миг.
+      await inheritSeriesProject(client, Number(lessonId), targetSeriesId);
     }
 
     // Урок ушёл из прежней серии — она смыкается, чтобы не зиять дырой.

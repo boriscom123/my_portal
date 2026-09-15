@@ -17,6 +17,7 @@ import {
   seriesNavigation,
   relatedLessons
 } from '../src/services/series.js';
+import { saveProject, setProjects, projectsFor } from '../src/services/projects.js';
 import { withServer } from './helpers/http.js';
 import { withTestDb, skipWithoutDb } from './helpers/db.js';
 
@@ -429,5 +430,24 @@ test('в списке уроков — обложка и место в сери�
       // Состояние Яндекс Диска — в настройках, в списке уроков ему не место.
       assert.doesNotMatch(author, /Яндекс Диск:/);
     });
+  });
+});
+
+test('урок, вставший в серию, получает её основной проект', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const idle = await saveProject(pool, { title: 'IDLE игра' });
+    const notifier = await saveProject(pool, { title: 'Уведомлятор' });
+    const series = await saveSeries(pool, { title: 'Игра с нуля' });
+    await setProjects(pool, 'series', series.id, { mainId: idle.id });
+
+    const lesson = await publishedLesson(pool, 'urok', 'Урок');
+    await setProjects(pool, 'lesson', lesson.id, { mainId: notifier.id, relatedIds: [idle.id] });
+    await setLessonSeries(pool, lesson.id, series.id, { position: 1 });
+
+    const links = (await projectsFor(pool, 'lesson', [lesson.id])).get(lesson.id);
+    assert.equal(links.main.id, idle.id);
+    // Проект серии был у урока связанным — стал основным и из связанных ушёл;
+    // прежний основной урок не превращается в связанный сам собой.
+    assert.deepEqual(links.related, []);
   });
 });
