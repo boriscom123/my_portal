@@ -61,7 +61,7 @@ function toLesson(row) {
 /** Лента уроков. includeDrafts включается только для админа. */
 export async function listLessons(
   pool,
-  { tag = null, limit = DEFAULT_LIMIT, offset = 0, includeDrafts = false }
+  { tag = null, limit = DEFAULT_LIMIT, offset = 0, includeDrafts = false, project = null }
 ) {
   const { rows } = await pool.query(
     `SELECT l.*, COALESCE(array_agg(t.slug ORDER BY t.slug) FILTER (WHERE t.slug IS NOT NULL), '{}') AS tags
@@ -73,10 +73,16 @@ export async function listLessons(
               SELECT 1 FROM lesson_tags lt2
                 JOIN tags t2 ON t2.id = lt2.tag_id
                WHERE lt2.lesson_id = l.id AND t2.slug = $2))
+        -- Фильтр по проекту — здесь, а не на странице: иначе предел в 20
+        -- карточек съедал бы уроки проекта. Основной и связанный — оба.
+        AND ($5::text IS NULL OR EXISTS (
+              SELECT 1 FROM lesson_projects lp
+                JOIN projects p ON p.id = lp.project_id
+               WHERE lp.lesson_id = l.id AND p.slug = $5))
       GROUP BY l.id
       ORDER BY COALESCE(l.published_at, l.created_at) DESC
       LIMIT $3 OFFSET $4`,
-    [includeDrafts, tag, limit, offset]
+    [includeDrafts, tag, limit, offset, project]
   );
   const lessons = rows.map(toLesson);
   if (!lessons.length) return lessons;
@@ -117,6 +123,10 @@ export async function listLessons(
       ? { slug: place.slug, title: place.title, number: Number(place.number), total: Number(place.total) }
       : null;
   }
+
+  // Проекты уроков для кнопок на карточках — одним запросом на страницу.
+  const links = await projectsFor(pool, 'lesson', lessons.map((lesson) => lesson.id));
+  for (const lesson of lessons) lesson.projects = links.get(lesson.id);
   return lessons;
 }
 

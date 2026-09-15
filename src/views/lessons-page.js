@@ -9,6 +9,7 @@ import { escapeHtml } from '../lib/html.js';
 import { layout } from './layout.js';
 import { stateLabel } from './lesson-state.js';
 import { formatDate } from './feed.js';
+import { projectLinks } from './project-links.js';
 
 /** Русское склонение после числа: 1 урок, 2 урока, 5 уроков. */
 function plural(n, [one, few, many]) {
@@ -59,6 +60,7 @@ function lessonCard(lesson, isAdmin) {
       ? `<p class="card-text">${escapeHtml(lesson.description).slice(0, 400)}</p>`
       : ''
   }
+  ${projectLinks(lesson.projects, '/lessons')}
   ${
     // Внизу — место в серии: пришедший на середину курса видит, что урок не
     // сам по себе, и одним нажатием попадает ко всему порядку.
@@ -73,7 +75,14 @@ function lessonCard(lesson, isAdmin) {
 </article>`;
 }
 
-export function lessonsPage({ config, user, lessons, series = [] }) {
+export function lessonsPage({
+  config,
+  user,
+  lessons,
+  series = [],
+  project = null,
+  unknownProject = false
+}) {
   const isAdmin = user?.role === 'admin';
   // Пока что-то считается, страница перечитывается сама: иначе автор смотрит
   // на «обрабатывается» и жмёт перезагрузку вручную каждые полминуты. Форма
@@ -86,15 +95,18 @@ export function lessonsPage({ config, user, lessons, series = [] }) {
     refreshSeconds: busy ? 20 : null,
     config,
     user,
-    path: '/lessons',
-    title: 'Уроки — Solo AI Journey',
+    // У отфильтрованного списка свой адрес: для поисковика это отдельная страница.
+    path: project ? `/lessons?project=${encodeURIComponent(project.slug)}` : '/lessons',
+    title: project ? `Уроки проекта «${project.title}» — Solo AI Journey` : 'Уроки — Solo AI Journey',
     description: 'Все видеоуроки портала: от идеи до продукта, шаг за шагом.',
     body: `
-<h1>Уроки${
+<h1>${project ? `Уроки проекта «${escapeHtml(project.title)}»` : 'Уроки'}${
   isAdmin
     ? ` <a class="add" href="/lessons/new" title="Завести урок" aria-label="Завести урок">+</a>`
     : ''
 }</h1>
+${project ? '<p><a href="/lessons">все уроки</a></p>' : ''}
+${unknownProject ? '<p class="hint">Такого проекта нет — показаны все уроки.</p>' : ''}
 <!-- Состояние Яндекс Диска здесь больше не показывается: оно живёт в
      настройках, рядом с самим подключением. В списке уроков это была строка,
      которая ничего не давала сделать. -->

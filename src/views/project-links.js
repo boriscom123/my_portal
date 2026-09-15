@@ -56,3 +56,21 @@ export function projectFields({ projects = [], mainId = null, relatedIds = [], l
     ${checkboxes}
   </fieldset>`;
 }
+
+/**
+ * Кнопки проектов под материалом. Основной — фирменным цветом, связанные —
+ * обычными. base — список, куда ведёт кнопка: с урока в «Уроки», с новости в
+ * «Новости». Проектов нет — пустая строка.
+ */
+export function projectLinks(projects, base) {
+  const main = projects?.main ?? null;
+  const related = projects?.related ?? [];
+  if (!main && !related.length) return '';
+  const link = (project, className) =>
+    `<a class="${className}" href="${base}?project=${encodeURIComponent(project.slug)}">${escapeHtml(
+      project.title
+    )}</a>`;
+  return `<p class="project-links">${main ? link(main, 'project-link main') : ''}${related
+    .map((project) => link(project, 'project-link'))
+    .join('')}</p>`;
+}

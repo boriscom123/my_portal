@@ -4,6 +4,7 @@
 // Вызывается из src/routes/pages.js по маршруту /lesson/:slug.
 import { escapeHtml } from '../lib/html.js';
 import { platformLinks } from './platform-links.js';
+import { projectLinks } from './project-links.js';
 import { layout } from './layout.js';
 import { formatDate } from './feed.js';
 import { seriesBlock, relatedBlock } from './series.js';
@@ -76,6 +77,7 @@ export function lessonPage({
       : ''
   }
   <p class="meta">${escapeHtml(lesson.publishedAt ? formatDate(lesson.publishedAt) : 'черновик')}</p>
+  ${projectLinks(lesson.projects, '/lessons')}
   <h1>${escapeHtml(lesson.title)}</h1>
   <p class="lead">${escapeHtml(lesson.description)}</p>
 

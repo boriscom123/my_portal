@@ -8,7 +8,7 @@ import { escapeHtml } from '../lib/html.js';
 import { layout } from './layout.js';
 import { publicationLabel } from './publication-state.js';
 import { isDrawing } from '../services/cover-drawing.js';
-import { projectFields } from './project-links.js';
+import { projectFields, projectLinks } from './project-links.js';
 
 /** Дата человеку: «8 сентября 2026». */
 function formatDate(value) {
@@ -75,20 +75,25 @@ function newsForm(item = null, projects = [], defaultId = null) {
 }
 
 /** Список новостей. */
-export function newsListPage({ config, user, news }) {
+export function newsListPage({ config, user, news, project = null, unknownProject = false }) {
   const isAdmin = user?.role === 'admin';
   return layout({
     config,
     user,
-    path: '/news',
-    title: 'Новости — Solo AI Journey',
+    // У отфильтрованного списка свой адрес: для поисковика это отдельная страница.
+    path: project ? `/news?project=${encodeURIComponent(project.slug)}` : '/news',
+    title: project
+      ? `Новости проекта «${project.title}» — Solo AI Journey`
+      : 'Новости — Solo AI Journey',
     description: 'Что нового на портале: анонсы, итоги и заметки между уроками.',
     body: `
-<h1>Новости${
+<h1>${project ? `Новости проекта «${escapeHtml(project.title)}»` : 'Новости'}${
       isAdmin
         ? ` <a class="add" href="/news/new" title="Написать новость" aria-label="Написать новость">+</a>`
         : ''
     }</h1>
+${project ? '<p><a href="/news">все новости</a></p>' : ''}
+${unknownProject ? '<p class="hint">Такого проекта нет — показаны все новости.</p>' : ''}
 
 ${
   news.length
@@ -108,6 +113,7 @@ ${
           }</h2>
   ${newsImages(item.images.slice(0, 1))}
   <p class="card-text">${escapeHtml(item.body).slice(0, 400)}</p>
+  ${projectLinks(item.projects, '/news')}
 </article>`
         )
         .join('')
@@ -132,6 +138,7 @@ export function newsPage({ config, user, item }) {
       ? escapeHtml(formatDate(item.publishedAt))
       : '<span class="badge">черновик — виден только вам</span>'
   }</p>
+  ${projectLinks(item.projects, '/news')}
   <h1>${escapeHtml(item.title)}</h1>
   ${newsImages(item.images)}
   <div class="news-body">${linkify(item.body)}</div>

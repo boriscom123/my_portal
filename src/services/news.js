@@ -56,16 +56,28 @@ const FIELDS = 'id, slug, title, body, status, published_at, created_at, generat
  * решает это запрос, а не шаблон. Забыть проверку в шаблоне легко, и тогда
  * недописанная новость окажется на витрине.
  */
-export async function listNews(pool, { limit = DEFAULT_LIMIT, includeDrafts = false } = {}) {
+export async function listNews(
+  pool,
+  { limit = DEFAULT_LIMIT, includeDrafts = false, project = null } = {}
+) {
   const { rows } = await pool.query(
     `SELECT ${FIELDS} FROM news
-      WHERE $2::boolean OR status = 'published'
+      WHERE ($2::boolean OR status = 'published')
+        -- Фильтр по проекту — в запросе: основной и связанный оба.
+        AND ($3::text IS NULL OR EXISTS (
+              SELECT 1 FROM news_projects np
+                JOIN projects p ON p.id = np.project_id
+               WHERE np.news_id = news.id AND p.slug = $3))
       -- Черновик сортируется по дню заведения: даты выхода у него ещё нет, а
       -- проваливаться в конец списка он не должен — автор пишет его сейчас.
       ORDER BY COALESCE(published_at, created_at) DESC LIMIT $1`,
-    [limit, includeDrafts]
+    [limit, includeDrafts, project]
   );
-  return attachImages(pool, rows.map(toNews));
+  const items = await attachImages(pool, rows.map(toNews));
+  // Проекты новостей для кнопок на карточках — одним запросом на страницу.
+  const links = await projectsFor(pool, 'news', items.map((item) => item.id));
+  for (const item of items) item.projects = links.get(item.id);
+  return items;
 }
 
 /** Одна новость по номеру: шаг очереди знает только его. */

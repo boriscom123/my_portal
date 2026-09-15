@@ -6,6 +6,7 @@ import { layout } from './layout.js';
 import { stateLabel } from './lesson-state.js';
 import { hero } from './hero.js';
 import { platformLinks } from './platform-links.js';
+import { projectLinks } from './project-links.js';
 
 /** Дата в виде, привычном читателю: «1 августа 2026». */
 export function formatDate(value) {
@@ -48,6 +49,7 @@ function lessonCard(lesson, isAdmin, fresh = false) {
     }</p>
     <h3><a href="/lesson/${encodeURIComponent(lesson.slug)}">${escapeHtml(lesson.title)}</a></h3>
     <p class="card-text">${escapeHtml(lesson.description)}</p>
+    ${projectLinks(lesson.projects, '/lessons')}
     ${
       platformLinks(lesson.publications ?? [], { className: 'platform-link', prefix: '' })
         ? `<p class="platform-links">Смотреть: ${platformLinks(lesson.publications ?? [], {
@@ -92,6 +94,7 @@ function newsCard(item, fresh = false) {
     <p class="meta">${escapeHtml(formatDate(item.publishedAt))}</p>
     <h3><a href="/news/${encodeURIComponent(item.slug)}">${escapeHtml(item.title)}</a></h3>
     <p class="card-text">${escapeHtml(item.body).slice(0, 220)}</p>
+    ${projectLinks(item.projects, '/news')}
   </div>
 </article>`;
 }

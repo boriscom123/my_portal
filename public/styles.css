@@ -2116,3 +2116,32 @@ label[for='cover-file'] {
   padding: 0;
   margin-bottom: 6px;
 }
+
+/* --- Кнопки проектов ---------------------------------------------------- */
+
+/* Основной проект — фирменным цветом, связанные — обычной рамкой: сразу
+   видно, о чём материал, а что он лишь затрагивает. */
+.project-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+.project-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 2px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 14px;
+  color: var(--fg);
+  text-decoration: none;
+}
+.project-link.main {
+  /* Фирменный цвет — тот же, что у обводки фокуса: переменная --brand-2 есть
+     в обеих темах. */
+  background: var(--brand-2);
+  border-color: transparent;
+  color: #fff;
+}

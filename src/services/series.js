@@ -41,15 +41,20 @@ function toCard(row) {
 }
 
 /** Все серии со счётчиком уроков. Пустые тоже: автор их только что завёл. */
-export async function listSeries(pool, { includeDrafts = false } = {}) {
+export async function listSeries(pool, { includeDrafts = false, project = null } = {}) {
   const { rows } = await pool.query(
     `SELECT s.id, s.slug, s.title, s.description,
             count(l.id) FILTER (WHERE $1::boolean OR l.status = 'published') AS lesson_count
        FROM series s
        LEFT JOIN lessons l ON l.series_id = s.id
+      -- Серии проекта: основной или связанный.
+      WHERE $2::text IS NULL OR EXISTS (
+              SELECT 1 FROM series_projects sp
+                JOIN projects p ON p.id = sp.project_id
+               WHERE sp.series_id = s.id AND p.slug = $2)
       GROUP BY s.id
       ORDER BY s.title`,
-    [includeDrafts]
+    [includeDrafts, project]
   );
   return rows.map(toSeries);
 }

@@ -22,7 +22,12 @@ import {
   seriesNavigation,
   relatedLessons
 } from '../services/series.js';
-import { listProjects, projectsFor, defaultProjectId } from '../services/projects.js';
+import {
+  listProjects,
+  projectsFor,
+  defaultProjectId,
+  getProjectBySlug
+} from '../services/projects.js';
 import { seriesPage } from '../views/series.js';
 import {
   shortsListPage,
@@ -217,17 +222,31 @@ export function pageRoutes(config, pool) {
 
   // Уроки: список для всех, управление для автора. Одна страница на обоих —
   // раньше их было две, и публичной среди них не было вовсе.
+  /**
+   * Проект из адреса страницы списка. Неизвестный адрес — не отказ, а полный
+   * список с подсказкой: ссылка могла пережить удалённый проект.
+   */
+  const projectFromQuery = async (query) => {
+    const slug = query.project ? String(query.project) : null;
+    if (!slug) return { project: null, unknownProject: false };
+    const project = await getProjectBySlug(pool, slug);
+    return { project, unknownProject: !project };
+  };
+
   router.get('/lessons', async (req, res) => {
     const user = await currentUser(pool, req);
     const isAdmin = user?.role === 'admin';
+    const { project, unknownProject } = await projectFromQuery(req.query);
     res.type('html').send(
       lessonsPage({
         config,
         user,
-        lessons: await listLessons(pool, { includeDrafts: isAdmin }),
+        lessons: await listLessons(pool, { includeDrafts: isAdmin, project: project?.slug ?? null }),
         // Серии впереди списка: курс из восьми уроков человеку полезнее
         // восьми отдельных строк, между которыми он выбирает наугад.
-        series: await listSeries(pool, { includeDrafts: isAdmin })
+        series: await listSeries(pool, { includeDrafts: isAdmin, project: project?.slug ?? null }),
+        project,
+        unknownProject
       })
     );
   });
@@ -548,10 +567,14 @@ export function pageRoutes(config, pool) {
 
   router.get('/news', async (req, res) => {
     const user = await currentUser(pool, req);
+    const { project, unknownProject } = await projectFromQuery(req.query);
     // Черновики видит только автор: недописанная новость на витрине хуже, чем
     // её отсутствие.
-    const news = await listNews(pool, { includeDrafts: user?.role === 'admin' });
-    res.type('html').send(newsListPage({ config, user, news }));
+    const news = await listNews(pool, {
+      includeDrafts: user?.role === 'admin',
+      project: project?.slug ?? null
+    });
+    res.type('html').send(newsListPage({ config, user, news, project, unknownProject }));
   });
 
   // Создание и правка — отдельными страницами: форма посреди списка мешает
