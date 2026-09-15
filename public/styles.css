@@ -921,28 +921,35 @@ img {
   border-bottom: 1px solid var(--line);
 }
 
-/* Девять ступеней в ряд. На узком экране переносятся, но порядок сохраняется:
-   человек запоминает положение смайлика, а не сам смайлик. */
+/* Девять ступеней — всегда одной строкой: человек запоминает положение смайлика
+   на шкале, а перенос на вторую строку ломает саму шкалу. Девять кнопок по 44
+   точки с зазорами шире экрана телефона, поэтому на узком экране кнопки не
+   переносятся, а уменьшаются. */
 .rating-scale {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  flex-wrap: nowrap;
+  gap: clamp(2px, 1vw, 6px);
   margin-bottom: 12px;
 }
 
 .rating-step {
-  min-height: var(--tap-target);
-  min-width: var(--tap-target);
+  /* Ширину делят поровну и могут сжиматься (min-width: 0 — без него гибкая
+     раскладка кнопку не уменьшит). На широком экране — прежние 44 точки, не
+     больше; квадрат держит aspect-ratio. Смайлики в разных системах разной
+     ширины, поэтому шаг задаёт кнопка, а не содержимое, — иначе шкала
+     выглядит кривой лесенкой. */
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: var(--tap-target);
+  min-height: 0;
+  aspect-ratio: 1;
   padding: 0;
-  font-size: 22px;
+  font-size: clamp(14px, 4.6vw, 22px);
   line-height: 1;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
   cursor: pointer;
-  /* Смайлики в разных системах разной ширины; фиксируем шаг, иначе шкала
-     выглядит кривой лесенкой. */
-  flex: 0 0 auto;
   filter: grayscale(0.55);
   transition: filter 0.15s ease;
 }

@@ -5,6 +5,7 @@
 // и местом каждого урока в ней, как на странице «Уроки».
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { lessonPage } from '../src/views/lesson.js';
 
 const config = {
@@ -66,6 +67,27 @@ test('под заголовком — серия и место урока в н�
   // Урок вне серии — строки нет.
   const alone = lessonPage({ config, lesson, comments: [], user: null });
   assert.doesNotMatch(alone, /series-line/);
+});
+
+test('девять значков оценки — всегда в одну строку, на узком экране мельче', async () => {
+  // Заказчик 2026-09-15: на телефоне шкала переносилась на вторую строку. Девять
+  // кнопок по 44 точки с зазорами — это 444 точки, шире экрана телефона. Шкала
+  // не переносится, а кнопки делят ширину поровну и уменьшаются вместе со значком.
+  const styles = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
+  const block = (selector) => {
+    const at = styles.indexOf(`${selector} {`);
+    assert.ok(at >= 0, `нет правила ${selector}`);
+    return styles.slice(at, styles.indexOf('}', at));
+  };
+  assert.match(block('.rating-scale'), /flex-wrap: nowrap/);
+  assert.doesNotMatch(block('.rating-scale'), /flex-wrap: wrap/);
+  // Кнопка может сжиматься: без min-width: 0 гибкая раскладка её не уменьшит.
+  assert.match(block('.rating-step'), /flex: 1 1 0/);
+  assert.match(block('.rating-step'), /min-width: 0/);
+  // На широком экране — прежний размер, не больше: растягиваться во всю строку незачем.
+  assert.match(block('.rating-step'), /max-width: var\(--tap-target\)/);
+  // Значок уменьшается вместе с кнопкой.
+  assert.match(block('.rating-step'), /font-size: clamp\(/);
 });
 
 test('отзывы — сразу под оценкой, до серии и похожих', () => {
