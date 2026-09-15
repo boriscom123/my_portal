@@ -38,6 +38,9 @@
   --radius: 12px;
   /* Минимальная цель нажатия. Ниже 44 пикселей на телефоне промахиваются. */
   --tap-target: 44px;
+  /* Ширина колонки страницы: её держат и содержимое, и шапка с подвалом —
+     иначе на широком мониторе знак и меню разъезжались по краям экрана. */
+  --page-width: 68rem;
   --text-width: 46rem;
 }
 
@@ -274,7 +277,14 @@ h3 {
   align-items: center;
   justify-content: space-between;
   gap: 10px 16px;
-  padding: 12px clamp(var(--gap), 4vw, 48px);
+  padding-block: 12px;
+  /* Та же колонка, что у содержимого: боковой отступ растёт так, что внутри
+     остаётся --page-width, а на узком экране он не меньше прежнего. Черта под
+     шапкой при этом идёт во всю ширину экрана. */
+  padding-inline: max(
+    clamp(var(--gap), 4vw, 48px),
+    calc((100% - var(--page-width)) / 2 + clamp(var(--gap), 4vw, 48px))
+  );
   border-bottom: 1px solid var(--line);
   flex-wrap: wrap;
 }
@@ -418,7 +428,7 @@ main {
      Ширину при этом держит прежнюю — auto по бокам центрует её в колонке. */
   flex: 1 0 auto;
   width: 100%;
-  max-width: 68rem;
+  max-width: var(--page-width);
   margin: 0 auto;
   box-sizing: border-box;
   padding: clamp(24px, 5vw, 56px) clamp(var(--gap), 4vw, 48px);
@@ -545,7 +555,13 @@ main {
 }
 
 footer {
-  padding: 20px clamp(var(--gap), 4vw, 48px);
+  padding-block: 20px;
+  /* Та же колонка, что у содержимого и шапки; черта над подвалом — во всю
+     ширину экрана. */
+  padding-inline: max(
+    clamp(var(--gap), 4vw, 48px),
+    calc((100% - var(--page-width)) / 2 + clamp(var(--gap), 4vw, 48px))
+  );
   border-top: 1px solid var(--line);
   display: flex;
   justify-content: space-between;
