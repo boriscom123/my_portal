@@ -314,3 +314,118 @@ test('урок ставится в серию с её заведением на 
     assert.equal((await listSeries(pool)).length, 1, 'сама серия при этом остаётся');
   });
 });
+
+/** Номера уроков серии подряд, как они лежат в базе. */
+async function positions(pool, seriesId) {
+  const { rows } = await pool.query(
+    'SELECT slug, series_position FROM lessons WHERE series_id = $1 ORDER BY series_position',
+    [seriesId]
+  );
+  return rows.map((row) => [row.slug, Number(row.series_position)]);
+}
+
+test('номер в серии ставит урок на это место, остальные сдвигаются', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const { series } = await threeInSeries(pool);
+    // Урок записан позже, но по смыслу второй: автор ставит его сразу на место,
+    // а не гоняет стрелками с конца.
+    const late = await publishedLesson(pool, 'vstavka', 'Вставка', 4);
+    assert.equal(await setLessonSeries(pool, late.id, series.id, { position: 2 }), 2);
+    assert.deepEqual(await positions(pool, series.id), [
+      ['pervyy', 1],
+      ['vstavka', 2],
+      ['vtoroy', 3],
+      ['tretiy', 4]
+    ]);
+  });
+});
+
+test('смена номера переставляет урок внутри серии без дыр', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const { series, lessons } = await threeInSeries(pool);
+    await setLessonSeries(pool, lessons[2].id, series.id, { position: 1 });
+    assert.deepEqual(await positions(pool, series.id), [
+      ['tretiy', 1],
+      ['pervyy', 2],
+      ['vtoroy', 3]
+    ]);
+
+    // Номер больше, чем уроков, — это «в конец», а не дыра до девяносто девятого.
+    assert.equal(await setLessonSeries(pool, lessons[2].id, series.id, { position: 99 }), 3);
+    assert.deepEqual(await positions(pool, series.id), [
+      ['pervyy', 1],
+      ['vtoroy', 2],
+      ['tretiy', 3]
+    ]);
+  });
+});
+
+test('урок, вынутый из серии, не оставляет дыры в номерах', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const { series, lessons } = await threeInSeries(pool);
+    await setLessonSeries(pool, lessons[1].id, null);
+    // Иначе автор видел бы «1, 3» и не понимал, куда делся второй.
+    assert.deepEqual(await positions(pool, series.id), [
+      ['pervyy', 1],
+      ['tretiy', 2]
+    ]);
+  });
+});
+
+test('номер в серии приходит с экрана урока', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const { series } = await threeInSeries(pool);
+    await publishedLesson(pool, 'vstavka', 'Вставка', 4);
+    const headers = await admin(pool);
+    const app = finalize(createApp({ config, pool, queue: { add: async () => {} } }));
+
+    await withServer(app, async (base) => {
+      const response = await fetch(`${base}/api/admin/lessons/vstavka/series`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ seriesSlug: series.slug, title: '', position: '1' })
+      });
+      assert.equal(response.status, 200);
+      assert.equal((await response.json()).position, 1);
+
+      const wrong = await fetch(`${base}/api/admin/lessons/vstavka/series`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ seriesSlug: series.slug, title: '', position: 'первый' })
+      });
+      assert.equal(wrong.status, 400);
+
+      // Поле на экране урока показывает нынешний номер: правят его, а не
+      // вспоминают.
+      const page = await (
+        await fetch(`${base}/admin/lesson/vstavka`, { headers: { ...headers, Accept: 'text/html' } })
+      ).text();
+      assert.match(page, /<input[^>]*name="position"[^>]*value="1"/);
+    });
+  });
+});
+
+test('в списке уроков — обложка и место в серии', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const { series, lessons } = await threeInSeries(pool);
+    await pool.query(`UPDATE lessons SET cover_url = '/media/asset/77' WHERE id = $1`, [lessons[1].id]);
+    // Черновик первым в серии: зритель его не видит и считать его не должен.
+    const draft = await saveLesson(pool, { slug: 'chernovik', title: 'Черновик' });
+    await setLessonSeries(pool, draft.id, series.id, { position: 1 });
+    const headers = await admin(pool);
+    const app = finalize(createApp({ config, pool, queue: { add: async () => {} } }));
+
+    await withServer(app, async (base) => {
+      const guest = await (await fetch(`${base}/lessons`)).text();
+      assert.match(guest, /<img[^>]*src="\/media\/asset\/77"/);
+      assert.match(guest, /href="\/series\/portal-s-nulya"/);
+      assert.match(guest, /урок 2 из 3/);
+      assert.doesNotMatch(guest, /урок \d из 4/);
+
+      const author = await (
+        await fetch(`${base}/lessons`, { headers: { ...headers, Accept: 'text/html' } })
+      ).text();
+      assert.match(author, /урок 3 из 4/);
+    });
+  });
+});

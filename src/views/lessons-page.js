@@ -29,6 +29,7 @@ function plural(n, [one, few, many]) {
 function lessonCard(lesson, isAdmin) {
   const state = stateLabel(lesson);
   const published = lesson.status === 'published';
+  const link = `/lesson/${encodeURIComponent(lesson.slug)}`;
 
   return `<article class="card news-card">
   <p class="meta">
@@ -39,15 +40,34 @@ function lessonCard(lesson, isAdmin) {
         : ''
     }
   </p>
-  <h2><a href="/lesson/${encodeURIComponent(lesson.slug)}">${escapeHtml(lesson.title)}</a>${
+  <h2><a href="${link}">${escapeHtml(lesson.title)}</a>${
     isAdmin
       ? ` <a class="edit" href="/admin/lesson/${encodeURIComponent(lesson.slug)}"
              title="Открыть урок" aria-label="Открыть урок">✎</a>`
       : ''
   }</h2>
+  <!-- Обложка — как картинка у новости. Своей нет — фирменный градиент, а не
+       дыра: карточки в списке иначе скакали бы по высоте. Ссылка дублирует
+       заголовок, поэтому из порядка табуляции и для чтеца экрана убрана. -->
+  <a class="lesson-list-cover" href="${link}" tabindex="-1" aria-hidden="true">${
+    lesson.coverUrl
+      ? `<img class="cover" src="${escapeHtml(lesson.coverUrl)}" alt="" loading="lazy">`
+      : '<div class="cover button-brand"></div>'
+  }</a>
   ${
     lesson.description
       ? `<p class="card-text">${escapeHtml(lesson.description).slice(0, 400)}</p>`
+      : ''
+  }
+  ${
+    // Внизу — место в серии: пришедший на середину курса видит, что урок не
+    // сам по себе, и одним нажатием попадает ко всему порядку.
+    lesson.series
+      ? `<p class="meta series-line">Серия «<a href="/series/${encodeURIComponent(
+          lesson.series.slug
+        )}">${escapeHtml(lesson.series.title)}</a>» · урок ${lesson.series.number} из ${
+          lesson.series.total
+        }</p>`
       : ''
   }
 </article>`;

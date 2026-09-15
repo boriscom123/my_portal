@@ -137,34 +137,95 @@ export async function deleteSeries(pool, slug) {
 }
 
 /**
- * Ставит урок в серию — в конец, — или вынимает его оттуда.
- *
- * В конец, а не на выбранное место: автор выкладывает уроки по порядку, и
- * спрашивать номер у каждого значит спрашивать очевидное. Переставить можно
- * потом, стрелками на странице серии.
+ * Нумерует уроки серии подряд с единицы в заданном порядке.
+ * Номера без дыр: иначе автор видит «1, 3» и ищет пропавший второй урок.
  */
-export async function setLessonSeries(pool, lessonId, seriesId) {
-  if (!seriesId) {
-    await pool.query(
-      'UPDATE lessons SET series_id = NULL, series_position = NULL WHERE id = $1',
+async function renumber(client, seriesId, orderedIds) {
+  if (!orderedIds.length) return;
+  await client.query(
+    `UPDATE lessons l
+        SET series_id = $1, series_position = o.ord
+       FROM unnest($2::bigint[]) WITH ORDINALITY AS o(id, ord)
+      WHERE l.id = o.id`,
+    [seriesId, orderedIds]
+  );
+}
+
+/**
+ * Ставит урок в серию или вынимает его оттуда.
+ *
+ * Номер не указан — урок встаёт в конец: автор чаще всего выкладывает уроки
+ * по порядку. А если урок уже в этой серии, номер не трогаем: иначе
+ * «сохранить» на экране урока каждый раз отправляло бы его в конец списка.
+ * Номер указан — урок встаёт на это место, остальные сдвигаются; номер больше
+ * числа уроков означает «в конец». Серия, которую урок покинул, смыкается.
+ *
+ * Всё в одной сделке с отложенной проверкой уникальности: на середине
+ * перенумерации два урока неизбежно стоят на одном номере.
+ */
+export async function setLessonSeries(pool, lessonId, seriesId, { position = null } = {}) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SET CONSTRAINTS lessons_series_position_key DEFERRED');
+
+    const { rows: mine } = await client.query(
+      'SELECT series_id FROM lessons WHERE id = $1 FOR UPDATE',
       [lessonId]
     );
-    return null;
-  }
+    if (!mine.length) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+    const previousSeriesId = mine[0].series_id === null ? null : Number(mine[0].series_id);
+    const targetSeriesId = seriesId ? Number(seriesId) : null;
 
-  const { rows } = await pool.query(
-    `UPDATE lessons
-        SET series_id = $2,
-            -- Уже в этой серии — номер не трогаем: иначе «сохранить» на экране
-            -- урока каждый раз отправляло бы его в конец списка.
-            series_position = CASE WHEN series_id = $2 THEN series_position
-              ELSE COALESCE((SELECT max(series_position) FROM lessons WHERE series_id = $2), 0) + 1
-            END
-      WHERE id = $1
-      RETURNING series_position`,
-    [lessonId, seriesId]
-  );
-  return rows.length ? Number(rows[0].series_position) : null;
+    let placed = null;
+    if (targetSeriesId === null) {
+      await client.query(
+        'UPDATE lessons SET series_id = NULL, series_position = NULL WHERE id = $1',
+        [lessonId]
+      );
+    } else {
+      const { rows } = await client.query(
+        'SELECT id FROM lessons WHERE series_id = $1 ORDER BY series_position FOR UPDATE',
+        [targetSeriesId]
+      );
+      const ids = rows.map((row) => Number(row.id));
+      const current = ids.indexOf(Number(lessonId));
+      const others = ids.filter((id) => id !== Number(lessonId));
+      const index =
+        position !== null
+          ? Math.min(Math.max(Number(position) - 1, 0), others.length)
+          : current >= 0
+            ? current
+            : others.length;
+      others.splice(index, 0, Number(lessonId));
+      await renumber(client, targetSeriesId, others);
+      placed = index + 1;
+    }
+
+    // Урок ушёл из прежней серии — она смыкается, чтобы не зиять дырой.
+    if (previousSeriesId !== null && previousSeriesId !== targetSeriesId) {
+      const { rows } = await client.query(
+        'SELECT id FROM lessons WHERE series_id = $1 ORDER BY series_position FOR UPDATE',
+        [previousSeriesId]
+      );
+      await renumber(
+        client,
+        previousSeriesId,
+        rows.map((row) => Number(row.id))
+      );
+    }
+
+    await client.query('COMMIT');
+    return placed;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 /**

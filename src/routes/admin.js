@@ -291,6 +291,14 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
 
     const title = String(req.body?.title ?? '').trim();
     const wanted = String(req.body?.seriesSlug ?? '').trim();
+    // Номер в серии — по желанию: пустое поле значит «в конец» или «где стоит».
+    // Проверяем до заведения серии: иначе опечатка в номере оставила бы после
+    // себя серию, которую никто не просил.
+    const rawPosition = String(req.body?.position ?? '').trim();
+    const position = rawPosition === '' ? null : Number(rawPosition);
+    if (position !== null && (!Number.isInteger(position) || position < 1)) {
+      throw new PublicError('Номер в серии — целое число, начиная с единицы', 400);
+    }
 
     let series = null;
     if (title) {
@@ -301,8 +309,11 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
       if (!series) throw new PublicError('Серия не найдена', 404);
     }
 
-    const position = await setLessonSeries(pool, lesson.id, series?.id ?? null);
-    res.json({ series: series ? { slug: series.slug, title: series.title } : null, position });
+    const placed = await setLessonSeries(pool, lesson.id, series?.id ?? null, { position });
+    res.json({
+      series: series ? { slug: series.slug, title: series.title } : null,
+      position: placed
+    });
   });
 
   router.post('/series', async (req, res) => {

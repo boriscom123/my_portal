@@ -93,6 +93,29 @@ export async function listLessons(
       .filter((row) => Number(row.lesson_id) === lesson.id)
       .map(({ platform, url, state }) => ({ platform, url, state }));
   }
+
+  // Место в серии для строки внизу карточки — тоже одним запросом на страницу.
+  // Номер считается среди видимых, как под уроком: зрителю — среди вышедших,
+  // иначе он увидел бы «урок 5 из 3»; автору — вместе с черновиками.
+  const { rows: places } = await pool.query(
+    `SELECT l.id, s.slug, s.title,
+            (SELECT count(*) FROM lessons x
+              WHERE x.series_id = l.series_id AND x.series_position <= l.series_position
+                AND ($2::boolean OR x.status = 'published')) AS number,
+            (SELECT count(*) FROM lessons x
+              WHERE x.series_id = l.series_id
+                AND ($2::boolean OR x.status = 'published')) AS total
+       FROM lessons l
+       JOIN series s ON s.id = l.series_id
+      WHERE l.id = ANY($1::bigint[])`,
+    [lessons.map((lesson) => lesson.id), includeDrafts]
+  );
+  for (const lesson of lessons) {
+    const place = places.find((row) => Number(row.id) === lesson.id);
+    lesson.series = place
+      ? { slug: place.slug, title: place.title, number: Number(place.number), total: Number(place.total) }
+      : null;
+  }
   return lessons;
 }
 

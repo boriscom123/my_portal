@@ -428,7 +428,8 @@ export function initPage() {
             method: 'POST',
             body: JSON.stringify({
               seriesSlug: fields.get('seriesSlug') ?? '',
-              title: fields.get('title') ?? ''
+              title: fields.get('title') ?? '',
+              position: fields.get('position') ?? ''
             })
           }
         );
