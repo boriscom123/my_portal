@@ -343,9 +343,21 @@ test('запрос для обложки даёт текстовая модел�
       }
     };
 
+    // Теги уходят названиями: латинский адрес русского тега модели ни о чём
+    // не говорит, а теги должны лечь в сцену обложки.
+    await pool.query(
+      `WITH tag AS (INSERT INTO tags (slug, title) VALUES ('telegram-bot', 'Телеграм-бот') RETURNING id)
+       INSERT INTO lesson_tags (lesson_id, tag_id) SELECT $1, id FROM tag`,
+      [lesson.id]
+    );
+    let asked = null;
     const fromModel = await makeMakeCoverImage(config, pool, recording, {
-      suggestCoverPrompt: async () => ({ prompt: 'A lighthouse made of servers', model: 't' })
+      suggestCoverPrompt: async (lessonForPrompt) => {
+        asked = lessonForPrompt;
+        return { prompt: 'A lighthouse made of servers', model: 't' };
+      }
     })({ lessonId: lesson.id });
+    assert.deepEqual(asked.tags, ['Телеграм-бот']);
     assert.equal(fromModel.promptSource, 'gemini');
     assert.equal(prompts[0], 'A lighthouse made of servers');
 

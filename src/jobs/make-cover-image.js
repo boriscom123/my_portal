@@ -37,9 +37,11 @@ export function makeMakeCoverImage(config, pool, images, texts = null) {
       throw new Error('рисование не настроено: добавьте токен Hugging Face в настройках');
     }
 
+    // Теги — названиями, а не адресами: у русского тега адрес латинский
+    // («telegram-bot» вместо «Телеграм-бот»), и по нему сцену не построить.
     const { rows } = await pool.query(
       `SELECT l.title, l.description, l.cover_url,
-              COALESCE(array_agg(t.slug) FILTER (WHERE t.slug IS NOT NULL), '{}') AS tags
+              COALESCE(array_agg(t.title ORDER BY t.title) FILTER (WHERE t.title IS NOT NULL), '{}') AS tags
          FROM lessons l
          LEFT JOIN lesson_tags lt ON lt.lesson_id = l.id
          LEFT JOIN tags t ON t.id = lt.tag_id
