@@ -86,6 +86,115 @@ test('кнопка ставит выкладку в очередь', skipWithout
   });
 });
 
+test('кнопка выкладывает ту запись, которую выбрал автор', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const { lesson, adminId } = await seed(pool);
+    await connectChannel(pool);
+    await pool.query(
+      `INSERT INTO assets (lesson_id, kind, path, bytes, expires_at)
+       VALUES ($1, 'trimmed', 'lesson-1/trimmed.mp4', 512, now() + interval '7 days')`,
+      [lesson.id]
+    );
+    const { rows: sourceRows } = await pool.query(
+      `SELECT id FROM assets WHERE lesson_id = $1 AND kind = 'source'`,
+      [lesson.id]
+    );
+    const queued = [];
+    const app = finalize(
+      createApp({ config, pool, queue: { add: async (name, data) => queued.push({ name, data }) } })
+    );
+
+    await withServer(app, async (base) => {
+      const response = await fetch(`${base}/api/admin/lessons/urok/publish/youtube`, {
+        method: 'POST',
+        headers: asAdmin(adminId),
+        body: JSON.stringify({ version: 'source' })
+      });
+      assert.equal(response.status, 200);
+    });
+
+    // Файл записан в публикацию в момент нажатия: задача пойдёт по нему, даже
+    // если переключатель потом поменяют.
+    const [publication] = await publicationsFor(pool, lesson.id);
+    assert.equal(publication.assetId, Number(sourceRows[0].id));
+    assert.equal(queued.length, 1);
+  });
+});
+
+test('выбранной записи нет — отказ, а не подмена другой', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const { adminId } = await seed(pool);
+    await connectChannel(pool);
+    const queued = [];
+    const app = finalize(
+      createApp({ config, pool, queue: { add: async (name, data) => queued.push({ name, data }) } })
+    );
+
+    await withServer(app, async (base) => {
+      const response = await fetch(`${base}/api/admin/lessons/urok/publish/youtube`, {
+        method: 'POST',
+        headers: asAdmin(adminId),
+        body: JSON.stringify({ version: 'trimmed' })
+      });
+      assert.equal(response.status, 409);
+      assert.match((await response.json()).error, /смонтированн/i);
+    });
+    assert.equal(queued.length, 0);
+  });
+});
+
+test('«Проверить» спрашивает о последней выкладке, а не о первой', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const { lesson, adminId } = await seed(pool);
+    await connectChannel(pool);
+    const { rows: assetRows } = await pool.query(
+      `INSERT INTO assets (lesson_id, kind, path, bytes, expires_at)
+       VALUES ($1, 'trimmed', 'lesson-1/trimmed.mp4', 512, now() + interval '7 days') RETURNING id`,
+      [lesson.id]
+    );
+    const older = await startPublication(pool, { lessonId: lesson.id, platform: 'youtube', assetId: null, mode: 'semi' });
+    await pool.query(
+      `UPDATE publications SET state = 'published', external_id = 'video-old',
+                               updated_at = now() - interval '1 day' WHERE id = $1`,
+      [older.id]
+    );
+    const newer = await startPublication(pool, {
+      lessonId: lesson.id,
+      platform: 'youtube',
+      assetId: Number(assetRows[0].id),
+      mode: 'semi'
+    });
+    await pool.query(
+      `UPDATE publications SET state = 'ready', external_id = 'video-new' WHERE id = $1`,
+      [newer.id]
+    );
+
+    const asked = [];
+    const app = finalize(createApp({
+      config,
+      pool,
+      queue: { add: async () => {} },
+      fetchImpl: async (url) => {
+        asked.push(String(url));
+        return { ok: true, json: async () => ({ items: [{ status: { privacyStatus: 'public' } }] }) };
+      }
+    }));
+
+    await withServer(app, async (base) => {
+      await fetch(`${base}/api/admin/lessons/urok/publish/youtube/check`, {
+        method: 'POST',
+        headers: asAdmin(adminId)
+      });
+    });
+
+    assert.match(asked.join(' '), /video-new/);
+    const states = Object.fromEntries(
+      (await publicationsFor(pool, lesson.id)).map((item) => [item.externalId, item.state])
+    );
+    assert.equal(states['video-new'], 'published');
+  });
+});
+
 test('без записи выкладку не ставим и говорим почему', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
     const { adminId } = await seed(pool, { withSource: false });

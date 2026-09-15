@@ -6,6 +6,7 @@
 // ссылка на приватный ролик, которую на самой странице урока мы прячем.
 // Вызывается из src/views/lesson.js и src/views/feed.js.
 import { escapeHtml } from '../lib/html.js';
+import { latestPerPlatform } from '../lib/latest-publications.js';
 
 /** Как называется площадка человеку. Слаг для этого не годится. */
 export const PLATFORM_NAMES = {
@@ -31,8 +32,10 @@ export const PLATFORM_NAMES = {
  * рядом выглядела бы ошибкой.
  */
 export function platformLinks(publications = [], { className = 'button', prefix = 'Смотреть на ' } = {}) {
-  return publications
-    .filter((item) => item.url && item.state === 'published' && !item.platform.endsWith('_parts'))
+  // Урок выложен на площадку дважды — ссылка одна, на последний вышедший ролик.
+  return latestPerPlatform(
+    publications.filter((item) => item.url && item.state === 'published' && !item.platform.endsWith('_parts'))
+  )
     .map(
       (item) =>
         `<a class="${className}" href="${escapeHtml(item.url)}" rel="noopener" target="_blank">${escapeHtml(

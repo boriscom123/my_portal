@@ -92,6 +92,39 @@ test('урок уходит в MAX частями не тяжелее преде
   });
 });
 
+test('частями уезжает запись, записанная в публикацию', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const { config, lesson } = await setup(pool);
+    // Рядом с исходником — смонтированная запись; автор выбрал исходник.
+    await writeFile(path.join(config.media.dir, `lesson-${lesson.id}/trimmed.mp4`), 'монтаж');
+    await registerAsset(pool, config, {
+      lessonId: lesson.id,
+      kind: 'trimmed',
+      relativePath: `lesson-${lesson.id}/trimmed.mp4`,
+      bytes: 100 * MB
+    });
+    const { rows } = await pool.query(
+      `SELECT id FROM assets WHERE lesson_id = $1 AND kind = 'source'`,
+      [lesson.id]
+    );
+    const chosen = await startPublication(pool, {
+      lessonId: lesson.id,
+      platform: 'max_parts',
+      assetId: Number(rows[0].id),
+      mode: 'auto'
+    });
+
+    const inputs = [];
+    await makePublishLessonParts(config, pool, 'max_parts', adapterStub(), {
+      cutter: async (args) => (inputs.push(args.input), fakeCutter(args)),
+      probe: async () => 3600
+    })({ lessonId: lesson.id, publicationId: chosen.id });
+
+    assert.ok(inputs.length, 'резка не вызывалась');
+    assert.ok(inputs.every((input) => input.endsWith('/source.mp4')), inputs.join(', '));
+  });
+});
+
 test('запись влезает целиком — уходит сам файл, подпись с главами у него', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
     const { config, lesson, publicationId } = await setup(pool, { platform: 'telegram_parts' });

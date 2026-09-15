@@ -67,7 +67,11 @@ export function makePublishLessonParts(
       if (!announced) throw new Error('Сначала отправьте анонс урока в этот канал');
 
       const assets = await assetsOfLesson(pool, lessonId);
-      const video = pickVideoAsset(assets);
+      // Файл выбран автором при нажатии и записан в публикацию; его нет —
+      // выкладка заказана до выбора записи, берём как раньше.
+      const ordered = await publicationById(pool, publicationId);
+      const video =
+        assets.find((asset) => asset.id === ordered?.assetId) ?? pickVideoAsset(assets);
       const gone = 'Записи урока нет в буфере — вероятно, она удалена по сроку; загрузите её заново';
       if (!video) throw new Error(gone);
       const input = mediaPath(config, video.path);

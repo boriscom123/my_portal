@@ -335,6 +335,8 @@ export function pageRoutes(config, pool) {
         user,
         lesson,
         assets: assets.map((row) => ({
+          // По номеру видно, какая запись уехала на площадку.
+          id: Number(row.id),
           kind: row.kind,
           path: row.path,
           bytes: Number(row.bytes),

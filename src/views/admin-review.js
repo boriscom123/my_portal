@@ -15,6 +15,10 @@ import { readSettings } from '../lib/settings.js';
 import { chaptersBlock, validChapters } from '../lib/chapters.js';
 import { timeLabel } from './search.js';
 import { isDrawing } from '../services/cover-drawing.js';
+import { latestPerPlatform } from '../lib/latest-publications.js';
+
+// Как назвать запись, уехавшую на площадку, рядом с состоянием выкладки.
+const VERSION_NAMES = { trimmed: 'смонтированная запись', source: 'полная запись' };
 
 /** Байты человеку. Гигабайты для исходника, мегабайты для остального. */
 export function humanBytes(bytes) {
@@ -71,6 +75,11 @@ export function adminReviewPage({
   // Пока конвейер работает, вторую пересборку запускать нельзя: она заняла бы
   // те же два ядра и обогнала бы первую — файлы переписывались бы вперемешку.
   const busy = ['uploading', 'processing'].includes(lesson.pipelineState);
+  // Выбирать запись для выкладки есть из чего, только когда лежат обе.
+  const hasBothVersions =
+    assets.some((asset) => asset.kind === 'trimmed') && assets.some((asset) => asset.kind === 'source');
+  // По одной выкладке на площадку — последней: урок могли выложить не один раз.
+  const latest = latestPerPlatform(publications);
 
   return layout({
     config,
@@ -354,14 +363,33 @@ ${
 <section class="card">
   <h2>Площадки</h2>
   ${
+    hasBothVersions
+      ? `<fieldset class="publish-version">
+    <legend>Какую запись выкладывать</legend>
+    <label><input type="radio" name="publish-version" value="trimmed" checked> Смонтированную, без пауз</label>
+    <label><input type="radio" name="publish-version" value="source"> Полную, как снята</label>
+    <p class="hint">Выбор действует на YouTube и на видео урока в каналах. Анонс уходит без видео — ему выбор не нужен.</p>
+  </fieldset>`
+      : ''
+  }
+  ${
     platforms.length
       ? platforms
           .map((platform) => {
-            const publication = publications.find((item) => item.platform === platform.name);
-            // Кнопка остаётся только там, где ей есть что делать. Ролик и пост,
-            // которые уже ушли, вторым нажатием не обновятся — уедет вторая
-            // копия, и убирать её придётся руками на самой площадке.
-            const sendable = !publication || publication.state === 'failed';
+            const publication = latest.find((item) => item.platform === platform.name);
+            // Пока задача в пути, вторую не ставим. Ушедшее вторым нажатием не
+            // обновится — уедет вторая копия, и убирать её придётся руками на
+            // самой площадке. Поэтому повтор честно назван «Выложить ещё раз» и
+            // переспрашивает автора (data-again).
+            const sendable =
+              !publication || ['failed', 'ready', 'published'].includes(publication.state);
+            const again = ['ready', 'published'].includes(publication?.state);
+            // Какая запись уехала — видно, только когда было из чего выбирать.
+            const versionName = hasBothVersions
+              ? VERSION_NAMES[
+                  assets.find((asset) => Number(asset.id) === publication?.assetId)?.kind
+                ]
+              : null;
             // Части видео идут следом за анонсом: без него пост с частями
             // оказался бы в канале без представления урока.
             const announced =
@@ -375,7 +403,7 @@ ${
                 publication
                   ? escapeHtml(PUBLICATION_STATES[publication.state] ?? publication.state)
                   : 'не отправляли'
-              }${
+              }${versionName ? ` · ${escapeHtml(versionName)}` : ''}${
                 publication?.url && publication.state !== 'failed'
                   ? ` — <a href="${escapeHtml(publication.url)}" rel="noopener" target="_blank">открыть</a>`
                   : ''
@@ -403,6 +431,7 @@ ${
                        <button class="button" type="button"
                          data-publish="${escapeHtml(platform.name)}"
                          value="${escapeHtml(lesson.slug)}"
+                         ${again ? 'data-again' : ''}
                          ${
                            !announced
                              ? 'disabled title="Сначала отправьте анонс в этот канал"'
@@ -414,7 +443,13 @@ ${
                                  : ''
                                : 'disabled title="Сначала загрузите запись"'
                          }>
-                         ${publication?.state === 'failed' ? 'Отправить заново' : platform.action}
+                         ${
+                           publication?.state === 'failed'
+                             ? 'Отправить заново'
+                             : again
+                               ? 'Выложить ещё раз'
+                               : platform.action
+                         }
                        </button>
                      </p>`
                   : ''

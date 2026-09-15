@@ -125,7 +125,7 @@ export async function shortPublications(pool, shortId) {
 
 async function byOwner(pool, column, id) {
   const { rows } = await pool.query(
-    `SELECT id, platform, asset_id, state, mode, external_id, url, error
+    `SELECT id, platform, asset_id, state, mode, external_id, url, error, updated_at
        FROM publications WHERE ${column} = $1 ORDER BY platform, id`,
     [id]
   );
@@ -137,6 +137,9 @@ async function byOwner(pool, column, id) {
     mode: row.mode,
     externalId: row.external_id,
     url: row.url,
-    error: row.error
+    error: row.error,
+    // По нему выбирается последняя выкладка на площадку: урок можно выложить
+    // туда не один раз.
+    updatedAt: row.updated_at
   }));
 }

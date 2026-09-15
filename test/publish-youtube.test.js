@@ -69,6 +69,28 @@ async function seed(pool, { cover = true } = {}) {
   return { lesson, publicationId: id };
 }
 
+test('уезжает запись, записанная в публикацию, а не «лучшая» из буфера', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    // Выкладка заказана на полную запись, а к началу задачи рядом появилась
+    // смонтированная. Уехать должна полная: автор выбирал её.
+    const { lesson, publicationId } = await seed(pool);
+    await registerAsset(pool, config, {
+      lessonId: lesson.id,
+      kind: 'trimmed',
+      relativePath: 'lesson-1/trimmed.mp4',
+      bytes: 512
+    });
+    const uploaded = [];
+    const platform = platformStub({
+      uploadVideoFile: async ({ filePath }) => (uploaded.push(filePath), { videoId: 'video-1' })
+    });
+
+    await makePublishYoutube(config, pool, platform)({ lessonId: lesson.id, publicationId });
+
+    assert.deepEqual(uploaded, ['/tmp/lesson-1/urok.mp4']);
+  });
+});
+
 test('удачная выкладка доводит публикацию до «лежит, но не публичен»', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
     const { lesson, publicationId } = await seed(pool);

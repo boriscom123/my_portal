@@ -26,7 +26,12 @@ import {
   markPublicationState
 } from '../services/publications.js';
 import { assetsOfLesson } from '../services/media.js';
-import { pickVideoAsset } from '../services/platforms/youtube-fields.js';
+import {
+  pickPublishVideo,
+  VIDEO_VERSIONS,
+  missingVersionMessage
+} from '../services/platforms/youtube-fields.js';
+import { latestPerPlatform } from '../lib/latest-publications.js';
 import { parseChaptersText } from '../lib/chapters.js';
 import { saveNews, deleteNews, publishNews, getNewsBySlug } from '../services/news.js';
 import {
@@ -137,7 +142,13 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
     if (!lesson) throw new PublicError('Урок не найден', 404);
 
     const assets = await assetsOfLesson(pool, lesson.id);
-    const video = pickVideoAsset(assets);
+    // Какую запись выкладывать, выбирает автор переключателем на экране урока.
+    const version = req.body?.version ?? null;
+    if (version !== null && !VIDEO_VERSIONS.includes(version)) {
+      throw new PublicError('Выберите смонтированную или полную запись', 400);
+    }
+    const video = pickPublishVideo(assets, version);
+    if (!video && version) throw new PublicError(missingVersionMessage(version), 409);
     if (!video) throw new PublicError('Записи нет в буфере — загрузите её заново', 400);
 
     const publication = await startPublication(pool, {
@@ -210,7 +221,13 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
       );
       if (!announced) throw new PublicError('Сначала отправьте анонс урока в этот канал', 409);
 
-      const video = pickVideoAsset(await assetsOfLesson(pool, lesson.id));
+      // Запись — по выбору автора, как у YouTube.
+      const version = req.body?.version ?? null;
+      if (version !== null && !VIDEO_VERSIONS.includes(version)) {
+        throw new PublicError('Выберите смонтированную или полную запись', 400);
+      }
+      const video = pickPublishVideo(await assetsOfLesson(pool, lesson.id), version);
+      if (!video && version) throw new PublicError(missingVersionMessage(version), 409);
       if (!video) throw new PublicError('Записи урока нет в буфере — загрузите её заново', 409);
 
       const publication = await startPublication(pool, {
@@ -234,9 +251,11 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
     const lesson = await getLessonBySlug(pool, req.params.slug, { includeDrafts: true });
     if (!lesson) throw new PublicError('Урок не найден', 404);
 
-    const publication = (await publicationsFor(pool, lesson.id)).find(
-      (item) => item.platform === 'youtube'
-    );
+    // Последняя уехавшая выкладка: урок могли выложить не один раз, и спрашивать
+    // о первой значило бы проверять ролик, который автор уже заменил.
+    const publication = latestPerPlatform(
+      (await publicationsFor(pool, lesson.id)).filter((item) => item.externalId)
+    ).find((item) => item.platform === 'youtube');
     if (!publication?.externalId) throw new PublicError('Ролик ещё не уехал на площадку', 400);
 
     const token = await youtubeAccessToken(pool, config, fetchImpl);

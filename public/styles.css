@@ -1570,6 +1570,39 @@ form[action='/search'] input {
   min-height: 0;
 }
 
+/* --- Выбор записи для выкладки ------------------------------------------- */
+
+/* Два варианта в строку, а на узком экране — друг под другом. Рамки у группы
+   нет: карточка площадок уже рамка, вторая внутри неё выглядит лишней. */
+.publish-version {
+  border: 0;
+  padding: 0;
+  margin: 0 0 var(--gap);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+.publish-version legend {
+  padding: 0;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+.publish-version label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--tap-target);
+}
+.publish-version input {
+  width: auto;
+  min-height: 0;
+  margin: 0;
+}
+.publish-version .hint {
+  flex-basis: 100%;
+  margin: 0;
+}
+
 /* --- Правка титров ------------------------------------------------------- */
 
 .segments {

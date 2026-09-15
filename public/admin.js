@@ -582,11 +582,24 @@ export function initPage() {
   for (const button of document.querySelectorAll('[data-publish]')) {
     button.addEventListener('click', async () => {
       const platform = button.dataset.publish;
+      // Повтор не заменяет прежнюю выкладку, а кладёт рядом вторую: у площадки
+      // нет «перезалить». Убирать лишнюю пришлось бы руками — поэтому спрашиваем.
+      if (
+        button.hasAttribute('data-again') &&
+        !confirm('Прежняя выкладка останется на площадке, рядом появится ещё одна. Отправить?')
+      ) {
+        return;
+      }
+      // Запись по выбору автора — только там, где уезжает видео: анонсу она не нужна.
+      const takesVideo = platform === 'youtube' || platform.endsWith('_parts');
+      const version = takesVideo
+        ? document.querySelector('input[name="publish-version"]:checked')?.value
+        : undefined;
       try {
         await withButtonState(button, 'Отправляю…', 'Отправлено', async () => {
           const answer = await request(
             `/api/admin/lessons/${button.value}/publish/${platform}`,
-            { method: 'POST' }
+            { method: 'POST', ...(version ? { body: JSON.stringify({ version }) } : {}) }
           );
           if (!answer) return;
           toast(

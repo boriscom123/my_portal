@@ -612,9 +612,11 @@ test('кадр на обложку берётся по нажатию, а не �
   });
 });
 
-test('кнопка отправки исчезает, когда ролик уже на канале', () => {
+test('пока выкладка идёт, кнопки нет; после — «Выложить ещё раз»', () => {
   // Второе нажатие не обновит ролик, а положит на канал ВТОРУЮ копию: у
-  // площадки нет понятия «перезалить». Удалять её пришлось бы руками.
+  // площадки нет понятия «перезалить». Но автору это бывает нужно — выложить
+  // другую запись или исправленную. Поэтому кнопка остаётся, а о второй копии
+  // предупреждает (data-again), и только пока задача в пути, её нет.
   const base = {
     config: { youtube: { clientId: 'id' } },
     user: { role: 'admin' },
@@ -630,13 +632,33 @@ test('кнопка отправки исчезает, когда ролик уж
   const before = adminReviewPage({ ...base, publications: [] });
   assert.match(before, /data-publish="youtube"/, 'пока не отправляли — кнопка нужна');
 
-  for (const state of ['queued', 'uploading', 'ready', 'published']) {
+  for (const state of ['queued', 'uploading']) {
     const html = adminReviewPage({
       ...base,
       publications: [{ platform: 'youtube', state, url: 'https://youtu.be/x', error: null }]
     });
     assert.doesNotMatch(html, /data-publish="youtube"/, `в состоянии ${state} кнопки быть не должно`);
   }
+
+  for (const state of ['ready', 'published']) {
+    const html = adminReviewPage({
+      ...base,
+      publications: [{ platform: 'youtube', state, url: 'https://youtu.be/x', error: null }]
+    });
+    assert.match(html, /<button[^>]*data-publish="youtube"[^>]*data-again/, `в состоянии ${state}`);
+    assert.match(html, /Выложить ещё раз/);
+  }
+
+  // Карточка показывает последнюю выкладку: старая «на канале» не должна
+  // заслонять новую, которая ещё едет.
+  const latest = adminReviewPage({
+    ...base,
+    publications: [
+      { platform: 'youtube', state: 'published', url: 'https://youtu.be/old', error: null, updatedAt: '2026-09-13T10:00:00Z' },
+      { platform: 'youtube', state: 'uploading', url: null, error: null, updatedAt: '2026-09-15T10:00:00Z' }
+    ]
+  });
+  assert.doesNotMatch(latest, /data-publish="youtube"/, 'последняя выкладка ещё едет');
 
   // А вот после отказа отправить заново — единственное, что можно сделать.
   const failed = adminReviewPage({
@@ -645,6 +667,35 @@ test('кнопка отправки исчезает, когда ролик уж
   });
   assert.match(failed, /data-publish="youtube"/);
   assert.match(failed, /Отправить заново/);
+});
+
+test('выбор записи для выкладки — только когда есть обе', () => {
+  const base = {
+    config: { youtube: { clientId: 'id' } },
+    user: { role: 'admin' },
+    lesson: { slug: 'urok', title: 'Урок', description: '', tags: [], settings: {} },
+    transcript: null,
+    links: { subtitles: [], clips: [] },
+    platforms: [
+      { name: 'youtube', title: 'YouTube', action: 'Отправить на YouTube', needsCover: false }
+    ]
+  };
+  const source = { id: 1, kind: 'source', path: 'lesson-1/urok.mp4', bytes: 10, expiresLabel: '15.09.2026' };
+  const trimmed = { id: 2, kind: 'trimmed', path: 'lesson-1/trimmed.mp4', bytes: 5, expiresLabel: '15.09.2026' };
+
+  const one = adminReviewPage({ ...base, assets: [source], publications: [] });
+  assert.doesNotMatch(one, /name="publish-version"/, 'выбирать не из чего');
+
+  const both = adminReviewPage({
+    ...base,
+    assets: [source, trimmed],
+    publications: [{ platform: 'youtube', state: 'published', url: 'https://youtu.be/x', error: null, assetId: 1 }]
+  });
+  // По умолчанию — смонтированная: ради неё паузы и вырезались.
+  assert.match(both, /<input[^>]*name="publish-version"[^>]*value="trimmed"[^>]*checked/);
+  assert.match(both, /<input[^>]*name="publish-version"[^>]*value="source"/);
+  // У выкладки видно, какая запись уехала.
+  assert.match(both, /полная запись/);
 });
 
 test('главы показываются и предупреждают, когда площадка их не покажет', () => {

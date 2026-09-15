@@ -34,15 +34,17 @@ export function makePublishYoutube(config, pool, platform) {
     const lesson = await getLessonById(pool, lessonId);
     if (!lesson) throw new Error('Урок не найден');
 
-    const assets = await assetsOfLesson(pool, lessonId);
-    const video = pickVideoAsset(assets);
-    if (!video) throw new Error('Записи нет в буфере — загрузите её заново');
-
-    // Режим записан в строке публикации в момент нажатия кнопки. Спрашивать
-    // его у настроек сейчас — значит поймать чужое решение: настройку могли
-    // поменять, пока задача стояла в очереди.
+    // Режим и файл записаны в строке публикации в момент нажатия кнопки.
+    // Спрашивать их у настроек и буфера сейчас — значит поймать чужое решение:
+    // переключатель могли поменять, пока задача стояла в очереди.
     const publication = await publicationById(pool, publicationId);
     const mode = publication?.mode ?? 'semi';
+
+    const assets = await assetsOfLesson(pool, lessonId);
+    // Файла в строке нет — выкладка заказана до выбора записи: берём как раньше.
+    const video =
+      assets.find((asset) => asset.id === publication?.assetId) ?? pickVideoAsset(assets);
+    if (!video) throw new Error('Записи нет в буфере — загрузите её заново');
 
     const settings = readSettings(lesson.settings);
     const subtitles = pickSubtitlesAsset(assets, video, settings);

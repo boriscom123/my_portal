@@ -9,6 +9,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   pickVideoAsset,
+  pickPublishVideo,
   pickSubtitlesAsset,
   buildVideoBody
 } from '../src/services/platforms/youtube-fields.js';
@@ -29,6 +30,18 @@ test('монтаж предпочитается исходнику', () => {
 test('без монтажа уезжает исходник', () => {
   const onlySource = assets.filter((asset) => asset.kind !== 'trimmed');
   assert.equal(pickVideoAsset(onlySource).id, 1);
+});
+
+test('автор выбирает, какую запись выкладывать', () => {
+  // Выбор автора сильнее умолчания: полная запись уезжает, даже когда рядом
+  // лежит смонтированная.
+  assert.equal(pickPublishVideo(assets, 'source').id, 1);
+  assert.equal(pickPublishVideo(assets, 'trimmed').id, 4);
+  // Без выбора — как раньше: монтаж, а без него исходник.
+  assert.equal(pickPublishVideo(assets).id, 4);
+  // Выбранной записи нет — не подменяем другой: автор ждёт именно её.
+  const onlySource = assets.filter((asset) => asset.kind !== 'trimmed');
+  assert.equal(pickPublishVideo(onlySource, 'trimmed'), null);
 });
 
 test('видео нет вовсе — не выдумываем', () => {

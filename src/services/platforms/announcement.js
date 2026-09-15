@@ -6,6 +6,7 @@
 // только ссылки, но и текст, который люди уже прочитали.
 // Вызывается из шагов выкладки в каналы.
 import { formatTimecode } from '../../lib/chapters.js';
+import { latestPerPlatform } from '../../lib/latest-publications.js';
 
 // Предел подписи к картинке в Telegram. У MAX он больше, но пост один и тот
 // же: две разные подписи к одному уроку — это две разные правды.
@@ -52,15 +53,16 @@ export function buildAnnouncement({
   // Только вышедшее: приватный ролик подписчику не открывается, и звать его
   // туда нечестно. Посты с частями видео — не площадка, где вышел урок: ссылка
   // на пост в том же канале уже есть, это анонс.
-  const links = publications
-    .filter(
+  // Урок выложен на площадку дважды — ссылка одна, на последний вышедший ролик.
+  const links = latestPerPlatform(
+    publications.filter(
       (item) =>
         item.state === 'published' &&
         item.url &&
         item.platform !== skipPlatform &&
         !item.platform.endsWith('_parts')
     )
-    .map((item) => `${PLATFORM_NAMES[item.platform] ?? item.platform}: ${item.url}`);
+  ).map((item) => `${PLATFORM_NAMES[item.platform] ?? item.platform}: ${item.url}`);
 
   const tail = [lessonLink, ...links].join('\n');
   const head = `${lesson.title}\n\n`;
