@@ -448,8 +448,8 @@ ${
                .map(
                  (segment) => `<li class="segment">
                <span class="meta">${escapeHtml(timeLabel(segment.startedMs))}</span>
-               <input name="segment-${segment.id}" value="${escapeHtml(segment.text)}"
-                      data-segment="${segment.id}" maxlength="500">
+               <textarea name="segment-${segment.id}" rows="1" maxlength="500"
+                         data-segment="${segment.id}">${escapeHtml(segment.text)}</textarea>
              </li>`
                )
                .join('')}

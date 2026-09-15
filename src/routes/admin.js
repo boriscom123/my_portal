@@ -694,7 +694,10 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
 
     let changed = 0;
     for (const edit of edits) {
-      const text = String(edit?.text ?? '').trim();
+      // Переносы и повторные пробелы — в один пробел. Пустая строка в файле
+      // субтитров заканчивает реплику, и перенос, вставленный в многострочное
+      // поле, оторвал бы от неё хвост.
+      const text = String(edit?.text ?? '').replace(/\s+/g, ' ').trim();
       // Пустая реплика — это дыра в субтитрах на её месте; такую правку не
       // принимаем, удалять реплику надо не так.
       if (!text) continue;

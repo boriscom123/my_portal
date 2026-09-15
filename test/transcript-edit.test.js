@@ -118,6 +118,27 @@ test('пустая реплика не принимается', skipWithoutDb, a
   });
 });
 
+test('перенос строки внутри реплики становится пробелом', skipWithoutDb, async () => {
+  const config = await makeConfig();
+  await withTestDb(async (pool) => {
+    const { segmentIds, headers } = await seed(pool, config);
+    const app = finalize(createApp({ config, pool }));
+    await withServer(app, async (base) => {
+      await fetch(`${base}/api/admin/lessons/urok/transcript`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ segments: [{ id: segmentIds[0], text: 'Разбираем\n\nDocker\r\n Compose' }] })
+      });
+    });
+    // Пустая строка в файле субтитров заканчивает реплику: перенос, вставленный
+    // в многострочное поле, разорвал бы её, и хвост пропал бы с экрана.
+    const { rows } = await pool.query('SELECT text FROM transcript_segments WHERE id = $1', [
+      segmentIds[0]
+    ]);
+    assert.equal(rows[0].text, 'Разбираем Docker Compose');
+  });
+});
+
 test('чужую реплику через свой урок не поправить', skipWithoutDb, async () => {
   const config = await makeConfig();
   await withTestDb(async (pool) => {

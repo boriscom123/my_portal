@@ -366,6 +366,43 @@ export function initPage() {
         toast(`Не сохранилось: ${error.message}`, true);
       }
     });
+
+    const segmentFields = [...transcriptForm.querySelectorAll('[data-segment]')];
+
+    // Реплика — одна строка субтитров: перенос внутри неё разорвал бы реплику
+    // в файле. Enter не переносит, а вставленные переносы становятся пробелами.
+    transcriptForm.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && event.target.matches('[data-segment]')) event.preventDefault();
+    });
+
+    // Высота по тексту. Где браузер умеет field-sizing, это делает CSS. Иначе
+    // подгоняем сами — тремя проходами по всем полям сразу: сначала сброс,
+    // потом замер, потом запись. По одному полю «сброс-замер-запись» заставил
+    // бы браузер пересчитывать страницу тысячу раз подряд.
+    const sizesItself = window.CSS?.supports?.('field-sizing', 'content');
+    const fit = (fields) => {
+      if (sizesItself) return;
+      for (const field of fields) field.style.height = 'auto';
+      const heights = fields.map((field) => field.scrollHeight);
+      fields.forEach((field, index) => {
+        field.style.height = `${heights[index]}px`;
+      });
+    };
+
+    transcriptForm.addEventListener('input', (event) => {
+      const field = event.target;
+      if (!field.matches('[data-segment]')) return;
+      if (/[\r\n]/.test(field.value)) field.value = field.value.replace(/\s*[\r\n]+\s*/g, ' ');
+      fit([field]);
+    });
+
+    // Ширина экрана меняет число строк: телефон повернули — подгоняем заново.
+    let resizeFrame = 0;
+    window.addEventListener('resize', () => {
+      cancelAnimationFrame(resizeFrame);
+      resizeFrame = requestAnimationFrame(() => fit(segmentFields));
+    });
+    fit(segmentFields);
   }
 
   /* --- Сохранение и публикация урока --------------------------------------- */
