@@ -141,18 +141,17 @@ export function newsPage({ config, user, item }) {
       : '<span class="badge">черновик — виден только вам</span>'
   }</p>
   ${projectLinks(item.projects, '/news')}
-  <h1>${escapeHtml(item.title)}</h1>
+  <h1>${escapeHtml(item.title)}${
+    // Автору — значок правки у заголовка, как в «Новостях» и «Уроках»: кнопка
+    // под текстом была лишней и уводила взгляд вниз, мимо самой новости.
+    isAdmin
+      ? ` <a class="edit" href="/news/${encodeURIComponent(item.slug)}/edit"
+         title="Править новость" aria-label="Править новость">✎</a>`
+      : ''
+  }</h1>
   ${newsImages(item.images)}
   <div class="news-body">${linkify(item.body)}</div>
-</article>
-
-${
-  isAdmin
-    ? `<p class="form-row">
-         <a class="button" href="/news/${encodeURIComponent(item.slug)}/edit">Править новость</a>
-       </p>`
-    : ''
-}`
+</article>`
   });
 }
 
