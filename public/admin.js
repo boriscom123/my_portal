@@ -51,8 +51,19 @@ export async function uploadFile(file, lessonId, onProgress) {
  * Всё это привязано к узлам внутри main, а при переходе без перезагрузки
  * main подменяется целиком. Без повторной привязки кнопки на подменённой
  * странице оказались бы мёртвыми — именно так эта беда и выглядит: страница
- * открылась, а ничего не нажимается. */
+ * открылась, а ничего не нажимается.
+ *
+ * Но и дважды привязывать нельзя: navigation.js импортирует модуль (он сам
+ * зовёт initPage при загрузке) и сразу зовёт initPage ещё раз. Два обработчика
+ * на форме «Завести урок» заводили два урока одним нажатием. Поэтому помним,
+ * какие main уже привязаны: подменённая страница — новый узел, её привяжем. */
+const boundPages = new WeakSet();
+
 export function initPage() {
+  const page = document.querySelector('main') ?? document;
+  if (boundPages.has(page)) return;
+  boundPages.add(page);
+
   const form = document.querySelector('#upload-form');
   form?.addEventListener('submit', async (event) => {
     event.preventDefault();
