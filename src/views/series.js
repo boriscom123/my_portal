@@ -21,7 +21,7 @@ function cover(lesson) {
  * badge — «Следующий», «Урок 2» и прочее: без него три одинаковых карточки под
  * уроком не объясняют, чем они друг от друга отличаются.
  */
-export function lessonMiniCard(lesson, badge = '') {
+export function lessonMiniCard(lesson, badge = '', place = null) {
   const link = `/lesson/${encodeURIComponent(lesson.slug)}`;
   return `<article class="lesson-card">
   <a href="${link}">${cover(lesson)}</a>
@@ -31,6 +31,15 @@ export function lessonMiniCard(lesson, badge = '') {
     }${escapeHtml(lesson.publishedAt ? formatDate(lesson.publishedAt) : 'черновик')}</p>
     <h3><a href="${link}">${escapeHtml(lesson.title)}</a></h3>
     <p class="card-text">${escapeHtml(lesson.description).slice(0, 160)}</p>
+    ${
+      // Место в серии — той же строкой, что на странице «Уроки»: без неё
+      // «следующий» и «предыдущий» не говорят, какой это урок по счёту.
+      place
+        ? `<p class="meta series-line">Серия «<a href="/series/${encodeURIComponent(
+            place.series.slug
+          )}">${escapeHtml(place.series.title)}</a>» · урок ${place.number} из ${place.total}</p>`
+        : ''
+    }
   </div>
 </article>`;
 }
@@ -43,13 +52,16 @@ export function lessonMiniCard(lesson, badge = '') {
 export function seriesBlock(navigation) {
   if (!navigation?.number) return '';
   const { series, number, total, previous, next } = navigation;
+  // Номер соседа — от номера этого урока: список серии тот же, что считал его.
   const cards = [
-    next ? lessonMiniCard(next, 'следующий') : '',
-    previous ? lessonMiniCard(previous, 'предыдущий') : ''
+    next ? lessonMiniCard(next, 'следующий', { series, number: number + 1, total }) : '',
+    previous ? lessonMiniCard(previous, 'предыдущий', { series, number: number - 1, total }) : ''
   ].join('');
 
+  // «Серия уроков», а не просто «Серия»: без этого слова заголовок читался
+  // непонятно — серия чего.
   return `<section class="series-block">
-  <h2>Серия «${escapeHtml(series.title)}»</h2>
+  <h2>Серия уроков «${escapeHtml(series.title)}»</h2>
   <p class="meta">
     Урок ${number} из ${total} ·
     <a href="/series/${encodeURIComponent(series.slug)}">вся серия по порядку</a>

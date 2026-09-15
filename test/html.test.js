@@ -452,7 +452,10 @@ test('в ленте у карточки есть ссылки на площад�
         publishedAt: new Date(),
         publications: [
           { platform: 'youtube', state: 'published', url: 'https://youtu.be/vyshel' },
-          { platform: 'max', state: 'published', url: 'https://max.ru/kanal' },
+          // Анонс без видео: смотреть в нём нечего — кнопкой он не становится.
+          { platform: 'max', state: 'published', url: 'https://max.ru/anons' },
+          // Пост с видео урока частями — на него и ведёт «MAX».
+          { platform: 'max_parts', state: 'published', url: 'https://max.ru/kanal' },
           { platform: 'rutube', state: 'ready', url: 'https://rutube.ru/nevyshel' }
         ]
       }
@@ -460,9 +463,13 @@ test('в ленте у карточки есть ссылки на площад�
   });
 
   assert.match(html, /youtu\.be\/vyshel/);
-  assert.match(html, /max\.ru\/kanal/, 'MAX ведёт на канал: своего адреса у поста нет');
+  assert.match(
+    html,
+    /href="https:\/\/max\.ru\/kanal"[^>]*>MAX<\/a>/,
+    'MAX ведёт на пост с видео; своего адреса у поста нет — ссылка на канал'
+  );
+  assert.doesNotMatch(html, /max\.ru\/anons/, 'анонс без видео стал кнопкой');
   assert.doesNotMatch(html, /nevyshel/, 'невышедшее показывать нельзя');
-  assert.match(html, /MAX/);
 });
 
 test('урок без публикаций в ленте не ломается', async () => {

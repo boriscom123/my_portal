@@ -92,7 +92,14 @@ export function lessonPage({
   }
   <p class="meta">${escapeHtml(lesson.publishedAt ? formatDate(lesson.publishedAt) : 'черновик')}</p>
   ${projectLinks(lesson.projects, '/lessons')}
-  <h1>${escapeHtml(lesson.title)}</h1>
+  <h1>${escapeHtml(lesson.title)}${
+    // Автору — значок правки у заголовка, как на странице новости: ведёт на
+    // экран урока, где и поля, и обработка, и площадки.
+    user?.role === 'admin'
+      ? ` <a class="edit" href="/admin/lesson/${encodeURIComponent(lesson.slug)}"
+         title="Открыть урок" aria-label="Открыть урок">✎</a>`
+      : ''
+  }</h1>
   <p class="lead">${escapeHtml(lesson.description)}</p>
 
   ${
@@ -113,9 +120,8 @@ export function lessonPage({
     ${ratingSummaryHtml}
   </div>
 
-  ${seriesBlock(seriesNav)}
-  ${relatedBlock(related)}
-
+  <!-- Отзывы — сразу под оценкой: мысль об уроке приходит, пока его оценивают,
+       а внизу, за серией и похожими, форма терялась. -->
   <section class="comments">
     <h2>Отзывы</h2>
     <ul>${comments.map(commentItem).join('') || '<li class="hint">Пока никто не написал.</li>'}</ul>
@@ -131,6 +137,9 @@ export function lessonPage({
         : '<p class="hint"><a href="/login">Войдите</a>, чтобы оставить отзыв.</p>'
     }
   </section>
+
+  ${seriesBlock(seriesNav)}
+  ${relatedBlock(related)}
 </article>`
   });
 }

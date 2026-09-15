@@ -27,20 +27,27 @@ export const PLATFORM_NAMES = {
  * адреса — там ссылка ведёт на канал. Поэтому условие одно и то же: есть адрес
  * и состояние «опубликован».
  *
- * Посты с частями видео (telegram_parts, max_parts) не показываем: ссылка на
- * пост в том же канале уже есть — это анонс, и вторая «Смотреть на Telegram»
- * рядом выглядела бы ошибкой.
+ * В каналах Telegram и MAX кнопка ведёт на пост с видео урока — отправку
+ * частями (telegram_parts, max_parts), — а не на анонс: в анонсе видео нет, и
+ * звать туда «смотреть» нечестно. Постов с видео ещё нет — кнопки канала нет.
  */
 export function platformLinks(publications = [], { className = 'button', prefix = 'Смотреть на ' } = {}) {
   // Урок выложен на площадку дважды — ссылка одна, на последний вышедший ролик.
   return latestPerPlatform(
-    publications.filter((item) => item.url && item.state === 'published' && !item.platform.endsWith('_parts'))
-  )
-    .map(
-      (item) =>
-        `<a class="${className}" href="${escapeHtml(item.url)}" rel="noopener" target="_blank">${escapeHtml(
-          `${prefix}${PLATFORM_NAMES[item.platform] ?? item.platform}`
-        )}</a>`
+    publications.filter(
+      (item) => item.url && item.state === 'published' && !ANNOUNCEMENT_PLATFORMS.has(item.platform)
     )
+  )
+    .map((item) => {
+      // На кнопке — имя канала, а не сырое «telegram_parts».
+      const platform = item.platform.replace(/_parts$/, '');
+      return `<a class="${className}" href="${escapeHtml(item.url)}" rel="noopener" target="_blank">${escapeHtml(
+        `${prefix}${PLATFORM_NAMES[platform] ?? platform}`
+      )}</a>`;
+    })
     .join('');
 }
+
+// Площадки, где у урока бывает только анонс без видео: кнопкой «смотреть» их не
+// показываем — смотреть там нечего.
+const ANNOUNCEMENT_PLATFORMS = new Set(['telegram', 'max']);

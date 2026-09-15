@@ -1,6 +1,7 @@
-// Посты с частями видео — не площадки, на которых «вышел урок». Ссылка на пост
-// в этом канале уже есть — это анонс, — и вторая «Смотреть на Telegram» рядом
-// с ней выглядела бы ошибкой, а сырое имя «telegram_parts» — поломкой.
+// Посты с частями видео и анонсы. В подписи анонса ссылок на посты с частями нет:
+// это пост в том же канале. А кнопка «Смотреть на Telegram» на карточке урока
+// ведёт как раз на пост с видео — анонс без видео смотреть нечего; сырое имя
+// «telegram_parts» на кнопке было бы поломкой.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildAnnouncement } from '../src/services/platforms/announcement.js';
@@ -49,10 +50,21 @@ test('урок выложен на площадку дважды — ссылк�
   assert.match(html, /youtu\.be\/new/);
 });
 
-test('на карточке урока постов с частями нет', () => {
+test('кнопки Telegram и MAX ведут на пост с видео урока, а не на анонс', () => {
+  // Заказчик 2026-09-15: «Смотреть на Telegram» должно открывать сам урок —
+  // пост с видео частями, — а не анонс, где видео нет.
   const html = platformLinks(publications);
-  assert.match(html, /Смотреть на YouTube/);
-  assert.match(html, /Смотреть на Telegram/);
+  assert.match(html, /href="https:\/\/youtu\.be\/abc"[^>]*>Смотреть на YouTube/);
+  assert.match(html, /href="https:\/\/t\.me\/kanal\/6"[^>]*>Смотреть на Telegram/);
+  assert.match(html, /href="https:\/\/max\.ru\/kanal"[^>]*>Смотреть на MAX/);
   assert.equal(html.match(/Смотреть на Telegram/g).length, 1);
-  assert.doesNotMatch(html, /_parts|kanal\/6/);
+  assert.doesNotMatch(html, /kanal\/5/, 'анонс без видео стал кнопкой');
+  assert.doesNotMatch(html, /_parts/, 'сырое имя площадки на кнопке');
+
+  // Постов с видео ещё нет — кнопок Telegram и MAX нет вовсе.
+  const onlyAnnouncements = platformLinks(
+    publications.filter((item) => !item.platform.endsWith('_parts'))
+  );
+  assert.doesNotMatch(onlyAnnouncements, /Telegram|MAX/);
+  assert.match(onlyAnnouncements, /Смотреть на YouTube/);
 });
