@@ -169,6 +169,115 @@ ${
 </section>
 
 <section class="card">
+  <h2>Расшифровка</h2>
+  ${
+    segments.length
+      ? `<p class="hint">
+           ${escapeHtml(String(segments.length))} реплик, ${escapeHtml(String(transcript?.length ?? 0))} знаков.
+           Распознавание ошибается в именах и терминах — поправьте прямо здесь, и субтитры
+           пересоберутся. Вертикальные ролики подписи вшивают внутрь: чтобы правка попала и
+           в них, нажмите «Сохранить и пересобрать» в настройках ниже.
+         </p>
+         <form id="transcript-form" data-transcript="${escapeHtml(lesson.slug)}">
+           <ol class="segments">
+             ${segments
+               .map(
+                 (segment) => `<li class="segment">
+               <span class="meta">${escapeHtml(timeLabel(segment.startedMs))}</span>
+               <textarea name="segment-${segment.id}" rows="1" maxlength="500"
+                         data-segment="${segment.id}">${escapeHtml(segment.text)}</textarea>
+             </li>`
+               )
+               .join('')}
+           </ol>
+           <div class="form-row">
+             <button class="button-brand" type="submit">Сохранить правки титров</button>
+           </div>
+         </form>`
+      : transcript
+        ? // Реплик нет, а текст есть — так бывает у расшифровки, пришедшей не
+          // из нашего конвейера. Править нечего, но показать надо: иначе
+          // страница врёт, что расшифровки нет вовсе.
+          `<p class="hint">
+             ${escapeHtml(String(transcript.length))} знаков. Реплик с временами нет,
+             поэтому правка титров недоступна.
+           </p>
+           <pre class="transcript">${escapeHtml(transcript)}</pre>`
+        : '<p class="hint">Расшифровки нет — шаг ещё не выполнен.</p>'
+  }
+  ${
+    links.subtitles.length
+      ? `<p class="hint">Субтитры (ссылка живёт час):</p>
+         <ul>${links.subtitles
+           .map(
+             (item) =>
+               `<li><a href="${escapeHtml(item.url)}">${escapeHtml(item.name)}</a></li>`
+           )
+           .join('')}</ul>`
+      : ''
+  }
+</section>
+
+${
+  links.trimmed
+    ? `<section class="card">
+  <h2>Запись с вырезанными паузами</h2>
+  <p class="hint">
+    Было ${escapeHtml(humanDuration(lesson.durationSeconds))}, стало
+    ${escapeHtml(links.trimmed.duration)}. Субтитры к ней свои, с пересчитанными
+    временами.
+  </p>
+  <p class="hint">
+    <strong>На площадки уйдёт именно эта запись</strong>, а не исходник. Исходник
+    остаётся в буфере: из него можно смонтировать заново с другим порогом паузы.
+  </p>
+  <p><a class="button-brand" href="/admin/lesson/${encodeURIComponent(lesson.slug)}/preview?trimmed=1">
+    Смотреть смонтированную
+  </a></p>
+  <ul><li><a href="${escapeHtml(links.trimmed.url)}">${escapeHtml(links.trimmed.name)}</a></li></ul>
+</section>`
+    : ''
+}
+
+<section class="card">
+  <h2>Что видит зритель</h2>
+  <form id="review-form" data-approve="${escapeHtml(lesson.slug)}">
+    <label>Заголовок
+      <input name="title" value="${escapeHtml(lesson.title)}" required maxlength="200">
+    </label>
+    <label>Описание
+      <textarea name="description" rows="4" maxlength="2000">${escapeHtml(lesson.description ?? '')}</textarea>
+    </label>
+    <label>Главы — по строке, «0:00 Название»
+      <textarea name="chapters" rows="6">${escapeHtml(chaptersBlock(lesson.chapters ?? []))}</textarea>
+    </label>
+    ${
+      (lesson.chapters ?? []).length && !validChapters(lesson.chapters, durationMs).length
+        ? `<p class="hint danger">Площадка такие главы не покажет — ни одной.
+             Первая обязана начинаться с 0:00, глав нужно не меньше трёх, между
+             соседними не меньше десяти секунд.</p>`
+        : `<p class="hint">Первая глава — 0:00, дальше по смене темы. Меньше трёх
+             глав YouTube не показывает вовсе.</p>`
+    }
+    <label>Теги через запятую
+      <input name="tags" value="${escapeHtml(lesson.tags.join(', '))}" maxlength="200">
+    </label>
+    <div class="form-row">
+      <button class="button" type="button" data-autofill="${escapeHtml(lesson.slug)}"
+        ${segments.length ? '' : 'disabled title="Сначала нужна расшифровка"'}>
+        Заполнить из расшифровки
+      </button>
+      <button class="button" type="submit" name="publish" value="no">Сохранить черновик</button>
+    </div>
+  </form>
+  <p class="hint">
+    Заполнение читает расшифровку и предлагает заголовок, описание и теги. Это
+    заготовка, а не готовый текст: поправьте её перед публикацией. Без ключа
+    модели поля заполняются своими силами — заметно грубее.
+  </p>
+</section>
+
+<section class="card">
   <h2>Обложка</h2>
   ${
     lesson.coverUrl
@@ -265,47 +374,16 @@ ${
 </section>
 
 <section class="card">
-  <h2>Что видит зритель</h2>
-  <form id="review-form" data-approve="${escapeHtml(lesson.slug)}">
-    <label>Заголовок
-      <input name="title" value="${escapeHtml(lesson.title)}" required maxlength="200">
-    </label>
-    <label>Описание
-      <textarea name="description" rows="4" maxlength="2000">${escapeHtml(lesson.description ?? '')}</textarea>
-    </label>
-    <label>Главы — по строке, «0:00 Название»
-      <textarea name="chapters" rows="6">${escapeHtml(chaptersBlock(lesson.chapters ?? []))}</textarea>
-    </label>
-    ${
-      (lesson.chapters ?? []).length && !validChapters(lesson.chapters, durationMs).length
-        ? `<p class="hint danger">Площадка такие главы не покажет — ни одной.
-             Первая обязана начинаться с 0:00, глав нужно не меньше трёх, между
-             соседними не меньше десяти секунд.</p>`
-        : `<p class="hint">Первая глава — 0:00, дальше по смене темы. Меньше трёх
-             глав YouTube не показывает вовсе.</p>`
-    }
-    <label>Теги через запятую
-      <input name="tags" value="${escapeHtml(lesson.tags.join(', '))}" maxlength="200">
-    </label>
-    <div class="form-row">
-      <button class="button" type="button" data-autofill="${escapeHtml(lesson.slug)}"
-        ${segments.length ? '' : 'disabled title="Сначала нужна расшифровка"'}>
-        Заполнить из расшифровки
-      </button>
-      <button class="button" type="submit" name="publish" value="no">Сохранить черновик</button>
-      <button class="button-brand" type="submit" name="publish" value="yes">Опубликовать</button>
-    </div>
-  </form>
-  <p class="hint">
-    Заполнение читает расшифровку и предлагает заголовок, описание и теги. Это
-    заготовка, а не готовый текст: поправьте её перед публикацией. Без ключа
-    модели поля заполняются своими силами — заметно грубее.
-  </p>
+  <h2>Публикация</h2>
   <p class="hint">
     Публикация показывает урок на витрине и рассылает уведомление подписчикам —
-    один раз: повторное сохранение никого не разбудит второй раз.
+    один раз: повторное сохранение никого не разбудит второй раз. Заголовок,
+    описание и теги уходят из блока «Что видит зритель».
   </p>
   <p class="form-row">
+    <!-- Кнопка вне формы, но отправляет именно её (атрибут form): публикация —
+         последний шаг и стоит своим блоком, а поля уходят те же. -->
+    <button class="button-brand" type="submit" form="review-form" name="publish" value="yes">Опубликовать</button>
     <a class="button" href="/lesson/${encodeURIComponent(lesson.slug)}">
       Открыть страницу урока
     </a>
@@ -494,77 +572,6 @@ ${
     ссылки, — и он дополняется сам, когда ролик выходит на площадках.
   </p>
 </section>
-
-<section class="card">
-  <h2>Расшифровка</h2>
-  ${
-    segments.length
-      ? `<p class="hint">
-           ${escapeHtml(String(segments.length))} реплик, ${escapeHtml(String(transcript?.length ?? 0))} знаков.
-           Распознавание ошибается в именах и терминах — поправьте прямо здесь, и субтитры
-           пересоберутся. Вертикальные ролики подписи вшивают внутрь: чтобы правка попала и
-           в них, нажмите «Сохранить и пересобрать» в настройках выше.
-         </p>
-         <form id="transcript-form" data-transcript="${escapeHtml(lesson.slug)}">
-           <ol class="segments">
-             ${segments
-               .map(
-                 (segment) => `<li class="segment">
-               <span class="meta">${escapeHtml(timeLabel(segment.startedMs))}</span>
-               <textarea name="segment-${segment.id}" rows="1" maxlength="500"
-                         data-segment="${segment.id}">${escapeHtml(segment.text)}</textarea>
-             </li>`
-               )
-               .join('')}
-           </ol>
-           <div class="form-row">
-             <button class="button-brand" type="submit">Сохранить правки титров</button>
-           </div>
-         </form>`
-      : transcript
-        ? // Реплик нет, а текст есть — так бывает у расшифровки, пришедшей не
-          // из нашего конвейера. Править нечего, но показать надо: иначе
-          // страница врёт, что расшифровки нет вовсе.
-          `<p class="hint">
-             ${escapeHtml(String(transcript.length))} знаков. Реплик с временами нет,
-             поэтому правка титров недоступна.
-           </p>
-           <pre class="transcript">${escapeHtml(transcript)}</pre>`
-        : '<p class="hint">Расшифровки нет — шаг ещё не выполнен.</p>'
-  }
-  ${
-    links.subtitles.length
-      ? `<p class="hint">Субтитры (ссылка живёт час):</p>
-         <ul>${links.subtitles
-           .map(
-             (item) =>
-               `<li><a href="${escapeHtml(item.url)}">${escapeHtml(item.name)}</a></li>`
-           )
-           .join('')}</ul>`
-      : ''
-  }
-</section>
-
-${
-  links.trimmed
-    ? `<section class="card">
-  <h2>Запись с вырезанными паузами</h2>
-  <p class="hint">
-    Было ${escapeHtml(humanDuration(lesson.durationSeconds))}, стало
-    ${escapeHtml(links.trimmed.duration)}. Субтитры к ней свои, с пересчитанными
-    временами.
-  </p>
-  <p class="hint">
-    <strong>На площадки уйдёт именно эта запись</strong>, а не исходник. Исходник
-    остаётся в буфере: из него можно смонтировать заново с другим порогом паузы.
-  </p>
-  <p><a class="button-brand" href="/admin/lesson/${encodeURIComponent(lesson.slug)}/preview?trimmed=1">
-    Смотреть смонтированную
-  </a></p>
-  <ul><li><a href="${escapeHtml(links.trimmed.url)}">${escapeHtml(links.trimmed.name)}</a></li></ul>
-</section>`
-    : ''
-}
 
 <section class="card">
   <h2>Как готовить урок</h2>
