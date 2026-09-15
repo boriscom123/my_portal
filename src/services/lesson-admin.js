@@ -8,6 +8,7 @@
 import { rm } from 'node:fs/promises';
 import { slugify, uniqueSlug } from '../lib/slug.js';
 import { mediaPath } from './media.js';
+import { resolveProjectId, setMainProject } from './projects.js';
 
 /**
  * Заводит урок по заголовку.
@@ -15,7 +16,7 @@ import { mediaPath } from './media.js';
  * адресом невозможны на уровне базы, и падать на этом при похожих заголовках
  * незачем.
  */
-export async function createLesson(pool, { title = '', description = '' } = {}) {
+export async function createLesson(pool, { title = '', description = '', projectId = null } = {}) {
   const date = new Date().toISOString().slice(0, 10);
   // Название необязательно: на первом шаге его ещё неоткуда взять, а после
   // расшифровки его предложит модель и поправит автор. Временное — с датой,
@@ -28,11 +29,16 @@ export async function createLesson(pool, { title = '', description = '' } = {}) 
   const base = slugify(clean) || `urok-${date}`;
   const slug = uniqueSlug(base, taken.map((row) => row.slug));
 
+  // Проект выясняем до заведения: без проекта урок не заводится, и отказ
+  // должен случиться раньше, чем в базе появится урок.
+  const mainProjectId = await resolveProjectId(pool, projectId);
+
   const { rows } = await pool.query(
     `INSERT INTO lessons (slug, title, description, status)
      VALUES ($1, $2, $3, 'draft') RETURNING id, slug, title`,
     [slug, clean, String(description ?? '')]
   );
+  await setMainProject(pool, 'lesson', Number(rows[0].id), mainProjectId);
   return { id: Number(rows[0].id), slug: rows[0].slug, title: rows[0].title };
 }
 

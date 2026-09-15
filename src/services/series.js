@@ -6,6 +6,7 @@
 // пришлось бы вручную перебирать все прежние.
 // Вызывается из src/routes/pages.js, src/routes/admin.js и страницы урока.
 import { slugify } from '../lib/slug.js';
+import { resolveProjectId, setMainProject, projectsFor } from './projects.js';
 
 /** Строка серии в виде, в котором её ждут шаблоны. */
 function toSeries(row) {
@@ -56,6 +57,7 @@ export async function getSeriesBySlug(pool, slug, { includeDrafts = false } = {}
   const series = toSeries(rows[0]);
   series.lessons = await seriesLessons(pool, series.id, { includeDrafts });
   series.lessonCount = series.lessons.length;
+  series.projects = (await projectsFor(pool, 'series', [series.id])).get(series.id);
   return series;
 }
 
@@ -76,7 +78,7 @@ export async function seriesLessons(pool, seriesId, { includeDrafts = false } = 
  * Адрес считается из названия один раз, при заведении: менять его потом значит
  * ломать ссылки, которыми уже поделились.
  */
-export async function saveSeries(pool, { slug = null, title, description = '' }) {
+export async function saveSeries(pool, { slug = null, title, description = '', projectId = null }) {
   const name = String(title ?? '').trim();
   if (!name) throw new Error('название серии пустое');
 
@@ -89,6 +91,8 @@ export async function saveSeries(pool, { slug = null, title, description = '' })
   }
 
   const base = slugify(name);
+  // Проект — до заведения: серия без проекта не заводится.
+  const mainProjectId = await resolveProjectId(pool, projectId);
   // Одинаковые названия у серий — редкость, но адрес обязан быть один на одну
   // серию, и падать на этом посреди заведения урока незачем.
   const { rows } = await pool.query(
@@ -101,6 +105,7 @@ export async function saveSeries(pool, { slug = null, title, description = '' })
      RETURNING *`,
     [base, name, String(description ?? '')]
   );
+  await setMainProject(pool, 'series', Number(rows[0].id), mainProjectId);
   return toSeries(rows[0]);
 }
 

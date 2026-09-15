@@ -6,6 +6,7 @@
 // Вызывается из src/routes/lessons.js и src/routes/pages.js.
 
 import { slugify, uniqueSlug } from '../lib/slug.js';
+import { resolveProjectId, setMainProject, projectsFor } from './projects.js';
 
 // Сколько уроков отдаём за раз. Лента бесконечной не бывает, а без предела
 // первый же год работы портала превратит главную в мегабайт HTML.
@@ -138,6 +139,8 @@ export async function getLessonBySlug(pool, slug, { includeDrafts = false }) {
     [lesson.id]
   );
   lesson.publications = pubs;
+  // Проекты урока: кнопки на его странице и блок «Проект» на экране автора.
+  lesson.projects = (await projectsFor(pool, 'lesson', [lesson.id])).get(lesson.id);
   return lesson;
 }
 
@@ -169,6 +172,15 @@ export async function getLessonById(pool, id) {
  * публикации и стереть описание.
  */
 export async function saveLesson(pool, lesson) {
+  // Новый урок получает основной проект при заведении. Правка существующего
+  // проекты не трогает — ими распоряжается блок «Проект» на экране урока.
+  const { rows: existing } = await pool.query('SELECT 1 FROM lessons WHERE slug = $1', [
+    lesson.slug
+  ]);
+  const newProjectId = existing.length
+    ? null
+    : await resolveProjectId(pool, lesson.projectId ?? null);
+
   const { rows } = await pool.query(
     `INSERT INTO lessons (slug, title, description, cover_url, status, published_at, duration_seconds)
      VALUES ($1, $2, COALESCE($3, ''), $4, COALESCE($5, 'draft'), $6, $7)
@@ -190,6 +202,7 @@ export async function saveLesson(pool, lesson) {
       lesson.durationSeconds ?? null
     ]
   );
+  if (newProjectId) await setMainProject(pool, 'lesson', Number(rows[0].id), newProjectId);
   return toLesson(rows[0]);
 }
 

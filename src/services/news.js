@@ -6,6 +6,7 @@
 // уроком значит однажды случайно применить к ней правило урока.
 // Вызывается из src/routes/pages.js, src/routes/admin.js и ленты на главной.
 import { slugify } from '../lib/slug.js';
+import { resolveProjectId, setMainProject, projectsFor } from './projects.js';
 
 const DEFAULT_LIMIT = 20;
 
@@ -80,6 +81,8 @@ export async function getNewsBySlug(pool, slug) {
   const { rows } = await pool.query(`SELECT ${FIELDS} FROM news WHERE slug = $1`, [slug]);
   if (!rows.length) return null;
   const [item] = await attachImages(pool, [toNews(rows[0])]);
+  // Проекты новости: кнопки на её странице и выбор в форме правки.
+  item.projects = (await projectsFor(pool, 'news', [item.id])).get(item.id);
   return item;
 }
 
@@ -88,7 +91,7 @@ export async function getNewsBySlug(pool, slug) {
  * Адрес считается из заголовка один раз, при заведении: менять его потом
  * значит ломать ссылки, которыми уже поделились.
  */
-export async function saveNews(pool, { slug = null, title, body = '' }) {
+export async function saveNews(pool, { slug = null, title, body = '', projectId = null }) {
   const name = String(title ?? '').trim();
   if (!name) throw new Error('заголовок новости пустой');
 
@@ -105,11 +108,14 @@ export async function saveNews(pool, { slug = null, title, body = '' }) {
   // Поэтому к адресу добавляется дата: она же помогает человеку понять, о
   // каком времени новость, ещё до перехода.
   const stamp = new Date().toISOString().slice(0, 10);
+  // Проект — до заведения: новость без проекта не заводится.
+  const mainProjectId = await resolveProjectId(pool, projectId);
   const { rows } = await pool.query(
     `INSERT INTO news (slug, title, body) VALUES ($1, $2, $3)
      RETURNING ${FIELDS}`,
     [`${slugify(name)}-${stamp}`, name, String(body ?? '')]
   );
+  await setMainProject(pool, 'news', Number(rows[0].id), mainProjectId);
   return toNews(rows[0]);
 }
 
