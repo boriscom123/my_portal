@@ -466,7 +466,13 @@ ${
   </form>
 </section>
 
-<section class="card">
+<section class="card"${
+  // Пока что-то едет на площадку, страница ждёт конца выкладки и
+  // перечитывается сама: состояние ведёт воркер, а не браузер.
+  latest.some((item) => ['queued', 'uploading'].includes(item.state))
+    ? ` data-publish-watch="${escapeHtml(lesson.slug)}"`
+    : ''
+}>
   <h2>Площадки</h2>
   ${
     hasBothVersions

@@ -650,6 +650,28 @@ export function initPage() {
     });
   }
 
+  // Выкладка идёт в воркере минуты, а на часовом ролике и дольше. Страница
+  // спрашивает сервер, едет ли ещё что-то, и перечитывается, когда доехало.
+  // Раньше «загружается» висело, пока автор не обновит страницу руками.
+  // Перечитываем только в конце, а не по таймеру: иначе недописанные правки в
+  // полях урока пропадали бы каждые несколько секунд.
+  async function waitForPublishing(slug) {
+    const deadline = Date.now() + 90 * 60 * 1000;
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+      // Страницу подменили переходом — следить больше не за чем.
+      if (!document.querySelector(`[data-publish-watch="${slug}"]`)) return;
+      const state = await request(`/api/admin/lessons/${slug}/state`).catch(() => null);
+      if (state && !state.publishing) {
+        location.reload();
+        return;
+      }
+    }
+  }
+
+  const publishWatch = document.querySelector('[data-publish-watch]');
+  if (publishWatch) waitForPublishing(publishWatch.getAttribute('data-publish-watch'));
+
   const youtubeCheckButton = document.querySelector('[data-youtube-check]');
   youtubeCheckButton?.addEventListener('click', async () => {
     try {

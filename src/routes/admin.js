@@ -924,12 +924,21 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
       [req.params.slug]
     );
     if (!rows[0]) throw new PublicError('Урок не найден', 404);
+    // Едет ли что-то на площадки. По нему страница урока ждёт конца выкладки:
+    // состояние ведёт воркер, и без опроса «загружается» висело до ручного
+    // обновления страницы.
+    const { rows: moving } = await pool.query(
+      `SELECT 1 FROM publications p JOIN lessons l ON l.id = p.lesson_id
+        WHERE l.slug = $1 AND p.state IN ('queued', 'uploading') LIMIT 1`,
+      [req.params.slug]
+    );
     res.json({
       state: rows[0].pipeline_state,
       error: rows[0].pipeline_error,
       hasSource: Boolean(rows[0].source_asset_id),
       // По нему страница урока ждёт конца рисования обложки.
-      drawing: isDrawing(rows[0].generated?.drawing)
+      drawing: isDrawing(rows[0].generated?.drawing),
+      publishing: moving.length > 0
     });
   });
 
