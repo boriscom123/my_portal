@@ -133,6 +133,27 @@ test('между оценкой и формой отзыва — ни черты
   assert.doesNotMatch(rating, /border-bottom/, 'черта под оценкой осталась');
 });
 
+test('заголовок-ссылка серии переливается фирменным градиентом, как знак', async () => {
+  // Заказчик 2026-09-15: ссылка на серию стала обычным текстом — должна
+  // переливаться, как надпись SOLO AI и ссылки площадок, в том же темпе.
+  const styles = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
+  // Общее правило перелива: фирменный градиент и анимация shimmer.
+  assert.match(
+    styles,
+    /\.series-title-link \{[^}]*var\(--brand-1\)[\s\S]*?animation: shimmer 9s/,
+    'заголовок серии не в общем правиле перелива'
+  );
+  // Градиент — буквами, как у знака.
+  assert.match(
+    styles,
+    /\.platform-link,\s*\.series-title-link \{[^}]*background-clip: text/,
+    'градиент не наложен на буквы'
+  );
+  // Кто отключил анимацию в системе, видит неподвижный градиент и здесь.
+  const calm = styles.slice(styles.indexOf('@media (prefers-reduced-motion: reduce) {'));
+  assert.match(calm.slice(0, 400), /\.series-title-link/);
+});
+
 test('отзывы — сразу под оценкой, до серии и похожих', () => {
   const page = lessonPage({ config, lesson, comments: [], user: null, seriesNav });
   const rating = page.indexOf('class="rating"');
@@ -146,7 +167,10 @@ test('серия — с понятным заголовком и местом у
   const page = lessonPage({ config, lesson, comments: [], user: null, seriesNav });
   // Заголовок серии сам ведёт на всю серию; строки «Урок N из M · вся серия по
   // порядку» под ним нет — место урока уже видно под заголовком урока.
-  assert.match(page, /<h2><a href="\/series\/portal">Серия уроков «Портал»<\/a><\/h2>/);
+  assert.match(
+    page,
+    /<h2><a class="series-title-link" href="\/series\/portal">Серия уроков «Портал»<\/a><\/h2>/
+  );
   assert.doesNotMatch(page, /вся серия по порядку/);
   assert.doesNotMatch(page, /Урок 2 из 3/);
   // На карточках соседей — место в серии, как на странице «Уроки».

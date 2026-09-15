@@ -499,8 +499,13 @@ test('ссылки площадок переливаются тем же гра�
   // не лень, а решение: одна анимация на странице читается как одна вещь, а две
   // с разной скоростью — как две спорящие.
   const styles = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
-  assert.match(styles, /\.brand-mark,\s*\n\.button-brand,\s*\n\.platform-link \{/);
-  assert.match(styles, /\.brand-mark,\s*\n\.platform-link \{\s*\n\s*-webkit-background-clip: text;/);
+  // В том же правиле могут стоять и другие живые надписи — например, заголовок
+  // серии: важно, что ссылки площадок делят правило со знаком.
+  assert.match(styles, /\.brand-mark,\s*\n\.button-brand,\s*\n\.platform-link(,\s*\n\.[a-z-]+)* \{/);
+  assert.match(
+    styles,
+    /\.brand-mark,\s*\n\.platform-link(,\s*\n\.[a-z-]+)* \{\s*\n\s*-webkit-background-clip: text;/
+  );
 
   // Отключённую анимацию уважаем тем же списком, что и остальные живые части.
   const reduced = styles.slice(styles.indexOf('@media (prefers-reduced-motion: reduce)'));

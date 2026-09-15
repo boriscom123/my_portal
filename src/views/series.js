@@ -64,7 +64,7 @@ export function seriesBlock(navigation) {
   // порядку» под ним нет: место урока уже видно под заголовком урока, а вторая
   // ссылка на ту же серию путала.
   return `<section class="series-block">
-  <h2><a href="/series/${encodeURIComponent(series.slug)}">Серия уроков «${escapeHtml(
+  <h2><a class="series-title-link" href="/series/${encodeURIComponent(series.slug)}">Серия уроков «${escapeHtml(
     series.title
   )}»</a></h2>
   ${

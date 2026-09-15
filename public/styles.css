@@ -170,7 +170,8 @@ h3 {
  * греется. */
 .brand-mark,
 .button-brand,
-.platform-link {
+.platform-link,
+.series-title-link {
   background: linear-gradient(
     96deg,
     var(--brand-1) 0%,
@@ -192,7 +193,8 @@ h3 {
    страницу читается как одна вещь, а две с разной скоростью — как две
    спорящие. */
 .brand-mark,
-.platform-link {
+.platform-link,
+.series-title-link {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -245,6 +247,7 @@ h3 {
   .platform-link,
   .kind-badge,
   .project-link.main,
+  .series-title-link,
   .flame,
   .flame-dot {
     animation: none;
@@ -1989,6 +1992,12 @@ label[for='cover-file'] {
 }
 .series-block h2 {
   margin: 0 0 4px;
+}
+/* Заголовок-ссылка серии переливается градиентом буквами (общее правило
+   перелива выше). Подчёркивание при наведении под прозрачными буквами
+   выглядело бы оторванной полосой — его нет. */
+.series-title-link:hover {
+  text-decoration: none;
 }
 .series-block .meta {
   margin: 0 0 16px;
