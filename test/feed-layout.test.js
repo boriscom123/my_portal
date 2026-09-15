@@ -103,11 +103,14 @@ test('на главной автор видит значок правки у у�
   const news = [newsItem('novost', 'Новость', '03')];
 
   const author = feedPage({ config, lessons, news, user: { role: 'admin' } });
-  assert.match(author, /<a class="edit" href="\/admin\/lesson\/urok"[^>]*>✎<\/a>/);
-  assert.match(author, /<a class="edit" href="\/news\/novost\/edit"[^>]*>✎<\/a>/);
+  // Значок — на картинке в правом верхнем углу, отдельной ссылкой рядом со
+  // ссылкой-картинкой: ссылку в ссылку вкладывать нельзя.
+  assert.match(author, /<a class="edit card-edit" href="\/admin\/lesson\/urok"[^>]*>✎<\/a>/);
+  assert.match(author, /<a class="edit card-edit" href="\/news\/novost\/edit"[^>]*>✎<\/a>/);
+  assert.doesNotMatch(author, /✎<\/a><\/h3>/, 'значок остался в заголовке');
 
   const guest = feedPage({ config, lessons, news, user: null });
-  assert.doesNotMatch(guest, /class="edit"/);
+  assert.doesNotMatch(guest, /class="edit/);
 });
 
 test('соседние новости встают в один ряд, а урок его разрывает', () => {
@@ -222,6 +225,27 @@ test('бейджи в фирменном переливе, у новинок —
   // Кто отключил анимацию в системе, видит неподвижный градиент.
   const calm = styles.slice(styles.indexOf('@media (prefers-reduced-motion: reduce) {'));
   assert.match(calm.slice(0, 400), /\.kind-badge/);
+});
+
+test('значок правки — в правом верхнем углу, бейдж проекта переливается и не подчёркивается', async () => {
+  const styles = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
+  const block = (selector) => {
+    const at = styles.indexOf(`${selector} {`);
+    assert.ok(at >= 0, `нет правила ${selector}`);
+    return styles.slice(at, styles.indexOf('}', at));
+  };
+  // Значок правки на главной — поверх картинки, в углу напротив бейджа вида.
+  assert.match(block('.card-edit'), /position: absolute/);
+  assert.match(block('.card-edit'), /top: \d+px/);
+  assert.match(block('.card-edit'), /right: \d+px/);
+  // Бейдж проекта — тем же фирменным переливом, что бейдж вида.
+  assert.match(block('.project-link.main'), /animation: shimmer/);
+  assert.match(block('.project-link.main'), /var\(--brand-1\)[\s\S]*var\(--brand-3\)/);
+  // Ссылка-бейдж при наведении не подчёркивается: подчёркивание рвало его вид.
+  assert.match(block('.project-link:hover'), /text-decoration: none/);
+  // Кто отключил анимацию в системе, видит неподвижный градиент и здесь.
+  const calm = styles.slice(styles.indexOf('@media (prefers-reduced-motion: reduce) {'));
+  assert.match(calm.slice(0, 400), /\.project-link\.main/);
 });
 
 test('фирменная заглушка урока без обложки не перекрыта фоном картинки', async () => {

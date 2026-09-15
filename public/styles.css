@@ -244,6 +244,7 @@ h3 {
   .button-brand,
   .platform-link,
   .kind-badge,
+  .project-link.main,
   .flame,
   .flame-dot {
     animation: none;
@@ -731,6 +732,8 @@ form > textarea {
 }
 
 .lesson-card {
+  /* Опора для значка правки в углу карточки на главной. */
+  position: relative;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 18px;
@@ -816,6 +819,17 @@ form > textarea {
 .card-body > .kind-badge {
   align-self: flex-start;
   margin-bottom: 8px;
+}
+/* Значок правки на главной — поверх картинки в правом верхнем углу, напротив
+   бейджа вида. Держится за карточку, а не за картинку: ссылку-значок в
+   ссылку-картинку вложить нельзя. Фон и тень — чтобы читался на любой картинке. */
+.card-edit {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 1;
+  background: var(--surface);
+  box-shadow: 0 2px 10px rgba(12, 10, 32, 0.35);
 }
 
 .tags {
@@ -2139,11 +2153,25 @@ label[for='cover-file'] {
   text-decoration: none;
 }
 .project-link.main {
-  /* Фирменный цвет — тот же, что у обводки фокуса: переменная --brand-2 есть
-     в обеих темах. */
-  background: var(--brand-2);
+  /* Тем же фирменным переливом и того же темпа, что бейдж вида карточки:
+     основной проект — такая же метка материала, в такт со всей страницей. */
+  background-image: linear-gradient(
+    96deg,
+    var(--brand-1) 0%,
+    var(--brand-2) 25%,
+    var(--brand-3) 50%,
+    var(--brand-2) 75%,
+    var(--brand-1) 100%
+  );
+  background-size: 300% 100%;
+  animation: shimmer 9s ease-in-out infinite;
   border-color: transparent;
   color: #fff;
+  text-shadow: 0 1px 2px rgba(12, 10, 32, 0.35);
+}
+/* Бейдж — не строка текста: подчёркивание при наведении рвало его вид. */
+.project-link:hover {
+  text-decoration: none;
 }
 
 /* Проекты в форме новости — за кнопками. Кнопка — сама строка summary: свой

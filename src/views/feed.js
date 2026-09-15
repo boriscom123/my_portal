@@ -40,21 +40,22 @@ function lessonCard(lesson, isAdmin, fresh = false) {
   // ставить его в один ряд с заметкой значит уравнять час работы и три абзаца.
   return `<article class="lesson-card wide">
   <a class="card-media" href="/lesson/${encodeURIComponent(lesson.slug)}">${cover(lesson)}
-    ${kindBadge('lesson', fresh)}</a>
+    ${kindBadge('lesson', fresh)}</a>${
+    // Автору — значок правки прямо на главной, поверх картинки в правом верхнем
+    // углу. Отдельной ссылкой рядом с картинкой: ссылку в ссылку не вложить.
+    isAdmin
+      ? `
+  <a class="edit card-edit" href="/admin/lesson/${encodeURIComponent(lesson.slug)}"
+     title="Открыть урок" aria-label="Открыть урок">✎</a>`
+      : ''
+  }
   <div class="card-body">
     <p class="meta">${escapeHtml(date)}${
       state
         ? ` · <span class="badge${lesson.pipelineState === 'failed' ? ' danger' : ''}">${escapeHtml(state)}</span>`
         : ''
     }</p>
-    <h3><a href="/lesson/${encodeURIComponent(lesson.slug)}">${escapeHtml(lesson.title)}</a>${
-      // Автору — значок правки прямо на главной, как в «Уроках»: не ходить
-      // сначала в раздел, чтобы открыть урок.
-      isAdmin
-        ? ` <a class="edit" href="/admin/lesson/${encodeURIComponent(lesson.slug)}"
-             title="Открыть урок" aria-label="Открыть урок">✎</a>`
-        : ''
-    }</h3>
+    <h3><a href="/lesson/${encodeURIComponent(lesson.slug)}">${escapeHtml(lesson.title)}</a></h3>
     <p class="card-text">${escapeHtml(lesson.description)}</p>
     ${projectLinks(lesson.projects, '/lessons')}
     ${
@@ -96,16 +97,17 @@ function newsCard(item, isAdmin = false, fresh = false) {
     ${kindBadge('news', fresh)}</a>`
       : ''
   }
+  ${
+    // Автору — значок правки в правом верхнем углу карточки, как у урока.
+    isAdmin
+      ? `<a class="edit card-edit" href="/news/${encodeURIComponent(item.slug)}/edit"
+     title="Править новость" aria-label="Править новость">✎</a>`
+      : ''
+  }
   <div class="card-body">
     ${item.images.length ? '' : kindBadge('news', fresh)}
     <p class="meta">${escapeHtml(formatDate(item.publishedAt))}</p>
-    <h3><a href="/news/${encodeURIComponent(item.slug)}">${escapeHtml(item.title)}</a>${
-      // Автору — значок правки прямо на главной, как в «Новостях».
-      isAdmin
-        ? ` <a class="edit" href="/news/${encodeURIComponent(item.slug)}/edit"
-             title="Править новость" aria-label="Править новость">✎</a>`
-        : ''
-    }</h3>
+    <h3><a href="/news/${encodeURIComponent(item.slug)}">${escapeHtml(item.title)}</a></h3>
     <p class="card-text">${escapeHtml(item.body).slice(0, 220)}</p>
     ${projectLinks(item.projects, '/news')}
   </div>
