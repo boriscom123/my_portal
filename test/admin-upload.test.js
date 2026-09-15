@@ -206,14 +206,17 @@ test('со страницы загрузки есть выход к уроку',
       const withLesson = await (
         await fetch(`${base}/admin/upload?lesson=urok`, { headers })
       ).text();
-      const from = withLesson.indexOf('<nav class="admin-nav">');
-      const nav = withLesson.slice(from, withLesson.indexOf('</nav>', from));
-      assert.match(nav, /href="\/admin\/lesson\/urok">← К уроку/);
+      // Выход — хлебными крошками: «Главная › Уроки › Урок › Загрузка записи».
+      const crumbs = (html) => {
+        const from = html.indexOf('<nav class="breadcrumbs"');
+        return html.slice(from, html.indexOf('</nav>', from));
+      };
+      assert.match(crumbs(withLesson), /href="\/admin\/lesson\/urok">Урок<\/a>/);
 
       // Открыли страницу саму по себе — возвращаемся к списку.
       const alone = await (await fetch(`${base}/admin/upload`, { headers })).text();
-      const start = alone.indexOf('<nav class="admin-nav">');
-      assert.match(alone.slice(start, alone.indexOf('</nav>', start)), /← Уроки/);
+      assert.match(crumbs(alone), /href="\/lessons">Уроки<\/a>/);
+      assert.doesNotMatch(crumbs(alone), /admin\/lesson\//);
     });
   });
 });

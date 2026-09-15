@@ -18,6 +18,7 @@ export function privacyPage({ config, user }) {
     config,
     user,
     path: '/privacy',
+    breadcrumbs: [{ title: 'Политика конфиденциальности' }],
     title: 'Политика конфиденциальности — Solo AI Journey',
     description: 'Какие данные собирает портал, зачем и как их удалить.',
     body: `
@@ -113,6 +114,7 @@ export function termsPage({ config, user }) {
     config,
     user,
     path: '/terms',
+    breadcrumbs: [{ title: 'Условия использования' }],
     title: 'Условия использования — Solo AI Journey',
     description: 'Что можно и чего нельзя на портале, и на что автор не даёт гарантий.',
     body: `

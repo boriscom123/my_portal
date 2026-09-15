@@ -2190,3 +2190,45 @@ label[for='cover-file'] {
 .project-picker[open] > summary {
   margin-bottom: 10px;
 }
+
+/* --- Хлебные крошки ------------------------------------------------------ */
+
+/* Мелкой приглушённой строкой над заголовком: это путь, а не заголовок.
+   Длинное имя текущей страницы на телефоне обрезается многоточием — путь к
+   разделу при этом остаётся виден целиком. */
+.breadcrumbs {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.breadcrumbs ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  row-gap: 4px;
+  min-width: 0;
+}
+.breadcrumbs li {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+}
+.breadcrumbs li + li::before {
+  content: '›';
+  margin: 0 8px;
+}
+.breadcrumbs a {
+  color: var(--muted);
+}
+.breadcrumbs a:hover {
+  color: var(--brand-2);
+}
+.breadcrumbs [aria-current] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg);
+}

@@ -154,13 +154,15 @@ export function feedPage({ config, lessons, news = [], user, tag = null }) {
     config,
     user,
     path: tag ? `/tag/${encodeURIComponent(tag)}` : '/',
+    // У главной крошек нет — выше неё идти некуда; у страницы тега — есть.
+    breadcrumbs: tag ? [{ title: `Тег «${tag}»` }] : null,
     title: tag ? `${heading} — Solo AI Journey` : 'Solo AI Journey — портал видеоуроков',
     description:
       'Видеоуроки о разработке с ИИ: Claude Code, свой VPS и Telegram-бот. Уроки, новости и борд идей для будущих выпусков.',
     body: `
 ${
   tag
-    ? `<h1>${escapeHtml(heading)}</h1><p><a href="/">← все уроки</a></p>`
+    ? `<h1>${escapeHtml(heading)}</h1>`
     : hero()
 }
 

@@ -31,6 +31,7 @@ export function settingsPage({
     config,
     user,
     path: '/settings',
+    breadcrumbs: [{ title: 'Настройки' }],
     title: 'Настройки — Solo AI Journey',
     description: 'Тема оформления и уведомления о новых уроках.',
     body: `

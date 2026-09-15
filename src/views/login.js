@@ -33,6 +33,7 @@ export function loginPage({ config, user = null }) {
     config,
     user,
     path: '/login',
+    breadcrumbs: [{ title: 'Вход' }],
     title: 'Вход — Solo AI Journey',
     description:
       'Войдите, чтобы оставлять отзывы, голосовать за темы будущих уроков и получать уведомления о новых выпусках.',
@@ -59,7 +60,6 @@ export function loginPage({ config, user = null }) {
   </div>
 
   <p class="hint">Читать уроки можно и без входа. Он нужен, чтобы оставлять отзывы, голосовать за темы и получать уведомления о новых выпусках.</p>
-  <p><a href="/">← на главную</a></p>
 </div>`
   });
 }

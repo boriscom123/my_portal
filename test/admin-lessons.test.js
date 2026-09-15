@@ -239,7 +239,11 @@ test('на странице уроков нет ссылок, которые у�
     const app = finalize(createApp({ config, pool }));
     await withServer(app, async (base) => {
       const html = await (await fetch(`${base}/lessons`, { headers })).text();
-      const main = html.slice(html.indexOf('<main>'), html.indexOf('</main>'));
+      // Хлебные крошки — навигация по замыслу: «Главная» в них стоит на каждой
+      // странице. Проверяем само содержимое страницы, без полосы крошек.
+      const main = html
+        .slice(html.indexOf('<main>'), html.indexOf('</main>'))
+        .replace(/<nav class="breadcrumbs"[\s\S]*?<\/nav>/, '');
       // Настройки, идеи и витрина живут в меню шапки: повторять их на странице
       // значит показывать одно и то же дважды.
       for (const link of ['/settings', '/feedback', '"/"']) {

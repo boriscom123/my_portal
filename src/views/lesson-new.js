@@ -18,10 +18,10 @@ export function lessonNewPage({
     config,
     user,
     path: '/lessons/new',
+    breadcrumbs: [{ title: 'Уроки', href: '/lessons' }, { title: 'Новый урок' }],
     title: 'Новый урок — Solo AI Journey',
     description: 'Завести урок и загрузить запись.',
     body: `
-<p><a href="/lessons">← Уроки</a></p>
 <h1>Новый урок</h1>
 
 <section class="card">

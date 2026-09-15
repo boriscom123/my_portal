@@ -97,6 +97,9 @@ export function lessonsPage({
     user,
     // У отфильтрованного списка свой адрес: для поисковика это отдельная страница.
     path: project ? `/lessons?project=${encodeURIComponent(project.slug)}` : '/lessons',
+    breadcrumbs: project
+      ? [{ title: 'Уроки', href: '/lessons' }, { title: `Проект «${project.title}»` }]
+      : [{ title: 'Уроки' }],
     title: project ? `Уроки проекта «${project.title}» — Solo AI Journey` : 'Уроки — Solo AI Journey',
     description: 'Все видеоуроки портала: от идеи до продукта, шаг за шагом.',
     body: `

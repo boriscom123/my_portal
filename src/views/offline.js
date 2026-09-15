@@ -8,6 +8,7 @@ export function offlinePage(config) {
   return layout({
     config,
     path: '/offline',
+    breadcrumbs: [{ title: 'Нет сети' }],
     title: 'Нет сети — Solo AI Journey',
     description: 'Страница недоступна без интернета.',
     body: `

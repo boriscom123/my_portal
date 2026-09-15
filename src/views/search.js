@@ -33,6 +33,7 @@ export function searchPage({ config, user, query, results }) {
     config,
     user,
     path: '/search',
+    breadcrumbs: [{ title: 'Поиск' }],
     title: query ? `Поиск: ${query} — Solo AI Journey` : 'Поиск — Solo AI Journey',
     description: 'Поиск по словам внутри уроков: находка ведёт на нужную минуту.',
     body: `

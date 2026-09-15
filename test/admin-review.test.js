@@ -403,12 +403,13 @@ test('когда запись есть, загрузка перестаёт бы
       assert.ok(!html.includes('Смотреть с субтитрами'));
 
       // В навигации остаётся только возврат к списку: остальные действия
-      // живут в своих разделах, где понятно, к чему они относятся.
+      // живут в своих разделах, где понятно, к чему они относятся. Навигация
+      // теперь — хлебные крошки «Главная › Уроки › Урок».
       // Закрытие ищем ОТ начала блока: первый </nav> в документе принадлежит
       // меню в шапке, и срез вышел бы пустым.
-      const from = html.indexOf('<nav class="admin-nav">');
+      const from = html.indexOf('<nav class="breadcrumbs"');
       const nav = html.slice(from, html.indexOf('</nav>', from));
-      assert.match(nav, /href="\/lessons">← Уроки/);
+      assert.match(nav, /href="\/lessons">Уроки<\/a>/);
       assert.ok(!nav.includes('preview'), 'проверка записи снова в навигации');
       assert.ok(!nav.includes('/admin/upload'), 'загрузка снова в навигации');
       assert.ok(!/href="\/lesson\//.test(nav), 'страница урока снова в навигации');

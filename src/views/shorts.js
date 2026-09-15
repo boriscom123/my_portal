@@ -32,6 +32,7 @@ export function shortsListPage({ config, user, shorts }) {
     config,
     user,
     path: '/shorts',
+    breadcrumbs: [{ title: 'Короткие ролики' }],
     title: 'Короткие ролики — Solo AI Journey',
     description: 'Короткие вертикальные ролики портала: главное из уроков за минуту.',
     body: `
@@ -77,6 +78,7 @@ export function shortPage({ config, user, short }) {
     config,
     user,
     path: `/short/${short.slug}`,
+    breadcrumbs: [{ title: 'Короткие ролики', href: '/shorts' }, { title: short.title }],
     title: `${short.title} — Solo AI Journey`,
     description: short.description.slice(0, 160) || short.title,
     image: short.coverUrl,
@@ -117,10 +119,10 @@ export function shortNewPage({ config, user }) {
     config,
     user,
     path: '/shorts/new',
+    breadcrumbs: [{ title: 'Короткие ролики', href: '/shorts' }, { title: 'Новый ролик' }],
     title: 'Новый ролик — Solo AI Journey',
     description: 'Загрузить короткий вертикальный ролик.',
     body: `
-<p><a href="/shorts">← Короткие ролики</a></p>
 <h1>Новый ролик</h1>
 
 <form class="card" data-short-new>
@@ -155,10 +157,14 @@ export function shortEditPage({ config, user, short, publications = [], platform
     config,
     user,
     path: `/short/${short.slug}/edit`,
+    breadcrumbs: [
+      { title: 'Короткие ролики', href: '/shorts' },
+      { title: short.title, href: `/short/${encodeURIComponent(short.slug)}` },
+      { title: 'Правка' }
+    ],
     title: 'Правка ролика — Solo AI Journey',
     description: 'Поправить короткий ролик портала.',
     body: `
-<p><a href="/shorts">← Короткие ролики</a></p>
 <h1>Правка ролика</h1>
 
 <form class="card" data-short-form="${escapeHtml(short.slug)}">

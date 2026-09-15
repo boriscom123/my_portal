@@ -14,13 +14,14 @@ export function adminPreviewPage({ config, user, lesson, videoUrl, subtitlesUrl 
     config,
     user,
     path: `/admin/lesson/${lesson.slug}/preview`,
+    breadcrumbs: [
+      { title: 'Уроки', href: '/lessons' },
+      { title: lesson.title, href: `/admin/lesson/${encodeURIComponent(lesson.slug)}` },
+      { title: 'Проверка записи' }
+    ],
     title: `Просмотр: ${lesson.title} — Solo AI Journey`,
     description: 'Просмотр урока с субтитрами перед публикацией.',
     body: `
-<nav class="admin-nav">
-  <a class="button" href="/admin/lesson/${encodeURIComponent(lesson.slug)}">← К проверке</a>
-</nav>
-
 <h1>${escapeHtml(lesson.title)}</h1>
 <p class="hint">
   Запись из рабочего буфера с дорожкой субтитров. Подписи включаются кнопкой в

@@ -6,6 +6,7 @@
 import { escapeHtml } from '../lib/html.js';
 import { assetUrl } from '../lib/assets.js';
 import { rocket } from './rocket.js';
+import { breadcrumbsHtml } from './breadcrumbs.js';
 
 /**
  * Собирает полную страницу.
@@ -20,7 +21,10 @@ export function layout({
   path = '/',
   image = null,
   user = null,
-  refreshSeconds = null
+  refreshSeconds = null,
+  // Хлебные крошки: пункты после «Главной», последний — сама страница. У главной
+  // их нет — выше неё идти некуда.
+  breadcrumbs = null
 }) {
   // Полный адрес страницы. Нужен дважды: поисковику — как канонический, чтобы
   // один урок не считался тремя страницами из-за меток в ссылках; мессенджеру —
@@ -103,7 +107,7 @@ ${
      кнопок, над которыми проходит. -->
 <div class="rocket-flight" data-rocket hidden aria-hidden="true">${rocket({ height: 34, id: 'flight' })}</div>
 
-<main>${body}</main>
+<main>${breadcrumbsHtml(breadcrumbs)}${body}</main>
 <!-- Полоска про файлы браузера. Скрыта разметкой и открывается скриптом, если
      человек её ещё не закрывал: иначе вернувшийся зритель видел бы её мельканием
      на каждой странице. -->

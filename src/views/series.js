@@ -105,10 +105,10 @@ export function seriesPage({ config, user, series }) {
     config,
     user,
     path: `/series/${series.slug}`,
+    breadcrumbs: [{ title: 'Уроки', href: '/lessons' }, { title: `Серия «${series.title}»` }],
     title: `${series.title} — Solo AI Journey`,
     description: series.description || `Серия уроков «${series.title}» по порядку.`,
     body: `
-<p><a href="/lessons">← Уроки</a></p>
 <h1>${escapeHtml(series.title)}</h1>
 ${series.description ? `<p class="lead">${escapeHtml(series.description)}</p>` : ''}
 <p class="meta">${lessons.length} ${plural(lessons.length, ['урок', 'урока', 'уроков'])} по порядку</p>

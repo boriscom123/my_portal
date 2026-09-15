@@ -54,6 +54,7 @@ export function feedbackPage({ config, ideas, mine = [], user }) {
     config,
     user,
     path: '/feedback',
+    breadcrumbs: [{ title: 'Обратная связь' }],
     title: 'Обратная связь — Solo AI Journey',
     description:
       'Предложить тему урока, попросить поправить портал или написать отзыв. Идеи можно поддержать голосом.',

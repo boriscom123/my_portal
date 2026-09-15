@@ -34,17 +34,16 @@ export function adminUploadPage({
     config,
     user,
     path: '/admin/upload',
+    breadcrumbs: [
+      { title: 'Уроки', href: '/lessons' },
+      ...(lesson
+        ? [{ title: lesson.title, href: `/admin/lesson/${encodeURIComponent(lesson.slug)}` }]
+        : []),
+      { title: 'Загрузка записи' }
+    ],
     title: 'Загрузка урока — Solo AI Journey',
     description: 'Загрузка исходника урока в обработку.',
     body: `
-<nav class="admin-nav">
-  ${
-    lesson
-      ? `<a class="button" href="/admin/lesson/${encodeURIComponent(lesson.slug)}">← К уроку</a>`
-      : '<a class="button" href="/lessons">← Уроки</a>'
-  }
-</nav>
-
 <h1>Загрузка записи</h1>
 ${
   lesson

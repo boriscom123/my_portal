@@ -266,6 +266,11 @@ test('страница урока зовёт к следующему и к по�
     await withServer(app, async (base) => {
       const page = await (await fetch(`${base}/lesson/pervyy`)).text();
       assert.match(page, /Урок 1 из 3/);
+      // Крошки: серия в цепочке урока — пришедший на середину курса видит, где он.
+      assert.match(
+        page,
+        /<a href="\/lessons">Уроки<\/a>[\s\S]*<a href="\/series\/portal-s-nulya">Серия «Портал с нуля»<\/a>[\s\S]*<span aria-current="page">Урок 1<\/span>/
+      );
       assert.match(page, /Портал с нуля/);
       assert.match(page, /\/lesson\/vtoroy/);
       assert.match(page, /Похожие уроки/);

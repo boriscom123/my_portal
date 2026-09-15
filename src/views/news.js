@@ -84,6 +84,9 @@ export function newsListPage({ config, user, news, project = null, unknownProjec
     user,
     // У отфильтрованного списка свой адрес: для поисковика это отдельная страница.
     path: project ? `/news?project=${encodeURIComponent(project.slug)}` : '/news',
+    breadcrumbs: project
+      ? [{ title: 'Новости', href: '/news' }, { title: `Проект «${project.title}»` }]
+      : [{ title: 'Новости' }],
     title: project
       ? `Новости проекта «${project.title}» — Solo AI Journey`
       : 'Новости — Solo AI Journey',
@@ -131,6 +134,7 @@ export function newsPage({ config, user, item }) {
     config,
     user,
     path: `/news/${item.slug}`,
+    breadcrumbs: [{ title: 'Новости', href: '/news' }, { title: item.title }],
     title: `${item.title} — Solo AI Journey`,
     description: item.body.slice(0, 160),
     body: `
@@ -255,10 +259,16 @@ export function newsEditPage({
     config,
     user,
     path: item ? `/news/${item.slug}/edit` : '/news/new',
+    breadcrumbs: item
+      ? [
+          { title: 'Новости', href: '/news' },
+          { title: item.title, href: `/news/${encodeURIComponent(item.slug)}` },
+          { title: 'Правка' }
+        ]
+      : [{ title: 'Новости', href: '/news' }, { title: 'Новая новость' }],
     title: item ? `Правка новости — Solo AI Journey` : 'Новая новость — Solo AI Journey',
     description: 'Написать или поправить новость портала.',
     body: `
-<p><a href="/news">← Новости</a></p>
 <h1>${item ? 'Правка новости' : 'Новая новость'}</h1>
 
 ${newsForm(item, projects)}

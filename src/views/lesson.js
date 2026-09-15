@@ -65,6 +65,20 @@ export function lessonPage({
     config,
     user,
     path: `/lesson/${encodeURIComponent(lesson.slug)}`,
+    // Урок в серии — с серией в цепочке: пришедший на середину курса видит, где
+    // он, и одним нажатием попадает ко всему порядку.
+    breadcrumbs: [
+      { title: 'Уроки', href: '/lessons' },
+      ...(seriesNav?.series
+        ? [
+            {
+              title: `Серия «${seriesNav.series.title}»`,
+              href: `/series/${encodeURIComponent(seriesNav.series.slug)}`
+            }
+          ]
+        : []),
+      { title: lesson.title }
+    ],
     title: lesson.title,
     description: lesson.description,
     image: lesson.coverUrl,

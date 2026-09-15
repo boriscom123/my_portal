@@ -87,13 +87,10 @@ export function adminReviewPage({
     config,
     user,
     path: `/admin/lesson/${lesson.slug}`,
+    breadcrumbs: [{ title: 'Уроки', href: '/lessons' }, { title: lesson.title }],
     title: `Проверка: ${lesson.title} — Solo AI Journey`,
     description: 'Экран проверки урока перед публикацией.',
     body: `
-<nav class="admin-nav">
-  <a class="button" href="/lessons">← Уроки</a>
-</nav>
-
 <h1>${escapeHtml(lesson.title)}</h1>
 <p class="meta">
   ${lesson.status === 'published' ? 'опубликован' : 'черновик'}
