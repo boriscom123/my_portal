@@ -11,16 +11,6 @@ import { stateLabel } from './lesson-state.js';
 import { formatDate } from './feed.js';
 import { projectLinks } from './project-links.js';
 
-/** Русское склонение после числа: 1 урок, 2 урока, 5 уроков. */
-function plural(n, [one, few, many]) {
-  const hundreds = n % 100;
-  if (hundreds >= 11 && hundreds <= 14) return many;
-  const ones = n % 10;
-  if (ones === 1) return one;
-  if (ones >= 2 && ones <= 4) return few;
-  return many;
-}
-
 /**
  * Урок карточкой — так же, как новость в своём разделе.
  * Значок правки ведёт на экран урока: там и поля, и обработка, и площадки.
@@ -79,7 +69,6 @@ export function lessonsPage({
   config,
   user,
   lessons,
-  series = [],
   project = null,
   unknownProject = false
 }) {
@@ -114,26 +103,8 @@ ${unknownProject ? '<p class="hint">Такого проекта нет — по�
      настройках, рядом с самим подключением. В списке уроков это была строка,
      которая ничего не давала сделать. -->
 
-${
-  series.length
-    ? `<section class="series-block">
-  <h2>Серии</h2>
-  <p class="hint">Уроки, которые идут по порядку: с первого до последнего.</p>
-  <ul class="series-list">${series
-    .map(
-      (item) => `<li>
-    <a href="/series/${encodeURIComponent(item.slug)}">${escapeHtml(item.title)}</a>
-    <span class="meta">${item.lessonCount} ${plural(item.lessonCount, [
-      'урок',
-      'урока',
-      'уроков'
-    ])}</span>
-  </li>`
-    )
-    .join('')}</ul>
-</section>`
-    : ''
-}
+<!-- Отдельного блока серий здесь нет: серия видна на карточке урока строкой
+     «Серия «…» · урок N из M», а второй раз её показывать незачем. -->
 
 ${
   lessons.length

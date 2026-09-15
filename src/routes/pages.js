@@ -236,10 +236,8 @@ export function pageRoutes(config, pool) {
       lessonsPage({
         config,
         user,
+        // Серии отдельным блоком не показываем: серия видна на карточке урока.
         lessons: await listLessons(pool, { includeDrafts: isAdmin, project: project?.slug ?? null }),
-        // Серии впереди списка: курс из восьми уроков человеку полезнее
-        // восьми отдельных строк, между которыми он выбирает наугад.
-        series: await listSeries(pool, { includeDrafts: isAdmin, project: project?.slug ?? null }),
         project,
         unknownProject
       })

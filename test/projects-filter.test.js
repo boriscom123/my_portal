@@ -68,8 +68,10 @@ test('фильтр «Уроков» отбирает основной и свя�
       assert.match(page, /Урок про игру/);
       assert.match(page, /Урок портала про игру/);
       assert.doesNotMatch(page, /Чужой урок/);
-      // Блок серий тоже по проекту.
-      assert.match(page, /Игра с нуля/);
+      // Отдельного блока серий на странице уроков нет: серия видна на карточке
+      // урока, и только у уроков, попавших в фильтр.
+      assert.doesNotMatch(page, /class="series-list"/);
+      assert.match(page, /Серия «<a href="\/series\/igra-s-nulya">Игра с нуля<\/a>»/);
       assert.doesNotMatch(page, /Портал с нуля/);
 
       const unknown = await (await fetch(`${base}/lessons?project=net-takogo`)).text();

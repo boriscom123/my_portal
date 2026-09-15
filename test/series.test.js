@@ -426,6 +426,10 @@ test('в списке уроков — обложка и место в сери�
       assert.match(guest, /<img[^>]*src="\/media\/asset\/77"/);
       assert.match(guest, /href="\/series\/portal-s-nulya"/);
       assert.match(guest, /урок 2 из 3/);
+      // Отдельного блока «Серии» над списком нет: заказчик 2026-09-15 — серия и
+      // так видна на карточке урока, второй раз её показывать незачем.
+      assert.doesNotMatch(guest, /<h2>Серии<\/h2>/);
+      assert.doesNotMatch(guest, /class="series-list"/);
       assert.doesNotMatch(guest, /урок \d из 4/);
 
       const author = await (

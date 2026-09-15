@@ -1989,23 +1989,6 @@ label[for='cover-file'] {
   margin-top: 16px;
 }
 
-/* Список серий: название и число уроков в строку, без маркеров — маркер здесь
-   добавляет шум, а не смысл. */
-.series-list {
-  list-style: none;
-  margin: 12px 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.series-list li {
-  display: flex;
-  gap: 10px;
-  align-items: baseline;
-  flex-wrap: wrap;
-}
-
 /* Номер урока в серии: приглушён, чтобы не спорить с названием, но виден —
    ради него список и пронумерован. */
 .series-number {
