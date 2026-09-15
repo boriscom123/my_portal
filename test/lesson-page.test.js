@@ -144,8 +144,11 @@ test('отзывы — сразу под оценкой, до серии и по
 
 test('серия — с понятным заголовком и местом урока на карточках', () => {
   const page = lessonPage({ config, lesson, comments: [], user: null, seriesNav });
-  assert.match(page, /<h2>Серия уроков «Портал»<\/h2>/);
-  assert.match(page, /Урок 2 из 3/);
+  // Заголовок серии сам ведёт на всю серию; строки «Урок N из M · вся серия по
+  // порядку» под ним нет — место урока уже видно под заголовком урока.
+  assert.match(page, /<h2><a href="\/series\/portal">Серия уроков «Портал»<\/a><\/h2>/);
+  assert.doesNotMatch(page, /вся серия по порядку/);
+  assert.doesNotMatch(page, /Урок 2 из 3/);
   // На карточках соседей — место в серии, как на странице «Уроки».
   assert.match(page, /Третий урок[\s\S]*?Серия «<a href="\/series\/portal">Портал<\/a>» · урок 3 из 3/);
   assert.match(page, /Первый урок[\s\S]*?Серия «<a href="\/series\/portal">Портал<\/a>» · урок 1 из 3/);

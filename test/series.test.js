@@ -265,7 +265,8 @@ test('страница урока зовёт к следующему и к по�
     const app = finalize(createApp({ config, pool, queue: { add: async () => {} } }));
     await withServer(app, async (base) => {
       const page = await (await fetch(`${base}/lesson/pervyy`)).text();
-      assert.match(page, /Урок 1 из 3/);
+      // Место урока в серии — строкой под заголовком урока.
+      assert.match(page, /урок 1 из 3/);
       // Крошки: серия в цепочке урока — пришедший на середину курса видит, где он.
       assert.match(
         page,

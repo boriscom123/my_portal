@@ -60,12 +60,13 @@ export function seriesBlock(navigation) {
 
   // «Серия уроков», а не просто «Серия»: без этого слова заголовок читался
   // непонятно — серия чего.
+  // Заголовок сам ведёт на всю серию. Строки «Урок N из M · вся серия по
+  // порядку» под ним нет: место урока уже видно под заголовком урока, а вторая
+  // ссылка на ту же серию путала.
   return `<section class="series-block">
-  <h2>Серия уроков «${escapeHtml(series.title)}»</h2>
-  <p class="meta">
-    Урок ${number} из ${total} ·
-    <a href="/series/${encodeURIComponent(series.slug)}">вся серия по порядку</a>
-  </p>
+  <h2><a href="/series/${encodeURIComponent(series.slug)}">Серия уроков «${escapeHtml(
+    series.title
+  )}»</a></h2>
   ${
     cards
       ? `<div class="lessons-grid">${cards}</div>`
