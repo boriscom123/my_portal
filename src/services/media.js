@@ -115,14 +115,17 @@ export async function forgetAsset(pool, id) {
  */
 export async function assetsOfLesson(pool, lessonId) {
   const { rows } = await pool.query(
-    'SELECT id, kind, path, bytes FROM assets WHERE lesson_id = $1 ORDER BY id',
+    'SELECT id, kind, path, bytes, telegram_file_id FROM assets WHERE lesson_id = $1 ORDER BY id',
     [lessonId]
   );
   return rows.map((row) => ({
     id: Number(row.id),
     kind: row.kind,
     path: row.path,
-    bytes: Number(row.bytes)
+    bytes: Number(row.bytes),
+    // Номер файла в Telegram: есть — значит запись туда уже уехала и её можно
+    // переслать зрителю мгновенно.
+    telegramFileId: row.telegram_file_id ?? null
   }));
 }
 
@@ -148,7 +151,8 @@ export async function assetsOfNews(pool, newsId) {
 
 export async function assetById(pool, id) {
   const { rows } = await pool.query(
-    'SELECT id, lesson_id, kind, path, bytes, expires_at FROM assets WHERE id = $1',
+    `SELECT id, lesson_id, kind, path, bytes, expires_at, telegram_file_id
+       FROM assets WHERE id = $1`,
     [id]
   );
   if (!rows.length) return null;
@@ -158,6 +162,9 @@ export async function assetById(pool, id) {
     kind: rows[0].kind,
     path: rows[0].path,
     bytes: Number(rows[0].bytes),
-    expiresAt: rows[0].expires_at
+    expiresAt: rows[0].expires_at,
+    // Номер файла в Telegram: есть — значит запись туда уже уехала и её можно
+    // переслать зрителю мгновенно.
+    telegramFileId: rows[0].telegram_file_id ?? null
   };
 }

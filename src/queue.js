@@ -49,7 +49,10 @@ export const JOBS = {
   makeNewsImage: 'makeNewsImage',
   // Урок в канал частями видео — следом за анонсом, своей кнопкой.
   publishTelegramParts: 'publishTelegramParts',
-  publishMaxParts: 'publishMaxParts'
+  publishMaxParts: 'publishMaxParts',
+  // Запись урока — в Telegram автору в личку. Долгая загрузка делается один
+  // раз: дальше площадка отдаёт то же видео зрителям по номеру файла.
+  uploadLessonVideo: 'uploadLessonVideo'
 };
 
 /**
@@ -148,6 +151,9 @@ const NO_RETRY_JOBS = new Set([
   // Обновление подписей (refreshChannels) повторять можно — правка одна и та же.
   JOBS.publishTelegram,
   JOBS.publishMax,
+  // Загрузка записи в Telegram: повтор после неясного отказа означает второе
+  // такое же видео в личке автора и ещё несколько минут загрузки впустую.
+  JOBS.uploadLessonVideo,
   // Instagram по той же причине, и ещё по одной: площадка обрабатывает ролик у
   // себя минутами, и повтор поверх незаконченной обработки кладёт второй Reels.
   JOBS.publishInstagram,

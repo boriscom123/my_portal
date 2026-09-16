@@ -137,7 +137,45 @@ export async function postVideoToTelegram({
 
   const body = await response.json();
   const messageId = String(body.result?.message_id ?? '');
-  return { messageId, url: postUrl(channel, messageId) };
+  return {
+    messageId,
+    url: postUrl(channel, messageId),
+    // Номер принятого файла: по нему то же видео уходит следующему человеку
+    // мгновенно — площадка хранит его у себя, и грузить заново не нужно.
+    fileId: body.result?.video?.file_id ?? null
+  };
+}
+
+/**
+ * Отправляет видео, уже загруженное в Telegram, по его номеру.
+ *
+ * Ради этого первая загрузка и делается: файла у нас в руках нет, запроса на
+ * гигабайты — тоже, уходит одна строка. Так зритель получает полную запись
+ * урока в свой мессенджер, а портал не гоняет её по сети каждому.
+ * Вызывается из маршрута бота.
+ */
+export async function sendStoredVideo({
+  apiUrl = DEFAULT_API_URL,
+  token,
+  chatId,
+  fileId,
+  caption,
+  fetchImpl = fetch
+}) {
+  const response = await fetchImpl(botMethod(apiUrl, token, 'sendVideo'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: chatId,
+      video: fileId,
+      caption,
+      supports_streaming: true
+    })
+  });
+  if (!response.ok) await failure(response);
+
+  const body = await response.json();
+  return { messageId: String(body.result?.message_id ?? '') };
 }
 
 /**

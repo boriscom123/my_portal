@@ -56,6 +56,7 @@ import {
   postPartsToMax
 } from './services/platforms/max-channel.js';
 import { makePublishLessonParts } from './jobs/publish-lesson-parts.js';
+import { makeUploadLessonVideo } from './jobs/upload-lesson-video.js';
 import { makePublishInstagram } from './jobs/publish-instagram.js';
 import { instagramAccess } from './services/platforms/instagram-auth.js';
 import {
@@ -155,6 +156,9 @@ const handlers = {
   // Урок частями видео — следом за анонсом, в тот же канал.
   [JOBS.publishTelegramParts]: makePublishLessonParts(config, pool, 'telegram_parts', telegramAdapter),
   [JOBS.publishMaxParts]: makePublishLessonParts(config, pool, 'max_parts', maxAdapter),
+  // Запись урока в Telegram автору: долгая загрузка ради номера файла, по
+  // которому видео потом уходит зрителям мгновенно.
+  [JOBS.uploadLessonVideo]: makeUploadLessonVideo(config, pool),
   [JOBS.refreshChannels]: makeRefreshChannels(config, pool, {
     telegram: telegramAdapter,
     max: maxAdapter
