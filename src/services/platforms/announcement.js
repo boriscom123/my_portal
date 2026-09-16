@@ -17,8 +17,10 @@ const PLATFORM_NAMES = {
   vk: 'VK Video',
   rutube: 'RuTube',
   dzen: 'Дзен',
-  telegram: 'Telegram',
-  max: 'MAX'
+  // Каналы называются каналами: в подписи они стоят рядом с сайтом, и «Telegram»
+  // без слова «канал» читается как площадка с записью.
+  telegram: 'Канал Telegram',
+  max: 'Канал Max'
 };
 
 /** Обрезает по границе предложения, а если её нет — по границе слова. */
@@ -113,24 +115,18 @@ function linkBlocks({ lesson, publicBaseUrl, publications, skipPlatform, lead = 
   const videos = out.filter((item) => FULL_VIDEO_PLATFORMS.includes(item.platform));
   const channels = out.filter((item) => !FULL_VIDEO_PLATFORMS.includes(item.platform));
 
+  // Каждая ссылка подписана, чем она является: голый адрес в ленте канала
+  // ничего не говорит, а «Сайт» и «Канал Max» читаются с одного взгляда.
+  const named = (item) => `${PLATFORM_NAMES[item.platform] ?? item.platform}: ${item.url}`;
+
   const blocks = [];
+  if (lead) blocks.push(lead);
   // Полной записи нигде нет — обещать её нечем; она целиком в посте — звать
-  // некуда.
+  // некуда. Метка без ссылки выглядит поломкой, поэтому строки просто нет.
   if (videos.length && !noVideo) {
-    const names = videos.map((item) => PLATFORM_NAMES[item.platform] ?? item.platform).join(' и ');
-    blocks.push(
-      [`${lead ? `${lead} ` : ''}Полное видео — на ${names}:`, ...videos.map((item) => item.url)].join('\n')
-    );
-  } else if (lead) {
-    blocks.push(lead);
+    blocks.push(['Полное видео:', ...videos.map(named)].join('\n'));
   }
-  blocks.push(
-    [
-      `Подробности — ${channels.length ? 'на сайте и в каналах' : 'на сайте'}:`,
-      lessonLink,
-      ...channels.map((item) => item.url)
-    ].join('\n')
-  );
+  blocks.push(['Подробности:', `Сайт: ${lessonLink}`, ...channels.map(named)].join('\n'));
   return blocks;
 }
 

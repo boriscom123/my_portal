@@ -24,11 +24,21 @@ test('подпись: полное видео — на площадке, под�
     skipPlatform: 'telegram',
     limit: 1024
   });
-  assert.match(caption, /^Урок про портал\n\n/);
-  assert.match(caption, /Первые 5 минут урока\. Полное видео — на YouTube:\nhttps:\/\/youtu\.be\/x/);
-  assert.match(
+  // Заказчик 2026-09-16 прислал желаемый вид целиком — им и проверяем.
+  assert.equal(
     caption,
-    /Подробности — на сайте и в каналах:\nhttps:\/\/p\.example\/lesson\/urok\nhttps:\/\/max\.ru\/kanal$/
+    [
+      'Урок про портал',
+      '',
+      'Первые 5 минут урока.',
+      '',
+      'Полное видео:',
+      'YouTube: https://youtu.be/x',
+      '',
+      'Подробности:',
+      'Сайт: https://p.example/lesson/urok',
+      'Канал Max: https://max.ru/kanal'
+    ].join('\n')
   );
   assert.doesNotMatch(caption, /rutube/i, 'приватный ролик в подпись не идёт');
 });
@@ -44,7 +54,8 @@ test('полной записи ещё нигде нет — строки про
     limit: 1024
   });
   assert.doesNotMatch(caption, /Полное видео/, 'ссылки на полную запись нет — и обещать нечего');
-  assert.match(caption, /^Урок про портал\n\nПервые 5 минут урока\.\n\nПодробности/);
+  assert.match(caption, /^Урок про портал\n\nПервые 5 минут урока\.\n\nПодробности:\nСайт: /);
+  assert.match(caption, /Канал Max: https:\/\/max\.ru\/kanal$/);
 });
 
 test('запись влезла целиком — ни «первых минут», ни ссылки на полное видео', () => {
@@ -59,7 +70,7 @@ test('запись влезла целиком — ни «первых мину�
   });
   assert.doesNotMatch(caption, /перв\S* \d+ минут/i);
   assert.doesNotMatch(caption, /Полное видео/, 'весь урок и так в посте');
-  assert.match(caption, /Подробности — на сайте:\nhttps:\/\/p\.example\/lesson\/urok$/);
+  assert.match(caption, /Подробности:\nСайт: https:\/\/p\.example\/lesson\/urok$/);
 });
 
 test('длинный заголовок укорачивается, а ссылки остаются', () => {

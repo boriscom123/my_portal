@@ -22,7 +22,7 @@ test('в подписи есть заголовок, описание и ссы�
   assert.match(text, /Планирование веб-портала/);
   assert.match(text, /из идеи вырастает/);
   // Заказчик 2026-09-16: у анонса та же подпись, что у поста с началом урока.
-  assert.match(text, /Подробности — на сайте:\nhttps:\/\/portal\.example\/lesson\/urok-15$/);
+  assert.match(text, /Подробности:\nСайт: https:\/\/portal\.example\/lesson\/urok-15$/);
 });
 
 test('ссылки площадок появляются только у вышедших роликов', () => {
@@ -35,7 +35,7 @@ test('ссылки площадок появляются только у выш�
     ]
   });
   // Приватный ролик подписчику не открывается — звать его туда нечестно.
-  assert.match(text, /Полное видео — на YouTube:\nhttps:\/\/youtu\.be\/vyshel/);
+  assert.match(text, /Полное видео:\nYouTube: https:\/\/youtu\.be\/vyshel/);
   assert.doesNotMatch(text, /priva/);
 });
 
