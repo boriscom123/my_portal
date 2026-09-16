@@ -565,6 +565,11 @@ export function pageRoutes(config, pool) {
         user: await currentUser(pool, req),
         short,
         videoUrl: shortVideoUrl(config, short),
+        // Для правки титров — файл без них, по подписанной ссылке: чистый файл
+        // наружу не отдаётся, он рабочий.
+        editVideoUrl: short.assetId
+          ? mediaLink(config, short.sourceAssetId ?? short.assetId, 3 * 3600)
+          : null,
         publications: await shortPublications(pool, short.id),
         // Каналы плюс Instagram: у него не канал, а подключённый аккаунт, и
         // спрашивать о нём надо иначе.

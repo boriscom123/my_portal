@@ -881,6 +881,55 @@ function initPage() {
     return true;
   }
 
+  // Правка титров под плеером: подсветка звучащей реплики, перемотка по
+  // времени и пауза на время набора.
+  const shortEditor = document.querySelector('[data-short-editor]');
+  const editorVideo = shortEditor?.querySelector('[data-short-editor-video]');
+  if (shortEditor && editorVideo) {
+    // Плеер закрепляется под шапкой, а не под краем экрана: шапка тоже
+    // закреплена и закрыла бы его верх.
+    const header = document.querySelector('.site-header');
+    const placeVideo = () =>
+      shortEditor.style.setProperty('--editor-top', `${(header?.offsetHeight ?? 0) + 8}px`);
+    placeVideo();
+    window.addEventListener('resize', placeVideo);
+
+    // Границы реплики — в её атрибутах, из расшифровки: [data-started, data-ended).
+    const lines = [...shortEditor.querySelectorAll('[data-started]')];
+    let playing = null;
+    editorVideo.addEventListener('timeupdate', () => {
+      const ms = editorVideo.currentTime * 1000;
+      const line =
+        lines.find(
+          (item) =>
+            ms >= Number(item.getAttribute('data-started')) &&
+            ms < Number(item.getAttribute('data-ended'))
+        ) ?? null;
+      if (line === playing) return;
+      playing?.classList.remove('is-playing');
+      line?.classList.add('is-playing');
+      playing = line;
+      // Прокручиваем к звучащей реплике, только пока автор не правит: иначе
+      // поле ушло бы из-под пальца посреди слова.
+      if (line && !editorVideo.paused && !shortEditor.contains(document.activeElement)) {
+        line.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      }
+    });
+
+    for (const button of shortEditor.querySelectorAll('[data-seek]')) {
+      button.addEventListener('click', () => {
+        editorVideo.currentTime = Number(button.dataset.seek) / 1000;
+        editorVideo.play().catch(() => {});
+      });
+    }
+
+    // Пауза при наборе: пока автор печатает, ролик убегал бы вперёд, и
+    // дослушать, что было сказано, пришлось бы заново.
+    shortEditor.addEventListener('input', (event) => {
+      if (event.target.matches('[data-short-segment]')) editorVideo.pause();
+    });
+  }
+
   // Вшивание титров. Несохранённые правки сохраняем сами: иначе вшились бы
   // старые реплики, и автор увидел бы ослышку, которую только что исправил.
   const shortBurn = document.querySelector('[data-short-burn]');

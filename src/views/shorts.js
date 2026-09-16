@@ -237,7 +237,7 @@ ${clipsPanel ? clipsPanelHtml(clipsPanel) : ''}
  * У нарезки из урока титры вшиты ещё при нарезке — там блок только объясняет,
  * где их править.
  */
-function subtitlesPanel(short) {
+function subtitlesPanel(short, editVideoUrl = null) {
   if (short.lesson) {
     return `<section class="card">
   <h2>Титры</h2>
@@ -254,17 +254,32 @@ function subtitlesPanel(short) {
   ${
     short.segments.length
       ? `<p class="hint">
-           Поправьте ослышки распознавания и нажмите «Сохранить расшифровку», затем
+           Запустите ролик: звучащая реплика подсвечивается, нажатие на время
+           перематывает к ней, а пока вы печатаете, ролик стоит на паузе.
+           Поправьте ослышки и нажмите «Сохранить расшифровку», затем
            «${burned ? 'Вшить титры заново' : 'Вшить титры'}». Титры вшиваются в саму
            картинку: ролик можно смотреть без звука в ленте и в каналах. Файл без
            титров портал хранит, так что вшивать заново можно сколько угодно.
          </p>
+         <div class="subtitle-editor" data-short-editor>
+         ${
+           // Плеер — чистый файл, без вшитых титров: иначе поверх правки шли бы
+           // старые титры с той самой ослышкой. Закреплён сверху: на телефоне
+           // автор слушает и правит, не прокручивая назад к ролику.
+           editVideoUrl
+             ? `<video class="subtitle-editor-video" controls playsinline preload="metadata"
+                  src="${escapeHtml(editVideoUrl)}" data-short-editor-video></video>`
+             : ''
+         }
          <form data-short-segments="${slug}">
            <ol class="segments">
              ${short.segments
                .map(
-                 (segment, index) => `<li class="segment">
-               <span class="meta">${escapeHtml(timeLabel(segment.startedMs))}</span>
+                 (segment, index) => `<li class="segment" data-started="${Number(
+                   segment.startedMs
+                 )}" data-ended="${Number(segment.endedMs)}">
+               <button class="segment-time meta" type="button" data-seek="${Number(segment.startedMs)}"
+                 title="Перемотать сюда">${escapeHtml(timeLabel(segment.startedMs))}</button>
                <textarea rows="1" maxlength="500" data-short-segment="${index}">${escapeHtml(
                  segment.text
                )}</textarea>
@@ -279,6 +294,7 @@ function subtitlesPanel(short) {
              </button>
            </p>
          </form>
+         </div>
          <p class="hint">${
            burned
              ? 'Сейчас у ролика вшитые титры — в плеере выше и на площадках файл с ними.'
@@ -293,7 +309,15 @@ function subtitlesPanel(short) {
 }
 
 /** Страница правки: вся работа над роликом собрана здесь. */
-export function shortEditPage({ config, user, short, publications = [], platforms = [], videoUrl = null }) {
+export function shortEditPage({
+  config,
+  user,
+  short,
+  publications = [],
+  platforms = [],
+  videoUrl = null,
+  editVideoUrl = null
+}) {
   const published = short.status === 'published';
   const slug = encodeURIComponent(short.slug);
 
@@ -392,7 +416,7 @@ export function shortEditPage({ config, user, short, publications = [], platform
   </p>
 </section>
 
-${subtitlesPanel(short)}
+${subtitlesPanel(short, editVideoUrl)}
 
 <section class="card">
   <h2>Каналы</h2>

@@ -220,6 +220,9 @@ test('страница правки: реплики для правки и кн�
       ).text();
       assert.match(page, /data-short-segment="0"[^>]*>Анонсы уходят в каналы нахлитель и вам</);
       assert.match(page, /data-short-burn=/);
+      // Плеер для правки — рядом с репликами, у каждой реплики перемотка.
+      assert.match(page, /<video[^>]*data-short-editor-video/);
+      assert.match(page, /data-seek="1500"/);
 
       const saved = await fetch(`${base}/api/admin/shorts/${short.slug}/segments`, {
         method: 'POST',
