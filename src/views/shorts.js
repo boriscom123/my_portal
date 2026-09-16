@@ -1,4 +1,4 @@
-// Раздел «Короткие ролики»: список, страница ролика, страница правки.
+// Раздел «Ролики»: список, страница ролика, страница правки.
 //
 // Устроен как «Новости» намеренно: у автора одно и то же дело — написать,
 // посмотреть, выпустить, отправить в каналы, — и два разных устройства для
@@ -101,11 +101,11 @@ export function shortsListPage({ config, user, shorts, clipsPanel = null }) {
     config,
     user,
     path: '/shorts',
-    breadcrumbs: [{ title: 'Короткие ролики' }],
-    title: 'Короткие ролики — Solo AI Journey',
+    breadcrumbs: [{ title: 'Ролики' }],
+    title: 'Ролики — Solo AI Journey',
     description: 'Короткие вертикальные ролики портала: главное из уроков за минуту.',
     body: `
-<h1>Короткие ролики${
+<h1>Ролики${
       isAdmin
         ? ` <a class="add" href="/shorts/new" title="Загрузить ролик" aria-label="Загрузить ролик">+</a>`
         : ''
@@ -154,7 +154,7 @@ export function shortPage({ config, user, short }) {
     config,
     user,
     path: `/short/${short.slug}`,
-    breadcrumbs: [{ title: 'Короткие ролики', href: '/shorts' }, { title: short.title }],
+    breadcrumbs: [{ title: 'Ролики', href: '/shorts' }, { title: short.title }],
     title: `${short.title} — Solo AI Journey`,
     description: short.description.slice(0, 160) || short.title,
     image: short.coverUrl,
@@ -195,7 +195,7 @@ export function shortNewPage({ config, user }) {
     config,
     user,
     path: '/shorts/new',
-    breadcrumbs: [{ title: 'Короткие ролики', href: '/shorts' }, { title: 'Новый ролик' }],
+    breadcrumbs: [{ title: 'Ролики', href: '/shorts' }, { title: 'Новый ролик' }],
     title: 'Новый ролик — Solo AI Journey',
     description: 'Загрузить короткий вертикальный ролик.',
     body: `
@@ -234,7 +234,7 @@ export function shortEditPage({ config, user, short, publications = [], platform
     user,
     path: `/short/${short.slug}/edit`,
     breadcrumbs: [
-      { title: 'Короткие ролики', href: '/shorts' },
+      { title: 'Ролики', href: '/shorts' },
       { title: short.title, href: `/short/${encodeURIComponent(short.slug)}` },
       { title: 'Правка' }
     ],

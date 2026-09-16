@@ -479,7 +479,7 @@ export function initPage() {
     }
   });
 
-  // «Сделать роликом»: нарезка становится роликом раздела «Коротко». Файл
+  // «Сделать роликом»: нарезка становится роликом раздела «Ролики». Файл
   // остаётся за уроком — здесь он и показывается.
   for (const button of document.querySelectorAll('[data-make-short]')) {
     button.addEventListener('click', async () => {
@@ -873,6 +873,30 @@ export function initPage() {
         button.disabled = false;
       }
     });
+  });
+
+  // Запись урока в Telegram: загрузка идёт минуты, поэтому кнопка только
+  // ставит задачу. Номер файла запомнится сам, и ссылка для зрителей появится
+  // на этой же странице после обновления.
+  const telegramVideo = document.querySelector('[data-telegram-video]');
+  telegramVideo?.addEventListener('click', async () => {
+    const wasText = telegramVideo.textContent;
+    telegramVideo.disabled = true;
+    telegramVideo.textContent = 'Гружу…';
+    try {
+      const answer = await request(
+        `/api/admin/lessons/${telegramVideo.dataset.telegramVideo}/telegram-video`,
+        { method: 'POST' }
+      );
+      if (answer) {
+        toast('Запись пошла в Telegram. Видео придёт вам в личку — это займёт минуты.');
+      }
+    } catch (error) {
+      toast(`Не отправилось: ${error.message}`, true);
+    } finally {
+      telegramVideo.textContent = wasText;
+      telegramVideo.disabled = false;
+    }
   });
 
   /* --- Обработка записи --------------------------------------------------- */
