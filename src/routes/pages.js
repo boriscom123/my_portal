@@ -103,6 +103,20 @@ async function currentUser(pool, req) {
   return rows.length ? { displayName: rows[0].display_name, role: rows[0].role } : null;
 }
 
+/**
+ * Адрес файла ролика для плеера.
+ *
+ * Выпущенный лежит на открытом адресе — он в ссылках и в превью. Черновик
+ * наружу закрыт, и автору он отдаётся по подписанной ссылке: смотреть
+ * собственный ролик перед выпуском надо, а открывать его всем — нет.
+ */
+function shortVideoUrl(config, short) {
+  if (!short.assetId) return null;
+  return short.status === 'published'
+    ? `/media/asset/${short.assetId}`
+    : mediaLink(config, short.assetId, 3 * 3600);
+}
+
 export function pageRoutes(config, pool) {
   const router = Router();
 
@@ -549,6 +563,7 @@ export function pageRoutes(config, pool) {
         config,
         user: await currentUser(pool, req),
         short,
+        videoUrl: shortVideoUrl(config, short),
         publications: await shortPublications(pool, short.id),
         // Каналы плюс Instagram: у него не канал, а подключённый аккаунт, и
         // спрашивать о нём надо иначе.
@@ -570,7 +585,7 @@ export function pageRoutes(config, pool) {
     if (!short || (short.status !== 'published' && user?.role !== 'admin')) {
       throw new PublicError('Ролик не найден', 404);
     }
-    res.type('html').send(shortPage({ config, user, short }));
+    res.type('html').send(shortPage({ config, user, short, videoUrl: shortVideoUrl(config, short) }));
   });
 
   // Серия целиком: все её уроки по порядку. Отдельным адресом, чтобы ссылкой

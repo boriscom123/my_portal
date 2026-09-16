@@ -156,6 +156,39 @@ test('черновика нет ни в разделе, ни по ссылке, 
   });
 });
 
+test('черновик автор смотрит сам: плееру даётся подписанная ссылка', skipWithoutDb, async () => {
+  // Заказчик 2026-09-16: ролик загрузился, а на странице не показывается.
+  // Файл черновика наружу закрыт — и правильно, — но автору его надо смотреть:
+  // ради этого в портале и есть подписанные ссылки, как у записи урока.
+  await withTestDb(async (pool) => {
+    const { lesson, clip } = await lessonWithClip(pool);
+    const short = await shortFromClip(pool, { assetId: clip.id, lesson, title: 'Черновик' });
+    const headers = await admin(pool);
+    const app = finalize(createApp({ config, pool, queue: { add: async () => {} } }));
+
+    await withServer(app, async (base) => {
+      const page = await (
+        await fetch(`${base}/short/${short.slug}`, { headers: { ...headers, Accept: 'text/html' } })
+      ).text();
+      const src = /<video[^>]*src="([^"]+)"/.exec(page)?.[1];
+      assert.ok(src, 'плеера на странице нет');
+      assert.notEqual(src, `/media/asset/${clip.id}`, 'прямой адрес у черновика закрыт — плеер пуст');
+
+      // Ссылка должна не просто отличаться, а работать. Подписанная приходит
+      // полным адресом — она рассчитана и на чужие сервисы, — поэтому к базе
+      // теста приклеиваем только относительную.
+      const url = src.startsWith('http') ? src.replace(config.publicBaseUrl, base) : `${base}${src}`;
+      assert.equal((await fetch(url)).status, 200, 'по ссылке плеера файл не отдаётся');
+
+      // Выпущенный ролик остаётся на обычном открытом адресе: подписывать его
+      // незачем, а короткий адрес живёт в ссылках и в превью.
+      await publishShort(pool, short.slug);
+      const published = await (await fetch(`${base}/short/${short.slug}`)).text();
+      assert.match(published, new RegExp(`src="/media/asset/${clip.id}"`));
+    });
+  });
+});
+
 test('выпуск ставит дату один раз', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
     const short = await saveShort(pool, { title: 'Ролик' });

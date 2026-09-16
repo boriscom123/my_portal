@@ -18,12 +18,18 @@ function formatDate(value) {
   });
 }
 
-/** Сам ролик плеером. Вертикальный, поэтому по высоте ограничен экраном. */
-export function shortPlayer(short) {
+/**
+ * Сам ролик плеером. Вертикальный, поэтому по высоте ограничен экраном.
+ *
+ * Адрес приходит доводом: файл черновика наружу закрыт, и автору он отдаётся
+ * по подписанной ссылке — иначе плеер на своей же странице оказывался пустым
+ * (заказчик 2026-09-16). У выпущенного ролика адрес обычный и открытый.
+ */
+export function shortPlayer(short, src = null) {
   if (!short.assetId) return '<p class="hint">Файл ещё не загружен.</p>';
   return `<video class="short-video" controls playsinline preload="metadata"
     ${short.coverUrl ? `poster="${escapeHtml(short.coverUrl)}"` : ''}
-    src="/media/asset/${short.assetId}"></video>`;
+    src="${escapeHtml(src ?? `/media/asset/${short.assetId}`)}"></video>`;
 }
 
 /** Список раздела. */
@@ -148,7 +154,7 @@ ${
 }
 
 /** Страница одного ролика — так, как её увидит зритель. */
-export function shortPage({ config, user, short }) {
+export function shortPage({ config, user, short, videoUrl = null }) {
   const isAdmin = user?.role === 'admin';
   return layout({
     config,
@@ -166,7 +172,7 @@ export function shortPage({ config, user, short }) {
       : '<span class="badge">черновик — виден только вам</span>'
   }</p>
   <h1>${escapeHtml(short.title)}</h1>
-  ${shortPlayer(short)}
+  ${shortPlayer(short, videoUrl)}
   ${short.description ? `<p class="lead">${escapeHtml(short.description)}</p>` : ''}
   ${
     short.lesson
@@ -225,7 +231,7 @@ export function shortNewPage({ config, user }) {
 }
 
 /** Страница правки: вся работа над роликом собрана здесь. */
-export function shortEditPage({ config, user, short, publications = [], platforms = [] }) {
+export function shortEditPage({ config, user, short, publications = [], platforms = [], videoUrl = null }) {
   const published = short.status === 'published';
   const slug = encodeURIComponent(short.slug);
 
@@ -287,7 +293,7 @@ export function shortEditPage({ config, user, short, publications = [], platform
 
 <section class="card">
   <h2>Ролик</h2>
-  ${shortPlayer(short)}
+  ${shortPlayer(short, videoUrl)}
   ${
     short.lesson
       ? `<p class="hint">Вырезан из урока
