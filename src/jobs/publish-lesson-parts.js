@@ -24,7 +24,7 @@ import {
 } from '../services/platforms/announcement.js';
 import { chaptersForVideo } from '../lib/chapters.js';
 import { cutFirstPart } from '../lib/video-parts.js';
-import { runFfmpeg, ffmpegArgsForPart, probeDuration } from '../lib/ffmpeg.js';
+import { runFfmpeg, ffmpegArgsForPart, probeDuration, probeFrameSize } from '../lib/ffmpeg.js';
 import { ensureTrimRanges } from '../services/trim-ranges.js';
 
 const MB = 1024 * 1024;
@@ -68,7 +68,12 @@ export function makePublishLessonParts(
   pool,
   platform,
   adapter,
-  { cutter = ffmpegCutter, probe = probeDuration, ensureRanges = ensureTrimRanges } = {}
+  {
+    cutter = ffmpegCutter,
+    probe = probeDuration,
+    frameSize = probeFrameSize,
+    ensureRanges = ensureTrimRanges
+  } = {}
 ) {
   return async ({ lessonId, publicationId }) => {
     const partsDir = mediaPath(config, `lesson-${lessonId}/parts`);
@@ -143,7 +148,22 @@ export function makePublishLessonParts(
         limit
       });
       // Путь null — запись влезла целиком, уходит сам файл.
-      const files = [{ path: part.path ?? input, caption: text }];
+      const sending = part.path ?? input;
+      // Размеры кадра и длительность площадка сама не знает: без них Telegram
+      // показывает квадратную заглушку и растягивает в неё кадр. Меряем тот
+      // файл, который уезжает, а не исходник: у куска своя длительность.
+      const [size, seconds] = await Promise.all([
+        Promise.resolve(frameSize(sending)).catch(() => null),
+        Promise.resolve(probe(sending)).catch(() => null)
+      ]);
+      const files = [
+        {
+          path: sending,
+          caption: text,
+          ...(size ? { width: size.width, height: size.height } : {}),
+          ...(seconds ? { duration: Math.round(seconds) } : {})
+        }
+      ];
 
       const cover = lesson.coverUrl
         ? assets.find((asset) => `/media/asset/${asset.id}` === lesson.coverUrl)

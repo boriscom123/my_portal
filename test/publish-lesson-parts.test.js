@@ -138,6 +138,25 @@ test('частями уезжает запись, записанная в пуб
   });
 });
 
+test('кусок меряется перед отправкой — площадка получает размеры кадра', skipWithoutDb, async () => {
+  // Заказчик 2026-09-16: без размеров Телеграм показывал кусок квадратным.
+  await withTestDb(async (pool) => {
+    const { config, lesson, publicationId } = await setup(pool, { platform: 'telegram_parts' });
+    const adapter = adapterStub({ messageId: '12', url: 'https://t.me/kanal/12' });
+
+    await makePublishLessonParts(config, pool, 'telegram_parts', adapter, {
+      cutter: fakeCutter,
+      probe: async () => 3600,
+      frameSize: async () => ({ width: 1920, height: 1080 })
+    })({ lessonId: lesson.id, publicationId });
+
+    const [sent] = adapter.calls[0].parts;
+    assert.equal(sent.width, 1920);
+    assert.equal(sent.height, 1080);
+    assert.ok(sent.duration > 0, `длительность куска не измерена: ${sent.duration}`);
+  });
+});
+
 test('в облачный Telegram запись режется по его пределу, а не по мерке своего сервера', skipWithoutDb, async () => {
   // Заказчик 2026-09-16: «Telegram отказал (413): Request Entity Too Large».
   // Запись на 250 МБ уехала одним куском — части резались по 2 ГБ, как у

@@ -43,6 +43,59 @@ test('одна часть — обычный пост с видео и обло�
   assert.deepEqual(result, { messageId: '7', url: 'https://t.me/kanal/7' });
 });
 
+test('размеры кадра и длительность уходят вместе с видео', async () => {
+  // Заказчик 2026-09-16: кусок урока в Телеграме показывался квадратным и
+  // растянутым по вертикали. Сам файл 1920×1080 — но без размеров площадка их
+  // не знает и рисует заглушку-квадрат.
+  const { parts, cover } = await files(1);
+  const measured = [{ ...parts[0], width: 1920, height: 1080, duration: 300 }];
+  let form = null;
+  await postPartsToTelegram({
+    token: 't',
+    channel: '@kanal',
+    parts: measured,
+    coverPath: cover,
+    fetchImpl: async (url, options) => {
+      form = options.body;
+      return { ok: true, json: async () => ({ ok: true, result: { message_id: 7 } }) };
+    }
+  });
+  assert.equal(form.get('width'), '1920');
+  assert.equal(form.get('height'), '1080');
+  assert.equal(form.get('duration'), '300');
+
+  // Размеры не померились — полей нет вовсе: пустые площадка не поймёт.
+  let bare = null;
+  await postPartsToTelegram({
+    token: 't',
+    channel: '@kanal',
+    parts,
+    fetchImpl: async (url, options) => {
+      bare = options.body;
+      return { ok: true, json: async () => ({ ok: true, result: { message_id: 8 } }) };
+    }
+  });
+  assert.equal(bare.get('width'), null);
+  assert.equal(bare.get('duration'), null);
+});
+
+test('в альбоме размеры стоят у каждой части', async () => {
+  const { parts } = await files(2);
+  const measured = parts.map((part) => ({ ...part, width: 1920, height: 1080, duration: 120 }));
+  let form = null;
+  await postPartsToTelegram({
+    token: 't',
+    channel: '@kanal',
+    parts: measured,
+    fetchImpl: async (url, options) => {
+      form = options.body;
+      return { ok: true, json: async () => ({ ok: true, result: [{ message_id: 1 }, { message_id: 2 }] }) };
+    }
+  });
+  const media = JSON.parse(form.get('media'));
+  assert.ok(media.every((item) => item.width === 1920 && item.height === 1080 && item.duration === 120));
+});
+
 test('несколько частей — альбом одним запросом, подпись у каждой', async () => {
   const { parts, cover } = await files(3);
   let seen = null;

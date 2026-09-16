@@ -201,6 +201,21 @@ export async function checkBotApi({ apiUrl = DEFAULT_API_URL, token, fetchImpl =
 const ALBUM_LIMIT = 10;
 
 /**
+ * Размеры кадра и длительность части — то, чего площадка сама не знает.
+ *
+ * Без них Telegram рисует квадратную заглушку и растягивает в неё кадр:
+ * заказчик 2026-09-16 увидел урок 1920×1080 квадратным. Не померилось —
+ * полей нет вовсе: пустые или нулевые площадка не поймёт.
+ */
+function measuresOf(part) {
+  const measures = {};
+  for (const key of ['width', 'height', 'duration']) {
+    if (Number.isFinite(part[key]) && part[key] > 0) measures[key] = Math.round(part[key]);
+  }
+  return measures;
+}
+
+/**
  * Отправляет урок частями видео.
  * Одна часть — обычный пост с видео; от двух до десяти — альбом одним запросом:
  * одно сообщение, одно уведомление, и половины поста при сбое не бывает.
@@ -236,6 +251,9 @@ export async function postPartsToTelegram({
     form.append('caption', parts[0].caption);
     // Без supports_streaming ролик уходит файлом, который надо скачать целиком.
     form.append('supports_streaming', 'true');
+    for (const [key, value] of Object.entries(measuresOf(parts[0]))) {
+      form.append(key, String(value));
+    }
     form.append('video', await openAsBlob(parts[0].path, { type: 'video/mp4' }), 'part-1.mp4');
   } else {
     method = 'sendMediaGroup';
@@ -244,6 +262,7 @@ export async function postPartsToTelegram({
       media: `attach://part${index}`,
       caption: part.caption,
       supports_streaming: true,
+      ...measuresOf(part),
       ...(index === 0 && coverPath ? { cover: 'attach://cover' } : {})
     }));
     form.append('media', JSON.stringify(media));
