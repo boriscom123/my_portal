@@ -19,9 +19,20 @@ import { withTestDb, skipWithoutDb } from './helpers/db.js';
 
 const MB = 1024 * 1024;
 
-async function setup(pool, { platform = 'max_parts', announced = true, bytes = 600 * MB } = {}) {
+async function setup(
+  pool,
+  {
+    platform = 'max_parts',
+    announced = true,
+    bytes = 600 * MB,
+    // Свой сервер Bot API: с ним части Telegram режутся по 2 ГБ. Облачный берёт
+    // от бота 50 МБ — про него свой тест, а здесь запись нарочно крупная.
+    apiUrl = 'http://claudeservice-telegram-bot-api-1:8081'
+  } = {}
+) {
   const config = {
     publicBaseUrl: 'https://p.example',
+    telegram: { apiUrl },
     media: { dir: await mkdtemp(path.join(tmpdir(), 'parts-job-')), ttlHours: 168 }
   };
   const lesson = await saveLesson(pool, { slug: 'urok', title: 'Урок про портал' });
@@ -122,6 +133,33 @@ test('частями уезжает запись, записанная в пуб
 
     assert.ok(inputs.length, 'резка не вызывалась');
     assert.ok(inputs.every((input) => input.endsWith('/source.mp4')), inputs.join(', '));
+  });
+});
+
+test('в облачный Telegram запись режется по его пределу, а не по мерке своего сервера', skipWithoutDb, async () => {
+  // Заказчик 2026-09-16: «Telegram отказал (413): Request Entity Too Large».
+  // Запись на 250 МБ уехала одним куском — части резались по 2 ГБ, как у
+  // своего сервера Bot API, а бот говорил с облаком, где предел 50 МБ.
+  await withTestDb(async (pool) => {
+    const { config, lesson, publicationId } = await setup(pool, {
+      platform: 'telegram_parts',
+      apiUrl: 'https://api.telegram.org',
+      bytes: 250 * MB
+    });
+    const adapter = adapterStub({ messageId: '11', url: 'https://t.me/kanal/11' });
+
+    const result = await makePublishLessonParts(config, pool, 'telegram_parts', adapter, {
+      cutter: fakeCutter,
+      probe: async () => 3600
+    })({ lessonId: lesson.id, publicationId });
+
+    assert.ok(result.parts > 1, `запись должна была разойтись на части, а вышло ${result.parts}`);
+    const sent = adapter.calls[0];
+    assert.equal(sent.parts.length, result.parts);
+    // Ушли нарезанные куски, а не исходный файл целиком.
+    for (const part of sent.parts) {
+      assert.doesNotMatch(part.path, /source\.mp4$/);
+    }
   });
 });
 
