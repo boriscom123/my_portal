@@ -394,21 +394,44 @@ export function probeFrameSize(file) {
     const child = spawn('ffprobe', [
       '-v', 'error',
       '-select_streams', 'v:0',
-      '-show_entries', 'stream=width,height',
+      // Вместе с размером спрашиваем поворот: телефон пишет кадр как есть —
+      // 1920×1080, — а рядом кладёт пометку «повернуть на 90°». Без неё
+      // вертикальный ролик считается горизонтальным, и портал его не принимал.
+      // Пометка бывает двух видов: у нынешних файлов — side data, у старых —
+      // тег rotate. Спрашиваем обе, лишняя строка разбору не мешает.
+      '-show_entries', 'stream=width,height:stream_side_data=rotation:stream_tags=rotate',
       '-of', 'csv=p=0',
       file
     ]);
     let out = '';
     child.stdout.on('data', (chunk) => (out += chunk));
     child.on('error', reject);
-    child.on('close', () => resolve(parseFrameSize(out)));
+    child.on('close', () =>
+      // Разделы печатаются строками: «1920,1080», затем поворот. Сводим в одну
+      // строку — разбор не должен знать про устройство вывода ffprobe.
+      resolve(parseFrameSize(out.split('\n').map((line) => line.trim()).filter(Boolean).join(',')))
+    );
   });
 }
 
-/** Разбирает вывод ffprobe о размере кадра. null — размера в нём нет. */
+/**
+ * Разбирает вывод ffprobe о размере кадра. null — размера в нём нет.
+ *
+ * Третье число — поворот. На 90° и 270° стороны меняются местами: это и есть
+ * ролик, снятый телефоном вертикально. На 0° и 180° кадр как записан.
+ */
 export function parseFrameSize(text) {
-  const [width, height] = String(text).trim().split(',').map(Number);
-  return width > 0 && height > 0 ? { width, height } : null;
+  const parts = String(text)
+    .trim()
+    .split(/[,\n]/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const [width, height] = parts.map(Number);
+  if (!(width > 0) || !(height > 0)) return null;
+
+  const rotation = Number(parts[2] ?? 0);
+  const turned = Number.isFinite(rotation) && Math.abs(rotation) % 180 === 90;
+  return turned ? { width: height, height: width } : { width, height };
 }
 
 /** Длительность файла в секундах через ffprobe. null, если не определилась. */
