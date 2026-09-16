@@ -98,6 +98,10 @@ export function buildNewsAnnouncement({
   return `${head}${body ? `${body}\n\n` : ''}${end}`;
 }
 
+// Где лежит запись целиком: туда ведёт «Полное видео». Канал — не площадка с
+// записью: в нём начало урока и разговор о нём, поэтому он идёт в «подробности».
+const FULL_VIDEO_PLATFORMS = ['youtube', 'rutube', 'vk', 'dzen'];
+
 /**
  * Подпись к посту с началом урока.
  *
@@ -119,7 +123,7 @@ export function buildFirstPartCaption({
   const lessonLink = `${publicBaseUrl}/lesson/${lesson.slug}`;
   // Только вышедшее и только чужие площадки: ссылка на свой же канал и приватный
   // ролик зрителю не помогут.
-  const links = latestPerPlatform(
+  const out = latestPerPlatform(
     publications.filter(
       (item) =>
         item.state === 'published' &&
@@ -127,22 +131,38 @@ export function buildFirstPartCaption({
         item.platform !== skipPlatform &&
         !item.platform.endsWith('_parts')
     )
-  ).map((item) => `${PLATFORM_NAMES[item.platform] ?? item.platform}: ${item.url}`);
+  );
+  const videos = out.filter((item) => FULL_VIDEO_PLATFORMS.includes(item.platform));
+  const channels = out.filter((item) => !FULL_VIDEO_PLATFORMS.includes(item.platform));
 
   const partMs = Math.max(0, (part?.endMs ?? 0) - (part?.startMs ?? 0));
   // Секунда допуска: резка встаёт на опорный кадр и до конца добирает не ровно.
   const whole = !durationMs || partMs >= durationMs - 1000;
   const minutes = Math.max(1, Math.round(partMs / 60_000));
-  const lead = whole ? '' : `Первые ${minutes} минут урока. Целиком — здесь:`;
+  const lead = whole ? '' : `Первые ${minutes} минут урока.`;
 
-  const tail = [lessonLink, ...links].join('\n');
-  const head = `${lesson.title}\n\n`;
-  const body = lead ? `${lead}\n` : '';
-  const caption = `${head}${body}${tail}`;
+  const blocks = [];
+  // Куда идти за полной записью. Влезла целиком — звать некуда, она в посте;
+  // нигде не вышла — обещать полное видео нечем.
+  if (!whole && videos.length) {
+    const names = videos.map((item) => PLATFORM_NAMES[item.platform] ?? item.platform).join(' и ');
+    blocks.push([`${lead} Полное видео — на ${names}:`, ...videos.map((item) => item.url)].join('\n'));
+  } else if (lead) {
+    blocks.push(lead);
+  }
+  blocks.push(
+    [
+      `Подробности — ${channels.length ? 'на сайте и в каналах' : 'на сайте'}:`,
+      lessonLink,
+      ...channels.map((item) => item.url)
+    ].join('\n')
+  );
+
+  const body = blocks.join('\n\n');
+  const caption = `${lesson.title}\n\n${body}`;
   if (caption.length <= limit) return caption;
   // Не влезло — заголовок укорачивается: ссылки важнее, ради них пост и читают.
-  const room = limit - body.length - tail.length - 4;
-  return `${trimToSentence(lesson.title, Math.max(10, room))}\n\n${body}${tail}`;
+  return `${trimToSentence(lesson.title, Math.max(10, limit - body.length - 2))}\n\n${body}`;
 }
 
 /**
