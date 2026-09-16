@@ -24,34 +24,14 @@ import {
 } from '../services/platforms/announcement.js';
 import { chaptersForVideo } from '../lib/chapters.js';
 import { cutFirstPart } from '../lib/video-parts.js';
+import { PARTS_LIMITS, TELEGRAM_CLOUD_LIMIT, partsLimit } from '../services/lesson-start.js';
 import { runFfmpeg, ffmpegArgsForPart, probeDuration, probeFrameSize } from '../lib/ffmpeg.js';
 import { ensureTrimRanges } from '../services/trim-ranges.js';
 
-const MB = 1024 * 1024;
-
-// Предел части у площадки: Telegram через свой сервер Bot API — 2000 МБ, MAX —
-// 250 МБ (своего сервера у MAX нет).
-export const PARTS_LIMITS = { telegram_parts: 2000 * MB, max_parts: 250 * MB };
-
-// Облачный Bot API берёт от бота не больше 50 МБ — столько же, сколько у
-// одиночного видео. Свой сервер Bot API этот предел снимает, ради того его и
-// поднимают.
-export const TELEGRAM_CLOUD_LIMIT = 50 * MB;
-
-/**
- * Предел части: у Telegram он зависит от того, куда бот на самом деле шлёт.
- *
- * Части резались по мерке своего сервера, а уезжали в облако — и облако
- * отвечало «Request Entity Too Large» на первой же части. Резать по большему
- * пределу, чем возьмёт площадка, значит собрать части впустую: отказ приходит
- * после того, как файл уже уехал по сети.
- */
-export function partsLimit(platform, apiUrl = '') {
-  if (platform !== 'telegram_parts') return PARTS_LIMITS[platform];
-  const address = String(apiUrl ?? '').trim();
-  const cloud = !address || /telegram\.org/i.test(address);
-  return cloud ? TELEGRAM_CLOUD_LIMIT : PARTS_LIMITS.telegram_parts;
-}
+// Пределы куска живут рядом с самой резкой — в services/lesson-start.js: их
+// спрашивает и этот шаг, и анонс с видео. Здесь они перевыставлены, потому что
+// снаружи их знают по этому адресу.
+export { PARTS_LIMITS, TELEGRAM_CLOUD_LIMIT, partsLimit };
 
 // Какой анонс должен уйти раньше частей.
 const ANNOUNCEMENT_OF = { telegram_parts: 'telegram', max_parts: 'max' };

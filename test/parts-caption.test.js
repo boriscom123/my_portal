@@ -25,12 +25,13 @@ test('подпись: полное видео — на площадке, под�
     limit: 1024
   });
   // Заказчик 2026-09-16 прислал желаемый вид целиком — им и проверяем.
+  // Минуты он просил убрать: «Начало урока» и без числа понятно.
   assert.equal(
     caption,
     [
       'Урок про портал',
       '',
-      'Первые 5 минут урока.',
+      'Начало урока.',
       '',
       'Полное видео:',
       'YouTube: https://youtu.be/x',
@@ -54,11 +55,11 @@ test('полной записи ещё нигде нет — строки про
     limit: 1024
   });
   assert.doesNotMatch(caption, /Полное видео/, 'ссылки на полную запись нет — и обещать нечего');
-  assert.match(caption, /^Урок про портал\n\nПервые 5 минут урока\.\n\nПодробности:\nСайт: /);
+  assert.match(caption, /^Урок про портал\n\nНачало урока\.\n\nПодробности:\nСайт: /);
   assert.match(caption, /Канал Max: https:\/\/max\.ru\/kanal$/);
 });
 
-test('запись влезла целиком — ни «первых минут», ни ссылки на полное видео', () => {
+test('запись влезла целиком — ни «начала урока», ни ссылки на полное видео', () => {
   const caption = buildFirstPartCaption({
     lesson,
     part: { startMs: 0, endMs: 12 * 60_000 },
@@ -68,7 +69,7 @@ test('запись влезла целиком — ни «первых мину�
     skipPlatform: 'telegram',
     limit: 1024
   });
-  assert.doesNotMatch(caption, /перв\S* \d+ минут/i);
+  assert.doesNotMatch(caption, /Начало урока/);
   assert.doesNotMatch(caption, /Полное видео/, 'весь урок и так в посте');
   assert.match(caption, /Подробности:\nСайт: https:\/\/p\.example\/lesson\/urok$/);
 });

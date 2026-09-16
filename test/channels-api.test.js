@@ -5,12 +5,23 @@
 // подписчики не должны получать второе уведомление об одном уроке.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import {
   postToTelegram,
   editTelegramPost,
   checkTelegramChannel
 } from '../src/services/platforms/telegram-channel.js';
 import { postToMax, editMaxPost, findMaxChat } from '../src/services/platforms/max-channel.js';
+
+/** Файл на диске: отправка кладёт видео потоком, а не строкой из памяти. */
+async function videoFile(text = 'начало урока') {
+  const dir = await mkdtemp(path.join(tmpdir(), 'album-'));
+  const file = path.join(dir, 'start.mp4');
+  await writeFile(file, text);
+  return file;
+}
 
 test('в Telegram уходит картинка ссылкой и подпись', async () => {
   let sent = null;
@@ -106,6 +117,129 @@ test('в MAX картинка кладётся двумя шагами и при
 
   assert.equal(result.messageId, 'mid-7');
   assert.match(calls[0], /\/uploads\?type=image/);
+});
+
+test('анонс с видео уходит в Telegram альбомом: обложка и начало урока одним постом', async () => {
+  // Заказчик 2026-09-16: видео должно быть в самом анонсе, а не отдельным
+  // постом. Добавить файл в отправленный пост площадка не даёт — значит
+  // альбом собирается целиком при отправке.
+  const file = await videoFile();
+  let seen = null;
+  const result = await postToTelegram({
+    token: 't',
+    channel: '@kanal',
+    photoUrl: 'https://p.example/cover.png',
+    caption: 'Подпись урока',
+    video: { path: file, width: 1920, height: 1080, duration: 300 },
+    fetchImpl: async (url, options) => {
+      seen = { url: String(url), form: options.body };
+      return { ok: true, json: async () => ({ ok: true, result: [{ message_id: 21 }, { message_id: 22 }] }) };
+    }
+  });
+
+  assert.match(seen.url, /sendMediaGroup$/);
+  const media = JSON.parse(seen.form.get('media'));
+  assert.equal(media.length, 2);
+  assert.equal(media[0].type, 'photo');
+  assert.equal(media[0].media, 'https://p.example/cover.png');
+  assert.equal(media[0].caption, 'Подпись урока', 'подпись — у первого файла альбома');
+  assert.equal(media[1].type, 'video');
+  assert.equal(media[1].media, 'attach://video');
+  // Без размеров площадка рисует квадрат — это уже проходили.
+  assert.equal(media[1].width, 1920);
+  assert.equal(media[1].height, 1080);
+  assert.equal(media[1].duration, 300);
+  assert.ok(media[1].supports_streaming);
+  assert.equal(await seen.form.get('video').text(), 'начало урока');
+  // Адрес поста — у первого сообщения альбома.
+  assert.deepEqual(result, { messageId: '21', url: 'https://t.me/kanal/21' });
+});
+
+test('анонс без видео уходит как раньше — одной картинкой', async () => {
+  let seen = null;
+  await postToTelegram({
+    token: 't',
+    channel: '@kanal',
+    photoUrl: 'https://p.example/cover.png',
+    caption: 'Подпись',
+    fetchImpl: async (url, options) => {
+      seen = { url: String(url), body: JSON.parse(options.body) };
+      return { ok: true, json: async () => ({ ok: true, result: { message_id: 42 } }) };
+    }
+  });
+  assert.match(seen.url, /sendPhoto$/);
+  assert.equal(seen.body.photo, 'https://p.example/cover.png');
+});
+
+test('в MAX анонс с видео — одно сообщение с двумя вложениями', async () => {
+  const file = await videoFile();
+  const sent = [];
+  let uploads = 0;
+  const fetchImpl = async (url, options) => {
+    if (String(url).includes('/uploads?type=image')) {
+      return { ok: true, json: async () => ({ url: 'https://upload.example/i' }) };
+    }
+    if (String(url).includes('/uploads?type=video')) {
+      uploads += 1;
+      return { ok: true, json: async () => ({ url: 'https://upload.example/v', token: 'vid-1' }) };
+    }
+    sent.push(JSON.parse(options.body));
+    return { ok: true, json: async () => ({ message: { body: { mid: 'mid.7' } } }) };
+  };
+  const uploadFetch = async () => ({ ok: true, json: async () => ({ photos: { a: { token: 'img-1' } } }) });
+
+  const result = await postToMax({
+    token: 't',
+    channel: '-100',
+    filePath: file,
+    videoPath: file,
+    caption: 'Подпись урока',
+    fetchImpl,
+    uploadFetch
+  });
+
+  assert.equal(uploads, 1, 'видео не загрузилось');
+  assert.equal(sent.length, 1, 'постов должно быть одно, а не два');
+  assert.deepEqual(sent[0].attachments, [
+    { type: 'image', payload: { token: 'img-1' } },
+    { type: 'video', payload: { token: 'vid-1' } }
+  ]);
+  assert.equal(sent[0].text, 'Подпись урока');
+  assert.equal(result.messageId, 'mid.7');
+});
+
+test('правка поста MAX с видео кладёт обратно и картинку, и видео', async () => {
+  // У MAX правка заново прикладывает вложения: без видео оно слетело бы с
+  // поста при первой же правке подписи — когда ролик выйдет на YouTube.
+  const file = await videoFile();
+  const sent = [];
+  const fetchImpl = async (url, options) => {
+    if (String(url).includes('/uploads?type=image')) {
+      return { ok: true, json: async () => ({ url: 'https://upload.example/i' }) };
+    }
+    if (String(url).includes('/uploads?type=video')) {
+      return { ok: true, json: async () => ({ url: 'https://upload.example/v', token: 'vid-2' }) };
+    }
+    sent.push({ url: String(url), method: options.method, body: JSON.parse(options.body) });
+    return { ok: true, json: async () => ({}) };
+  };
+  const uploadFetch = async () => ({ ok: true, json: async () => ({ photos: { a: { token: 'img-2' } } }) });
+
+  await editMaxPost({
+    token: 't',
+    messageId: 'mid.7',
+    caption: 'Новая подпись',
+    filePath: file,
+    videoPath: file,
+    fetchImpl,
+    uploadFetch
+  });
+
+  assert.equal(sent[0].method, 'PUT');
+  assert.deepEqual(sent[0].body.attachments, [
+    { type: 'image', payload: { token: 'img-2' } },
+    { type: 'video', payload: { token: 'vid-2' } }
+  ]);
 });
 
 test('правка поста в MAX идёт тем же путём, но методом PUT', async () => {

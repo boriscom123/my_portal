@@ -2,6 +2,8 @@
 // то, как шаг ведёт состояния.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdir, writeFile, rm } from 'node:fs/promises';
+import path from 'node:path';
 import { makePublishChannel, makeRefreshChannels } from '../src/jobs/publish-channel.js';
 import { saveLesson } from '../src/services/lessons.js';
 import { startPublication, publicationsFor } from '../src/services/publications.js';
@@ -90,6 +92,92 @@ test('вышедший анонс просит поправить посты, о
     });
 
     assert.deepEqual(added, [{ name: 'refreshChannels', data: { lessonId: lesson.id } }]);
+  });
+});
+
+const MB = 1024 * 1024;
+
+/** Запись урока в буфере: из неё режется начало для поста. */
+async function withRecording(pool, lessonId, bytes = 600 * MB) {
+  await mkdir(path.join(config.media.dir, `lesson-${lessonId}`), { recursive: true });
+  await writeFile(path.join(config.media.dir, `lesson-${lessonId}/source.mp4`), 'запись');
+  await registerAsset(pool, config, {
+    lessonId,
+    kind: 'source',
+    relativePath: `lesson-${lessonId}/source.mp4`,
+    bytes
+  });
+}
+
+/** Подставные резка и замеры: тест обходится без ffmpeg. */
+const cutDeps = {
+  cutter: async ({ output, startMs, endMs }) => {
+    await writeFile(output, 'начало урока');
+    return { path: output, bytes: ((endMs - startMs) / 60_000) * 10 * MB };
+  },
+  probe: async () => 3600,
+  frameSize: async () => ({ width: 1920, height: 1080 })
+};
+
+test('анонс уходит альбомом: обложка и начало урока одним постом', skipWithoutDb, async () => {
+  // Заказчик 2026-09-16: видео должно быть в самом анонсе, одной кнопкой.
+  await withTestDb(async (pool) => {
+    const { lesson, publicationId } = await seed(pool);
+    await withRecording(pool, lesson.id);
+    const adapter = adapterStub();
+
+    await makePublishChannel(config, pool, 'telegram', adapter, null, cutDeps)({
+      lessonId: lesson.id,
+      publicationId
+    });
+
+    const sent = adapter.calls[0].post;
+    assert.match(sent.video.path, /start-telegram\.mp4$/, 'к анонсу не приложено начало урока');
+    assert.equal(sent.video.width, 1920, 'без размеров площадка рисует квадрат');
+    assert.equal(sent.video.height, 1080);
+    assert.ok(sent.video.duration > 0);
+    assert.match(sent.caption, /Начало урока/);
+    assert.match(sent.photoUrl, /\/media\/asset\/\d+$/, 'обложка осталась первой в альбоме');
+  });
+});
+
+test('записи ещё нет — анонс уходит как раньше, одной обложкой', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const { lesson, publicationId } = await seed(pool);
+    const adapter = adapterStub();
+
+    await makePublishChannel(config, pool, 'telegram', adapter, null, cutDeps)({
+      lessonId: lesson.id,
+      publicationId
+    });
+
+    const sent = adapter.calls[0].post;
+    assert.equal(sent.video, undefined, 'видео взяться неоткуда');
+    assert.doesNotMatch(sent.caption, /Начало урока/, 'обещать начало урока нечем');
+  });
+});
+
+test('правка поста MAX возвращает видео на место, а без файла не трогает пост', skipWithoutDb, async () => {
+  // У MAX правка заново прикладывает вложения: без файла видео слетит с поста.
+  await withTestDb(async (pool) => {
+    const { lesson, publicationId } = await seed(pool, { platform: 'max' });
+    await withRecording(pool, lesson.id);
+    const adapter = adapterStub();
+    await makePublishChannel(config, pool, 'max', adapter, null, cutDeps)({
+      lessonId: lesson.id,
+      publicationId
+    });
+
+    await makeRefreshChannels(config, pool, { max: adapter })({ lessonId: lesson.id });
+    const edit = adapter.calls.at(-1).edit;
+    assert.match(edit.videoPath, /start-max\.mp4$/, 'видео не приложено заново');
+
+    // Кусок вышел по сроку — правим не пост, а ничего: подпись не стоит того,
+    // чтобы снять с поста видео.
+    await rm(path.join(config.media.dir, `lesson-${lesson.id}/start-max.mp4`), { force: true });
+    const before = adapter.calls.length;
+    await makeRefreshChannels(config, pool, { max: adapter })({ lessonId: lesson.id });
+    assert.equal(adapter.calls.length, before, 'пост правился без видео');
   });
 });
 

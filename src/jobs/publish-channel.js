@@ -17,13 +17,15 @@ import {
 } from '../services/publications.js';
 import { buildAnnouncement, buildNewsAnnouncement } from '../services/platforms/announcement.js';
 import { addJob, JOBS } from '../queue.js';
+import { cutLessonStart, channelPartLimit } from '../services/lesson-start.js';
+import { access } from 'node:fs/promises';
 
 /**
  * Собирает пост об уроке: подпись, обложка ссылкой и файлом.
  * Обложка нужна дважды: ссылкой — Telegram забирает её сам; файлом — MAX, он
  * ссылку принимает на словах, а на деле отказывает.
  */
-async function lessonPost(config, pool, lessonId, platform) {
+async function lessonPost(config, pool, lessonId, platform, deps = {}) {
   const lesson = await getLessonById(pool, lessonId);
   if (!lesson) throw new Error('Урок не найден');
   if (!lesson.coverUrl) {
@@ -37,14 +39,45 @@ async function lessonPost(config, pool, lessonId, platform) {
   const cover = assets.find((asset) => `/media/asset/${asset.id}` === lesson.coverUrl);
   if (!cover) throw new Error('Обложка урока не найдена в буфере — выберите её заново');
 
+  // Начало урока едет в самом анонсе: заказчик 2026-09-16 просил один пост —
+  // обложка и видео вместе. Записи ещё нет — анонс уходит одной обложкой, как
+  // раньше: отказываться от анонса из-за отсутствующего видео незачем.
+  let start = null;
+  try {
+    start = await cutLessonStart(
+      config,
+      pool,
+      { lesson, limitBytes: channelPartLimit(platform, config.telegram?.apiUrl), platform },
+      deps
+    );
+  } catch (error) {
+    console.error(`Анонс ${platform} уходит без видео:`, error.message);
+  }
+
   return {
     photoUrl: `${config.publicBaseUrl}${lesson.coverUrl}`,
     filePath: mediaPath(config, cover.path),
+    ...(start
+      ? {
+          // Telegram кладёт видео в альбом, MAX — вторым вложением: каждой
+          // площадке своё имя довода, файл один и тот же.
+          video: {
+            path: start.path,
+            width: start.width,
+            height: start.height,
+            duration: start.duration
+          },
+          videoPath: start.path
+        }
+      : {}),
     caption: buildAnnouncement({
       lesson,
       publicBaseUrl: config.publicBaseUrl,
       publications: await publicationsFor(pool, lessonId),
-      skipPlatform: platform
+      skipPlatform: platform,
+      lead: start && !start.whole ? 'Начало урока.' : '',
+      // Запись целиком в посте — звать за полной записью некуда.
+      noVideo: Boolean(start?.whole)
     })
   };
 }
@@ -107,7 +140,8 @@ async function shortPost(config, pool, shortId, platform) {
   if (short.lesson) links.push(`Урок целиком: ${config.publicBaseUrl}/lesson/${short.lesson.slug}`);
 
   return {
-    video: true,
+    // Ролик уходит отдельным способом площадки: это пост-видео, а не альбом.
+    asVideo: true,
     filePath: mediaPath(config, asset.path),
     caption: buildNewsAnnouncement({
       item: { slug: short.slug, title: short.title, body: short.description },
@@ -124,7 +158,7 @@ async function shortPost(config, pool, shortId, platform) {
  * adapter — две функции площадки: post и edit. Приходит доводом, а не импортом:
  * так шаг проверяется тестом без сети.
  */
-export function makePublishChannel(config, pool, platform, adapter, queue = null) {
+export function makePublishChannel(config, pool, platform, adapter, queue = null, deps = {}) {
   return async ({ lessonId = null, newsId = null, shortId = null, publicationId }) => {
     // Подготовка внутри try вместе с отправкой: отказ на ней — тоже отказ
     // публикации. Оставь его снаружи — и строка навсегда застрянет в «в
@@ -143,12 +177,12 @@ export function makePublishChannel(config, pool, platform, adapter, queue = null
         ? await shortPost(config, pool, shortId, platform)
         : newsId
           ? await newsPost(config, pool, newsId)
-          : await lessonPost(config, pool, lessonId, platform);
+          : await lessonPost(config, pool, lessonId, platform, deps);
 
       await markPublicationState(pool, publicationId, { state: 'uploading' });
 
-      const { video, ...payload } = post;
-      const send = video ? adapter.postVideo : adapter.post;
+      const { asVideo, ...payload } = post;
+      const send = asVideo ? adapter.postVideo : adapter.post;
       const { messageId, url } = await send({
         token: app.token,
         channel: app.channel,
@@ -257,11 +291,31 @@ export function makeRefreshChannels(config, pool, adapters) {
       const app = await adapter.app(pool, config, publication.platform);
       if (!app.configured) continue;
 
+      // Начало урока, уехавшее в этот канал. Есть оно — пост альбомный, и
+      // подпись обязана и дальше говорить «Начало урока»: правка перепишет её
+      // целиком. Записи о куске нет — пост был одной обложкой.
+      const part = assets.find(
+        (asset) => asset.kind === 'part' && asset.path.endsWith(`start-${publication.platform}.mp4`)
+      );
+      let videoPath = null;
+      if (part) {
+        videoPath = mediaPath(config, part.path);
+        try {
+          await access(videoPath);
+        } catch {
+          // Кусок вышел по сроку. У MAX правка заново прикладывает вложения —
+          // без файла она сняла бы видео с поста. Пост дороже свежей подписи.
+          if (publication.platform === 'max') continue;
+          videoPath = null;
+        }
+      }
+
       const caption = buildAnnouncement({
         lesson,
         publicBaseUrl: config.publicBaseUrl,
         publications,
-        skipPlatform: publication.platform
+        skipPlatform: publication.platform,
+        lead: part ? 'Начало урока.' : ''
       });
 
       try {
@@ -271,6 +325,9 @@ export function makeRefreshChannels(config, pool, adapters) {
           messageId: publication.externalId,
           photoUrl: `${config.publicBaseUrl}${lesson.coverUrl}`,
           filePath: mediaPath(config, cover.path),
+          // Telegram правит одну подпись и вложений не трогает; MAX прикладывает
+          // их заново, поэтому видео идёт вместе с правкой.
+          ...(videoPath && publication.platform === 'max' ? { videoPath } : {}),
           caption
         });
         updated += 1;

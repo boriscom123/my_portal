@@ -91,7 +91,7 @@ test('урок уходит в MAX частями не тяжелее преде
     const sent = adapter.calls[0];
     assert.equal(sent.parts.length, 1);
     assert.match(sent.text, /^Урок про портал/);
-    assert.match(sent.text, /Первые \d+ минут урока/);
+    assert.match(sent.text, /Начало урока/);
     assert.match(sent.text, /https:\/\/p\.example\/lesson\/urok$/);
     assert.doesNotMatch(sent.parts[0].path, /source\.mp4$/, 'уехал исходник целиком');
     assert.equal(sent.multiVideo, true, 'способ ещё не известен — пробуем одним сообщением');
@@ -179,7 +179,7 @@ test('в облачный Telegram запись режется по его пр�
     const sent = adapter.calls[0];
     assert.equal(sent.parts.length, 1);
     assert.doesNotMatch(sent.parts[0].path, /source\.mp4$/);
-    assert.match(sent.text, /Первые \d+ минут урока/);
+    assert.match(sent.text, /Начало урока/);
   });
 });
 

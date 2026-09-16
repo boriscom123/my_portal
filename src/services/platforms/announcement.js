@@ -47,9 +47,13 @@ export function buildAnnouncement({
   publicBaseUrl,
   publications = [],
   skipPlatform = null,
-  limit = TELEGRAM_CAPTION_LIMIT
+  limit = TELEGRAM_CAPTION_LIMIT,
+  // Анонс уходит альбомом — обложкой и началом урока: тогда подпись говорит,
+  // что видео в посте не всё. Запись влезла целиком — звать за полной некуда.
+  lead = '',
+  noVideo = false
 }) {
-  const blocks = linkBlocks({ lesson, publicBaseUrl, publications, skipPlatform });
+  const blocks = linkBlocks({ lesson, publicBaseUrl, publications, skipPlatform, lead, noVideo });
   const tail = blocks.join('\n\n');
   const head = `${lesson.title}\n\n`;
   // Место под описание — то, что осталось от предела после заголовка и ссылок:
@@ -151,14 +155,15 @@ export function buildFirstPartCaption({
   const partMs = Math.max(0, (part?.endMs ?? 0) - (part?.startMs ?? 0));
   // Секунда допуска: резка встаёт на опорный кадр и до конца добирает не ровно.
   const whole = !durationMs || partMs >= durationMs - 1000;
-  const minutes = Math.max(1, Math.round(partMs / 60_000));
 
   const body = linkBlocks({
     lesson,
     publicBaseUrl,
     publications,
     skipPlatform,
-    lead: whole ? '' : `Первые ${minutes} минут урока.`,
+    // Без числа минут: заказчик 2026-09-16 попросил короче, а точная длина
+    // куска всё равно видна на самом видео.
+    lead: whole ? '' : 'Начало урока.',
     // Запись влезла в пост целиком — звать за полной записью некуда.
     noVideo: whole
   }).join('\n\n');
