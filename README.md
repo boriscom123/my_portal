@@ -327,6 +327,15 @@ test/             тесты, по одному файлу на модуль
 docs/             спецификация, планы работ, история диалогов, макеты
 ```
 
+## Инструкции по подключению
+
+Всё, что делается руками и один раз, вынесено в отдельные файлы:
+
+- [Каналы Telegram и MAX](docs/channels-setup.md) — бот, права в канале, отправка анонса
+- [Свой сервер Telegram Bot API](docs/bot-api-setup.md) — предел файла с 50 МБ до 2000 МБ
+- [Канал YouTube](docs/youtube-setup.md) и [аудит Google](docs/youtube-verification.md)
+- [Instagram Reels](docs/instagram-setup.md), [TikTok](docs/tiktok-setup.md)
+
 ## Правила репозитория
 
 **Имена — только латиницей**, тексты и комментарии — на русском. Граница
