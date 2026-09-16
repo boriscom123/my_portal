@@ -21,8 +21,9 @@ test('анонс не ссылается на посты с частями', () 
     publications,
     skipPlatform: 'max'
   });
-  assert.match(text, /YouTube: https:\/\/youtu\.be\/abc/);
-  assert.match(text, /Telegram: https:\/\/t\.me\/kanal\/5/);
+  // Полная запись — на площадке, канал-сосед — в подробностях.
+  assert.match(text, /Полное видео — на YouTube:\nhttps:\/\/youtu\.be\/abc/);
+  assert.match(text, /Подробности — на сайте и в каналах:\n.*\nhttps:\/\/t\.me\/kanal\/5/);
   assert.doesNotMatch(text, /_parts|kanal\/6|max\.ru/);
 });
 

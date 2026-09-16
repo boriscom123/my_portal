@@ -21,7 +21,8 @@ test('в подписи есть заголовок, описание и ссы�
   });
   assert.match(text, /Планирование веб-портала/);
   assert.match(text, /из идеи вырастает/);
-  assert.match(text, /https:\/\/portal\.example\/lesson\/urok-15/);
+  // Заказчик 2026-09-16: у анонса та же подпись, что у поста с началом урока.
+  assert.match(text, /Подробности — на сайте:\nhttps:\/\/portal\.example\/lesson\/urok-15$/);
 });
 
 test('ссылки площадок появляются только у вышедших роликов', () => {
@@ -34,9 +35,8 @@ test('ссылки площадок появляются только у выш�
     ]
   });
   // Приватный ролик подписчику не открывается — звать его туда нечестно.
-  assert.match(text, /youtu\.be\/vyshel/);
+  assert.match(text, /Полное видео — на YouTube:\nhttps:\/\/youtu\.be\/vyshel/);
   assert.doesNotMatch(text, /priva/);
-  assert.match(text, /YouTube/);
 });
 
 test('пост без вышедших роликов ссылок площадок не обещает', () => {
@@ -46,6 +46,7 @@ test('пост без вышедших роликов ссылок площад�
     publications: [{ platform: 'youtube', state: 'ready', url: 'https://youtu.be/x' }]
   });
   assert.doesNotMatch(text, /youtu\.be/);
+  assert.doesNotMatch(text, /Полное видео/, 'обещать полную запись нечем');
 });
 
 test('длинное описание подрезается по границе предложения', () => {

@@ -47,23 +47,8 @@ export function buildAnnouncement({
   skipPlatform = null,
   limit = TELEGRAM_CAPTION_LIMIT
 }) {
-  const lessonLink = `${publicBaseUrl}/lesson/${lesson.slug}`;
-
-  // Только вышедшее: приватный ролик подписчику не открывается, и звать его
-  // туда нечестно. Посты с частями видео — не площадка, где вышел урок: ссылка
-  // на пост в том же канале уже есть, это анонс.
-  // Урок выложен на площадку дважды — ссылка одна, на последний вышедший ролик.
-  const links = latestPerPlatform(
-    publications.filter(
-      (item) =>
-        item.state === 'published' &&
-        item.url &&
-        item.platform !== skipPlatform &&
-        !item.platform.endsWith('_parts')
-    )
-  ).map((item) => `${PLATFORM_NAMES[item.platform] ?? item.platform}: ${item.url}`);
-
-  const tail = [lessonLink, ...links].join('\n');
+  const blocks = linkBlocks({ lesson, publicBaseUrl, publications, skipPlatform });
+  const tail = blocks.join('\n\n');
   const head = `${lesson.title}\n\n`;
   // Место под описание — то, что осталось от предела после заголовка и ссылок:
   // ссылки важнее описания, ради них пост и правится.
@@ -103,6 +88,53 @@ export function buildNewsAnnouncement({
 const FULL_VIDEO_PLATFORMS = ['youtube', 'rutube', 'vk', 'dzen'];
 
 /**
+ * Ссылки поста двумя группами: где смотреть запись целиком и где подробности.
+ *
+ * Один сборщик на анонс и на пост с началом урока: подпись у них общая, а
+ * разойдись эти два места — и правка поста меняла бы не только ссылки, но и
+ * слова, которые люди уже прочитали. lead — первая строка группы про видео
+ * (у поста с началом там сказано, сколько минут уехало); пусто — группа
+ * начинается с «Полное видео».
+ * Только вышедшее: приватный ролик подписчику не открывается, и звать его туда
+ * нечестно. Посты с частями видео — не площадка, где вышел урок: это тот же
+ * канал. Урок выложен дважды — ссылка одна, на последний вышедший ролик.
+ */
+function linkBlocks({ lesson, publicBaseUrl, publications, skipPlatform, lead = '', noVideo = false }) {
+  const lessonLink = `${publicBaseUrl}/lesson/${lesson.slug}`;
+  const out = latestPerPlatform(
+    publications.filter(
+      (item) =>
+        item.state === 'published' &&
+        item.url &&
+        item.platform !== skipPlatform &&
+        !item.platform.endsWith('_parts')
+    )
+  );
+  const videos = out.filter((item) => FULL_VIDEO_PLATFORMS.includes(item.platform));
+  const channels = out.filter((item) => !FULL_VIDEO_PLATFORMS.includes(item.platform));
+
+  const blocks = [];
+  // Полной записи нигде нет — обещать её нечем; она целиком в посте — звать
+  // некуда.
+  if (videos.length && !noVideo) {
+    const names = videos.map((item) => PLATFORM_NAMES[item.platform] ?? item.platform).join(' и ');
+    blocks.push(
+      [`${lead ? `${lead} ` : ''}Полное видео — на ${names}:`, ...videos.map((item) => item.url)].join('\n')
+    );
+  } else if (lead) {
+    blocks.push(lead);
+  }
+  blocks.push(
+    [
+      `Подробности — ${channels.length ? 'на сайте и в каналах' : 'на сайте'}:`,
+      lessonLink,
+      ...channels.map((item) => item.url)
+    ].join('\n')
+  );
+  return blocks;
+}
+
+/**
  * Подпись к посту с началом урока.
  *
  * В канал уходит обложка и первый кусок видео: целиком запись туда не влезает,
@@ -120,45 +152,20 @@ export function buildFirstPartCaption({
   skipPlatform = null,
   limit = TELEGRAM_CAPTION_LIMIT
 }) {
-  const lessonLink = `${publicBaseUrl}/lesson/${lesson.slug}`;
-  // Только вышедшее и только чужие площадки: ссылка на свой же канал и приватный
-  // ролик зрителю не помогут.
-  const out = latestPerPlatform(
-    publications.filter(
-      (item) =>
-        item.state === 'published' &&
-        item.url &&
-        item.platform !== skipPlatform &&
-        !item.platform.endsWith('_parts')
-    )
-  );
-  const videos = out.filter((item) => FULL_VIDEO_PLATFORMS.includes(item.platform));
-  const channels = out.filter((item) => !FULL_VIDEO_PLATFORMS.includes(item.platform));
-
   const partMs = Math.max(0, (part?.endMs ?? 0) - (part?.startMs ?? 0));
   // Секунда допуска: резка встаёт на опорный кадр и до конца добирает не ровно.
   const whole = !durationMs || partMs >= durationMs - 1000;
   const minutes = Math.max(1, Math.round(partMs / 60_000));
-  const lead = whole ? '' : `Первые ${minutes} минут урока.`;
 
-  const blocks = [];
-  // Куда идти за полной записью. Влезла целиком — звать некуда, она в посте;
-  // нигде не вышла — обещать полное видео нечем.
-  if (!whole && videos.length) {
-    const names = videos.map((item) => PLATFORM_NAMES[item.platform] ?? item.platform).join(' и ');
-    blocks.push([`${lead} Полное видео — на ${names}:`, ...videos.map((item) => item.url)].join('\n'));
-  } else if (lead) {
-    blocks.push(lead);
-  }
-  blocks.push(
-    [
-      `Подробности — ${channels.length ? 'на сайте и в каналах' : 'на сайте'}:`,
-      lessonLink,
-      ...channels.map((item) => item.url)
-    ].join('\n')
-  );
-
-  const body = blocks.join('\n\n');
+  const body = linkBlocks({
+    lesson,
+    publicBaseUrl,
+    publications,
+    skipPlatform,
+    lead: whole ? '' : `Первые ${minutes} минут урока.`,
+    // Запись влезла в пост целиком — звать за полной записью некуда.
+    noVideo: whole
+  }).join('\n\n');
   const caption = `${lesson.title}\n\n${body}`;
   if (caption.length <= limit) return caption;
   // Не влезло — заголовок укорачивается: ссылки важнее, ради них пост и читают.
