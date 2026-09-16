@@ -18,6 +18,7 @@ import { makeMakeCover } from './jobs/make-cover.js';
 import { makeMakeClips } from './jobs/make-clips.js';
 import { makeTrimPauses } from './jobs/trim-pauses.js';
 import { makeSuggestTexts } from './jobs/suggest-texts.js';
+import { makeSuggestShortTexts } from './jobs/suggest-short-texts.js';
 import { createTexts } from './services/texts.js';
 import { makeMakeCoverImage } from './jobs/make-cover-image.js';
 import { makeMakeNewsImage } from './jobs/make-news-image.js';
@@ -120,6 +121,10 @@ const handlers = {
   [JOBS.transcribe]: makeTranscribe(config, pool, queue, speech),
   [JOBS.subtitles]: makeSubtitles(config, pool),
   [JOBS.suggestTexts]: makeSuggestTexts(config, pool, createTexts(config)),
+  [JOBS.suggestShortTexts]: makeSuggestShortTexts(config, pool, {
+    speech,
+    texts: createTexts(config)
+  }),
   // Токен рисования читается из базы перед каждой картинкой: автор меняет его
   // в настройках, и новый должен работать без перезапуска воркера.
   [JOBS.makeCoverImage]: makeMakeCoverImage(

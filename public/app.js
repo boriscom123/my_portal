@@ -770,7 +770,8 @@ function initPage() {
         body: JSON.stringify({
           slug: shortForm.dataset.shortForm,
           title: fields.get('title'),
-          description: fields.get('description')
+          description: fields.get('description'),
+          hashtags: fields.get('hashtags') ?? ''
         })
       });
       if (!answer) return;
@@ -779,6 +780,56 @@ function initPage() {
       toast(`Не сохранилось: ${error.message}`, true);
     } finally {
       button.disabled = false;
+    }
+  });
+
+  // Текст из ролика: расшифровка и заготовка идут очередью, страница ждёт.
+  const shortSuggest = document.querySelector('[data-short-suggest]');
+  shortSuggest?.addEventListener('click', async () => {
+    const slug = shortSuggest.dataset.shortSuggest;
+    const url = `/api/admin/shorts/${slug}/suggest`;
+    shortSuggest.disabled = true;
+    try {
+      const started = await request(url, { method: 'POST' });
+      if (!started) return;
+      toast(
+        started.transcribed
+          ? 'Прошу у модели текст. Обычно одна-две минуты — поля заполнятся сами.'
+          : 'Расшифровываю ролик и прошу текст. Это несколько минут — поля заполнятся сами.'
+      );
+
+      // Переспрашиваем раз в четыре секунды, не дольше десяти минут: whisper
+      // делит два ядра с остальной очередью, а модель отвечает до двух минут.
+      const deadline = Date.now() + 10 * 60 * 1000;
+      let answer = null;
+      while (Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 4000));
+        answer = await request(url);
+        if (answer && !answer.pending) break;
+        answer = null;
+      }
+      if (!answer) {
+        toast('Ответа нет за десять минут. Нажмите ещё раз позже.', true);
+        return;
+      }
+      if (answer.error) {
+        toast(`Не получилось: ${answer.error}`, true);
+        return;
+      }
+
+      shortForm.querySelector('[name=title]').value = answer.title;
+      shortForm.querySelector('[name=description]').value = answer.description;
+      shortForm.querySelector('[name=hashtags]').value = (answer.hashtags ?? []).join(', ');
+      if (answer.transcript) {
+        document.querySelector('[data-short-transcript-text]').textContent = answer.transcript;
+        document.querySelector('[data-short-transcript]').hidden = false;
+      }
+      shortSuggest.textContent = 'Предложить текст заново';
+      toast(answer.warning ?? 'Поля заполнены. Поправьте и нажмите «Сохранить».', Boolean(answer.warning));
+    } catch (error) {
+      toast(`Не получилось: ${error.message}`, true);
+    } finally {
+      shortSuggest.disabled = false;
     }
   });
 

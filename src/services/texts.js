@@ -97,6 +97,66 @@ ${text}`;
 }
 
 /**
+ * Запрос на текст короткого ролика для Instagram.
+ *
+ * Ролик — не урок: у него минута речи, и живёт он не в поиске портала, а в
+ * ленте площадки. Площадка решает, кому его показать, по словам подписи —
+ * прежде всего первой строки, которую видно до «ещё», — и по хэштегам. Поэтому
+ * просим не пересказ, а подпись, в которой есть слова, какими зритель ищет тему.
+ */
+export function buildShortPrompt(transcript, { lessonTitle = '' } = {}) {
+  const text = String(transcript).slice(0, TRANSCRIPT_LIMIT);
+  return `Ты помогаешь автору коротких вертикальных роликов про разработку, VPS
+и работу с ИИ готовить подпись для Instagram Reels. Ниже расшифровка ролика,
+сделанная распознаванием речи: в ней есть ошибки в терминах и именах.
+${lessonTitle ? `\nРолик вырезан из урока «${String(lessonTitle).trim()}».\n` : ''}
+Составь по ней:
+1. title — первая строка подписи, до 90 знаков, по-русски, без кавычек и точки
+   в конце. Её видно до «ещё», и по её словам площадка решает, кому показать
+   ролик: назови тему теми словами, какими её ищут (docker, телеграм-бот,
+   свой сервер), и дай зрителю повод досмотреть. Не повторяй первую фразу
+   ролика и не пиши «в этом видео».
+2. description — 2–3 предложения, до 400 знаков, по-русски: что показано и что
+   зритель из этого возьмёт. Ключевые слова темы — естественно, в тексте, а не
+   списком. Последним предложением — спокойный призыв: сохранить ролик или
+   написать вопрос в комментариях.
+3. hashtags — от трёх до пяти хэштегов без решётки, строчными, без пробелов:
+   точные по теме ролика, а не общие вроде «видео» или «тренды». Названия
+   технологий оставляй как есть: docker, nginx.
+
+Пиши как автор о своей работе: без рекламных оборотов, без восклицательных
+знаков и без эмодзи.
+
+Расшифровка:
+${text}`;
+}
+
+/** Разбирает ответ модели о ролике. Хэштеги — не больше пяти, как просили. */
+export function parseShortResponse(body) {
+  const text = body?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) throw new Error('модель вернула пустой ответ');
+
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error('модель вернула не JSON');
+  }
+  const hashtags = Array.isArray(parsed.hashtags) ? parsed.hashtags : [];
+  return {
+    title: String(parsed.title ?? '').trim(),
+    description: String(parsed.description ?? '').trim(),
+    hashtags: [
+      ...new Set(
+        hashtags
+          .map((tag) => String(tag).toLowerCase().replace(/[#\s]+/g, ''))
+          .filter(Boolean)
+      )
+    ].slice(0, 5)
+  };
+}
+
+/**
  * Запрос на текст новости.
  *
  * Новость — не урок: у неё нет расшифровки, и всё, что есть, — заголовок,
@@ -467,6 +527,20 @@ export function createTexts(config, fetchImpl = fetch) {
 
       const { body, model: name } = await ask(buildPrompt(transcript, timeline), schema);
       return { ...parseTextsResponse(body), model: name };
+    },
+
+    /** Подпись ролика для Instagram по его расшифровке. Ждёт воркер, не человек. */
+    async suggestShort(transcript, context = {}) {
+      const { body, model: name } = await ask(buildShortPrompt(transcript, context), {
+        type: 'object',
+        properties: {
+          title: { type: 'string' },
+          description: { type: 'string' },
+          hashtags: { type: 'array', items: { type: 'string' } }
+        },
+        required: ['title', 'description', 'hashtags']
+      });
+      return { ...parseShortResponse(body), model: name };
     },
 
     /**

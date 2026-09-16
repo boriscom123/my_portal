@@ -9,12 +9,12 @@ import { slugify } from '../lib/slug.js';
 
 const DEFAULT_LIMIT = 20;
 const FIELDS = `id, slug, title, description, status, asset_id, cover_url, lesson_id,
-                published_at, created_at`;
+                published_at, created_at, transcript, hashtags`;
 
 // То же самое, но с именем таблицы: ролик почти везде читается вместе с уроком,
 // из которого вырезан, и без приставки postgres не знает, чей это slug.
 const JOINED = `s.id, s.slug, s.title, s.description, s.status, s.asset_id, s.cover_url,
-                s.lesson_id, s.published_at, s.created_at,
+                s.lesson_id, s.published_at, s.created_at, s.transcript, s.hashtags,
                 l.slug AS lesson_slug, l.title AS lesson_title
            FROM shorts s LEFT JOIN lessons l ON l.id = s.lesson_id`;
 
@@ -31,10 +31,50 @@ function toShort(row) {
     lessonId: row.lesson_id === null ? null : Number(row.lesson_id),
     publishedAt: row.published_at,
     createdAt: row.created_at,
+    // Расшифровка речи: null — ещё не считали.
+    transcript: row.transcript ?? null,
+    hashtags: row.hashtags ?? [],
     // Урок, из которого вырезан ролик: нужен ссылкой на странице и в посте.
     // Заполняется только там, где есть что показать.
     lesson: row.lesson_slug ? { slug: row.lesson_slug, title: row.lesson_title } : null
   };
+}
+
+// Сколько хэштегов держим. Площадка берёт до тридцати, но советует три-пять:
+// длинный хвост из общих тегов ранжируется хуже короткого точного.
+const HASHTAG_LIMIT = 30;
+
+/**
+ * Хэштеги в том виде, в каком их примет площадка.
+ * Пробел внутри тега Instagram считает его концом, поэтому слова склеиваются;
+ * решётку ставит подпись, регистр приводим сами — иначе #Docker и #docker
+ * окажутся двумя тегами. На вход строка через запятую (поле формы) или список.
+ */
+export function normalizeHashtags(value) {
+  // Решётка посреди строки — тоже граница: «nginx #docker» — это два тега.
+  const items = (Array.isArray(value) ? value : [value]).flatMap((item) =>
+    String(item ?? '').split(/[,\n#]/)
+  );
+  const seen = new Set();
+  for (const item of items) {
+    const tag = String(item)
+      .toLowerCase()
+      .replace(/[#\s]+/g, '')
+      .replace(/[^\p{L}\p{N}_]/gu, '');
+    if (tag) seen.add(tag);
+  }
+  return [...seen].slice(0, HASHTAG_LIMIT);
+}
+
+/**
+ * Подпись ролика в Instagram.
+ * Первая строка — заголовок: до «ещё» зритель видит только её, и по её словам
+ * площадка решает, кому ролик показать. Хэштеги — отдельной последней строкой,
+ * чтобы не рвать текст. 2200 знаков — предел площадки.
+ */
+export function instagramCaption(short) {
+  const hashtags = (short.hashtags ?? []).map((tag) => `#${tag}`).join(' ');
+  return [short.title, short.description, hashtags].filter(Boolean).join('\n\n').slice(0, 2200);
 }
 
 /**
@@ -69,23 +109,29 @@ export async function getShortById(pool, id) {
  * Адрес считается из заголовка один раз, при заведении: менять его потом значит
  * ломать ссылки, которыми уже поделились.
  */
-export async function saveShort(pool, { slug = null, title, description = '', lessonId = null }) {
+export async function saveShort(
+  pool,
+  { slug = null, title, description = '', hashtags = null, lessonId = null }
+) {
   const name = String(title ?? '').trim();
   if (!name) throw new Error('заголовок ролика пустой');
+  // null — поле не прислали: старая форма без хэштегов не должна их стирать.
+  const tags = hashtags === null ? null : normalizeHashtags(hashtags);
 
   if (slug) {
     const { rows } = await pool.query(
-      `UPDATE shorts SET title = $2, description = $3 WHERE slug = $1 RETURNING ${FIELDS}`,
-      [slug, name, String(description ?? '')]
+      `UPDATE shorts SET title = $2, description = $3, hashtags = COALESCE($4, hashtags)
+        WHERE slug = $1 RETURNING ${FIELDS}`,
+      [slug, name, String(description ?? ''), tags]
     );
     return rows.length ? toShort(rows[0]) : null;
   }
 
   const stamp = new Date().toISOString().slice(0, 10);
   const { rows } = await pool.query(
-    `INSERT INTO shorts (slug, title, description, lesson_id)
-     VALUES ($1, $2, $3, $4) RETURNING ${FIELDS}`,
-    [`${slugify(name)}-${stamp}`, name, String(description ?? ''), lessonId]
+    `INSERT INTO shorts (slug, title, description, lesson_id, hashtags)
+     VALUES ($1, $2, $3, $4, COALESCE($5::text[], '{}')) RETURNING ${FIELDS}`,
+    [`${slugify(name)}-${stamp}`, name, String(description ?? ''), lessonId, tags]
   );
   return toShort(rows[0]);
 }
@@ -111,10 +157,17 @@ export async function shortFromClip(pool, { assetId, lesson, title }) {
   return { ...short, assetId };
 }
 
-/** Привязывает к ролику загруженный файл и его кадр-заставку. */
+/**
+ * Привязывает к ролику загруженный файл и его кадр-заставку.
+ * Новый файл — новая речь: расшифровка и заготовка старого забываются, иначе
+ * кнопка выдала бы текст про ролик, которого уже нет.
+ */
 export async function setShortFile(pool, shortId, { assetId, coverUrl = null }) {
   const { rows } = await pool.query(
-    `UPDATE shorts SET asset_id = $2, cover_url = COALESCE($3, cover_url)
+    `UPDATE shorts
+        SET transcript = CASE WHEN asset_id IS DISTINCT FROM $2 THEN NULL ELSE transcript END,
+            generated = CASE WHEN asset_id IS DISTINCT FROM $2 THEN '{}' ELSE generated END,
+            asset_id = $2, cover_url = COALESCE($3, cover_url)
       WHERE id = $1 RETURNING ${FIELDS}`,
     [shortId, assetId, coverUrl]
   );

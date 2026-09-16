@@ -52,7 +52,9 @@ export const JOBS = {
   publishMaxParts: 'publishMaxParts',
   // Запись урока — в Telegram автору в личку. Долгая загрузка делается один
   // раз: дальше площадка отдаёт то же видео зрителям по номеру файла.
-  uploadLessonVideo: 'uploadLessonVideo'
+  uploadLessonVideo: 'uploadLessonVideo',
+  // Текст ролика для площадок: расшифровка и подпись от модели. По кнопке.
+  suggestShortTexts: 'suggestShortTexts'
 };
 
 /**
@@ -166,7 +168,10 @@ const NO_RETRY_JOBS = new Set([
   // Части урока — как анонсы: повтор после неясного отказа — второй пост.
   // Повтор кнопкой продолжает с непришедшей части (ход в publications.details).
   JOBS.publishTelegramParts,
-  JOBS.publishMaxParts
+  JOBS.publishMaxParts,
+  // Текст ролика: отказ шаг кладёт в заготовку сам, а повтор поверх этого
+  // заново гонял бы whisper. Повторяет автор той же кнопкой.
+  JOBS.suggestShortTexts
 ]);
 
 /**

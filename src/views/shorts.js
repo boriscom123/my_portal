@@ -256,10 +256,15 @@ export function shortEditPage({ config, user, short, publications = [], platform
       short.description
     )}</textarea>
   </label>
+  <label>Хэштеги
+    <input name="hashtags" value="${escapeHtml(short.hashtags.join(', '))}"
+      placeholder="docker, свойсервер, телеграмбот">
+  </label>
   <p class="hint">
     Заголовок и описание уходят в подпись поста вместе со ссылкой на этот ролик${
       short.lesson ? ' и на урок целиком' : ''
-    }.
+    }. В Instagram заголовок — первая строка подписи, её видно до «ещё»; хэштеги
+    идут туда же последней строкой. Через запятую, решётку портал поставит сам.
   </p>
   <div class="form-row">
     <button class="button-brand" type="submit">Сохранить</button>
@@ -305,6 +310,26 @@ export function shortEditPage({ config, user, short, publications = [], platform
              data-short-file="${escapeHtml(short.slug)}">
          </p>`
   }
+</section>
+
+<section class="card">
+  <h2>Текст из ролика</h2>
+  <p class="hint">
+    Портал расшифрует речь ролика и по ней предложит заголовок, описание и
+    хэштеги — словами, по которым Instagram решает, кому показать ролик. Поля
+    формы заполнятся, но сохранятся, только когда вы нажмёте «Сохранить».
+    Расшифровка идёт минуту-другую, ответ модели — ещё до двух минут.
+  </p>
+  <p class="form-row">
+    <button class="button-brand" type="button" data-short-suggest="${escapeHtml(short.slug)}"
+      ${short.assetId ? '' : 'disabled title="Сначала загрузите файл"'}>
+      ${short.transcript ? 'Предложить текст заново' : 'Расшифровать и предложить текст'}
+    </button>
+  </p>
+  <details data-short-transcript ${short.transcript ? '' : 'hidden'}>
+    <summary>Расшифровка</summary>
+    <p class="hint" data-short-transcript-text>${escapeHtml(short.transcript ?? '')}</p>
+  </details>
 </section>
 
 <section class="card">

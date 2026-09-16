@@ -436,7 +436,9 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
       const short = await saveShort(pool, {
         slug: req.body?.slug ? String(req.body.slug) : null,
         title: String(req.body?.title ?? ''),
-        description: String(req.body?.description ?? '')
+        description: String(req.body?.description ?? ''),
+        // Не прислали — не трогаем: хэштеги стёрла бы любая форма без их поля.
+        hashtags: req.body?.hashtags ?? null
       });
       if (!short) throw new PublicError('Ролик не найден', 404);
       res.json({ slug: short.slug, title: short.title });
@@ -524,6 +526,40 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
       res.json({ publicationId: publication.id, state: 'queued' });
     });
   }
+
+  // Текст ролика для площадок: чтение готовой заготовки. Как у урока — не
+  // применяется сама, поля автор подставляет и правит сам.
+  router.get('/shorts/:slug/suggest', async (req, res) => {
+    const short = await getShortBySlug(pool, req.params.slug);
+    if (!short) throw new PublicError('Ролик не найден', 404);
+    const { rows } = await pool.query(
+      `SELECT generated->'suggested' AS suggested FROM shorts WHERE id = $1`,
+      [short.id]
+    );
+    if (!rows[0]?.suggested) {
+      res.json({ pending: true });
+      return;
+    }
+    // Расшифровка — рядом: по ней автор видит, из чего модель писала, и
+    // замечает, где распознавание ослышалось.
+    res.json({ ...rows[0].suggested, transcript: short.transcript });
+  });
+
+  // Запуск расшифровки и заготовки. Очередью: whisper и модель вместе идут
+  // дольше, чем живёт запрос через nginx.
+  router.post('/shorts/:slug/suggest', async (req, res) => {
+    const short = await getShortBySlug(pool, req.params.slug);
+    if (!short) throw new PublicError('Ролик не найден', 404);
+    if (!short.assetId) throw new PublicError('У ролика нет файла — сначала загрузите его', 409);
+    if (!req.app.locals.queue) throw new PublicError('Очередь недоступна', 503);
+
+    // Прошлую заготовку убираем: иначе страница приняла бы её за новую.
+    await pool.query(`UPDATE shorts SET generated = generated - 'suggested' WHERE id = $1`, [
+      short.id
+    ]);
+    await addJob(req.app.locals.queue, JOBS.suggestShortTexts, { shortId: short.id });
+    res.json({ started: true, transcribed: Boolean(short.transcript) });
+  });
 
   router.delete('/shorts/:slug', async (req, res) => {
     if (!(await deleteShort(pool, req.params.slug))) {

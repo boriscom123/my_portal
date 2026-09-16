@@ -4,7 +4,7 @@
 // обработает. Ожидание здесь не наша прихоть: площадка забирает файл по ссылке
 // сама и обрабатывает его у себя, а публиковать можно только готовый контейнер.
 // Вызывается воркером по имени JOBS.publishInstagram.
-import { getShortById } from '../services/shorts.js';
+import { getShortById, instagramCaption } from '../services/shorts.js';
 import { assetById } from '../services/media.js';
 import { mediaLink } from '../lib/media-token.js';
 import { markPublicationState } from '../services/publications.js';
@@ -47,10 +47,7 @@ export function makePublishInstagram(config, pool, api) {
 
       await markPublicationState(pool, publicationId, { state: 'uploading' });
 
-      const caption = [short.title, short.description]
-        .filter(Boolean)
-        .join('\n\n')
-        .slice(0, 2200);
+      const caption = instagramCaption(short);
 
       const containerId = await api.createContainer({
         token: access.token,
