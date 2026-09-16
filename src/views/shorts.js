@@ -35,9 +35,9 @@ export function shortPlayer(short, src = null) {
 /** Список раздела. */
 /**
  * Нарезки из уроков — для автора: выбор урока, его нарезки и сборка.
- * Раньше блок жил на экране урока; заказчик 2026-09-15 перенёс его сюда, где
- * ролики и живут. Выбор урока — обычной формой с адресом: работает и без
- * скрипта, и страницу с выбранным уроком можно открыть по ссылке.
+ * Блок стоит там, где заводят ролик: нарезка и есть способ его завести.
+ * Выбор урока — обычной формой с адресом: работает и без скрипта, и страницу
+ * с выбранным уроком можно открыть по ссылке.
  */
 function clipsPanelHtml({ lessons = [], chosen = null, clips = [], made = [], hasTranscript = false }) {
   return `<section class="card">
@@ -48,7 +48,7 @@ function clipsPanelHtml({ lessons = [], chosen = null, clips = [], made = [], ha
     ПОСЛЕ того, как поправите титры: иначе придётся резать заново.
     Сборка занимает пару минут.
   </p>
-  <form action="/shorts" method="get" class="form-row">
+  <form action="/shorts/new" method="get" class="form-row">
     <label>Урок
       <select name="lesson">
         <option value="">— выберите урок —</option>
@@ -101,7 +101,7 @@ function clipsPanelHtml({ lessons = [], chosen = null, clips = [], made = [], ha
 </section>`;
 }
 
-export function shortsListPage({ config, user, shorts, clipsPanel = null }) {
+export function shortsListPage({ config, user, shorts }) {
   const isAdmin = user?.role === 'admin';
   return layout({
     config,
@@ -116,8 +116,6 @@ export function shortsListPage({ config, user, shorts, clipsPanel = null }) {
         ? ` <a class="add" href="/shorts/new" title="Загрузить ролик" aria-label="Загрузить ролик">+</a>`
         : ''
     }</h1>
-
-${isAdmin && clipsPanel ? clipsPanelHtml(clipsPanel) : ''}
 
 ${
   shorts.length
@@ -144,11 +142,6 @@ ${
         )
         .join('')}</div>`
     : '<p class="hint">Роликов пока нет.</p>'
-}
-${
-  // Кнопки сборки и «Сделать роликом» слушает скрипт кабинета — автору он нужен
-  // и здесь.
-  isAdmin ? `<script src="${assetUrl('/admin.js')}" type="module"></script>` : ''
 }`
   });
 }
@@ -196,7 +189,7 @@ ${
 }
 
 /** Страница загрузки нового ролика. */
-export function shortNewPage({ config, user }) {
+export function shortNewPage({ config, user, clipsPanel = null }) {
   return layout({
     config,
     user,
@@ -226,7 +219,12 @@ export function shortNewPage({ config, user }) {
   <div class="form-row">
     <button class="button-brand" type="submit">Загрузить</button>
   </div>
-</form>`
+</form>
+
+${clipsPanel ? clipsPanelHtml(clipsPanel) : ''}
+
+<!-- Кнопки сборки и «Сделать роликом» слушает скрипт кабинета. -->
+<script src="${assetUrl('/admin.js')}" type="module"></script>`
   });
 }
 

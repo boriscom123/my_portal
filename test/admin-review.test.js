@@ -438,14 +438,14 @@ test('ролики собираются по нажатию, а не сами', 
       assert.doesNotMatch(html, /новая серия/);
       assert.match(html, /<summary[^>]*>Добавить связанные проекты<\/summary>/);
 
-      // В «Роликах» автор выбирает урок, собирает нарезки и делает из них ролики.
+      // Нарезки живут на странице нового ролика: там их и превращают в ролики.
       const { rows: [clip] } = await pool.query(
         `INSERT INTO assets (lesson_id, kind, path, bytes, expires_at)
          SELECT id, 'clip', 'lesson-1/clip-1.mp4', 100, now() + interval '7 days'
            FROM lessons WHERE slug = 'urok' RETURNING id`
       );
       const shorts = await (
-        await fetch(`${base}/shorts?lesson=urok`, {
+        await fetch(`${base}/shorts/new?lesson=urok`, {
           headers: { Accept: 'text/html', ...asAdmin(adminId) }
         })
       ).text();
@@ -457,8 +457,11 @@ test('ролики собираются по нажатию, а не сами', 
       assert.match(shorts, /ПОСЛЕ того, как поправите титры/);
       assert.match(shorts, new RegExp(`data-make-short="${clip.id}"`));
 
-      const guest = await (await fetch(`${base}/shorts`, { headers: { Accept: 'text/html' } })).text();
-      assert.doesNotMatch(guest, /<select name="lesson"/);
+      // Нарезки — рабочий стол автора: страницу нового ролика гостю не дают
+      // вовсе. Проверять отсутствие выбора урока в разделе «Ролики» бессмысленно
+      // — там его теперь нет ни у кого.
+      const guest = await fetch(`${base}/shorts/new`, { headers: { Accept: 'text/html' } });
+      assert.ok(guest.status >= 400, `гостю отдали страницу нарезок: ${guest.status}`);
 
       const res = await fetch(`${base}/api/admin/lessons/urok/clips`, {
         method: 'POST',

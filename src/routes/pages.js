@@ -511,48 +511,49 @@ export function pageRoutes(config, pool) {
   // правка отдельной страницей.
   router.get('/shorts', async (req, res) => {
     const user = await currentUser(pool, req);
-    const isAdmin = user?.role === 'admin';
-    const shorts = await listShorts(pool, { includeDrafts: isAdmin });
-    // Нарезки из уроков — только автору: выбор урока, его нарезки и сборка.
-    // Раньше это жило на экране урока; заказчик 2026-09-15 перенёс сюда.
-    let clipsPanel = null;
-    if (isAdmin) {
-      const lessons = await listLessons(pool, { includeDrafts: true, limit: 200 });
-      const chosen = req.query.lesson
-        ? await getLessonBySlug(pool, String(req.query.lesson), { includeDrafts: true })
-        : null;
-      let clips = [];
-      let made = [];
-      let hasTranscript = false;
-      if (chosen) {
-        // Нарезки лежат в буфере и наружу не смотрят: автору — подписанная
-        // ссылка на час, как было на экране урока.
-        const { rows } = await pool.query(
-          `SELECT id, path FROM assets WHERE lesson_id = $1 AND kind = 'clip' ORDER BY id`,
-          [chosen.id]
-        );
-        clips = rows.map((row) => ({
-          id: Number(row.id),
-          name: row.path.split('/').pop(),
-          url: mediaLink(config, Number(row.id))
-        }));
-        made = await shortsOfLesson(pool, chosen.id);
-        const {
-          rows: [count]
-        } = await pool.query(
-          'SELECT count(*)::int AS n FROM transcript_segments WHERE lesson_id = $1',
-          [chosen.id]
-        );
-        hasTranscript = count.n > 0;
-      }
-      clipsPanel = { lessons, chosen, clips, made, hasTranscript };
-    }
-    res.type('html').send(shortsListPage({ config, user, shorts, clipsPanel }));
+    const shorts = await listShorts(pool, { includeDrafts: user?.role === 'admin' });
+    res.type('html').send(shortsListPage({ config, user, shorts }));
   });
 
-  // Объявлен ДО /short/:slug — иначе «new» попало бы в него как адрес ролика.
   router.get('/shorts/new', requireAdmin, async (req, res) => {
-    res.type('html').send(shortNewPage({ config, user: await currentUser(pool, req) }));
+    // Нарезки из уроков — здесь же: нарезка и есть способ завести ролик.
+    // Страница только для автора (requireAdmin), поэтому проверять роль ещё раз
+    // незачем.
+    const lessons = await listLessons(pool, { includeDrafts: true, limit: 200 });
+    const chosen = req.query.lesson
+      ? await getLessonBySlug(pool, String(req.query.lesson), { includeDrafts: true })
+      : null;
+    let clips = [];
+    let made = [];
+    let hasTranscript = false;
+    if (chosen) {
+      // Нарезки лежат в буфере и наружу не смотрят: автору — подписанная
+      // ссылка на час.
+      const { rows } = await pool.query(
+        `SELECT id, path FROM assets WHERE lesson_id = $1 AND kind = 'clip' ORDER BY id`,
+        [chosen.id]
+      );
+      clips = rows.map((row) => ({
+        id: Number(row.id),
+        name: row.path.split('/').pop(),
+        url: mediaLink(config, Number(row.id))
+      }));
+      made = await shortsOfLesson(pool, chosen.id);
+      const {
+        rows: [count]
+      } = await pool.query(
+        'SELECT count(*)::int AS n FROM transcript_segments WHERE lesson_id = $1',
+        [chosen.id]
+      );
+      hasTranscript = count.n > 0;
+    }
+    res.type('html').send(
+      shortNewPage({
+        config,
+        user: await currentUser(pool, req),
+        clipsPanel: { lessons, chosen, clips, made, hasTranscript }
+      })
+    );
   });
 
   router.get('/short/:slug/edit', requireAdmin, async (req, res) => {
