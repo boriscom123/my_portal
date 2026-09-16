@@ -105,6 +105,33 @@ test('урок уходит в MAX частями не тяжелее преде
   });
 });
 
+test('обложка урока уходит превью поста', skipWithoutDb, async () => {
+  // Резка переехала в общий шаг, и поиск обложки едва не остался без списка
+  // файлов: у уроков в остальных тестах обложки нет, и поломка прошла бы мимо.
+  await withTestDb(async (pool) => {
+    const { config, lesson, publicationId } = await setup(pool);
+    await writeFile(path.join(config.media.dir, `lesson-${lesson.id}/cover.jpg`), 'обложка');
+    const cover = await registerAsset(pool, config, {
+      lessonId: lesson.id,
+      kind: 'cover',
+      relativePath: `lesson-${lesson.id}/cover.jpg`,
+      bytes: 100
+    });
+    await pool.query('UPDATE lessons SET cover_url = $2 WHERE id = $1', [
+      lesson.id,
+      `/media/asset/${cover.id}`
+    ]);
+    const adapter = adapterStub();
+
+    await makePublishLessonParts(config, pool, 'max_parts', adapter, {
+      cutter: fakeCutter,
+      probe: async () => 3600
+    })({ lessonId: lesson.id, publicationId });
+
+    assert.match(adapter.calls[0].coverPath, /cover\.jpg$/, 'пост ушёл без превью');
+  });
+});
+
 test('частями уезжает запись, записанная в публикацию', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
     const { config, lesson } = await setup(pool);

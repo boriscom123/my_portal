@@ -6,8 +6,7 @@
 // Площадка приходит набором функций (app, postParts): так шаг проверяется
 // тестом без сети; резка и замер — тоже доводом, чтобы тест обходился без ffmpeg.
 // Вызывается воркером по именам JOBS.publishTelegramParts и JOBS.publishMaxParts.
-import { access, mkdir, rm, stat } from 'node:fs/promises';
-import path from 'node:path';
+import { rm, stat } from 'node:fs/promises';
 import { getLessonById } from '../services/lessons.js';
 import { assetsOfLesson, mediaPath } from '../services/media.js';
 import {
@@ -16,15 +15,17 @@ import {
   publicationById,
   publicationsFor
 } from '../services/publications.js';
-import { pickVideoAsset } from '../services/platforms/youtube-fields.js';
 import {
   buildFirstPartCaption,
   MAX_TEXT_LIMIT,
   TELEGRAM_CAPTION_LIMIT
 } from '../services/platforms/announcement.js';
-import { chaptersForVideo } from '../lib/chapters.js';
-import { cutFirstPart } from '../lib/video-parts.js';
-import { PARTS_LIMITS, TELEGRAM_CLOUD_LIMIT, partsLimit } from '../services/lesson-start.js';
+import {
+  cutLessonStart,
+  PARTS_LIMITS,
+  TELEGRAM_CLOUD_LIMIT,
+  partsLimit
+} from '../services/lesson-start.js';
 import { runFfmpeg, ffmpegArgsForPart, probeDuration, probeFrameSize } from '../lib/ffmpeg.js';
 import { ensureTrimRanges } from '../services/trim-ranges.js';
 
@@ -70,81 +71,45 @@ export function makePublishLessonParts(
       );
       if (!announced) throw new Error('Сначала отправьте анонс урока в этот канал');
 
-      const assets = await assetsOfLesson(pool, lessonId);
-      // Файл выбран автором при нажатии и записан в публикацию; его нет —
-      // выкладка заказана до выбора записи, берём как раньше.
+      // Начало урока режет общий шаг: он же готовит его для анонса, и держать
+      // две резки значило бы однажды поправить одну и забыть про другую.
       const ordered = await publicationById(pool, publicationId);
-      const video =
-        assets.find((asset) => asset.id === ordered?.assetId) ?? pickVideoAsset(assets);
-      const gone = 'Записи урока нет в буфере — вероятно, она удалена по сроку; загрузите её заново';
-      if (!video) throw new Error(gone);
-      const input = mediaPath(config, video.path);
-      try {
-        await access(input);
-      } catch {
-        throw new Error(gone);
-      }
-      const durationSeconds = await probe(input);
-      if (!durationSeconds) throw new Error('Запись урока не читается — загрузите её заново');
-
-      // Главы — на шкале уезжающего файла. Отрезков монтажа не посчитать —
-      // глав не будет: неверные хуже никаких.
-      const trimRanges =
-        video.kind === 'trimmed' ? await ensureRanges(config, pool, lesson).catch(() => null) : null;
-      const chapters = chaptersForVideo({ ...lesson, trimRanges }, video.kind).map((chapter, index) => ({
-        ...chapter,
-        number: index + 1
-      }));
-
       await markPublicationState(pool, publicationId, { state: 'uploading' });
-      await mkdir(partsDir, { recursive: true });
-      let attempt = 0;
-      const durationMs = Math.round(durationSeconds * 1000);
-      const part = await cutFirstPart({
-        durationMs,
-        totalBytes: video.bytes,
-        chapters,
-        limitBytes: partsLimit(platform, config.telegram?.apiUrl),
-        cut: ({ startMs, endMs }) =>
-          cutter({
-            input,
-            output: path.join(partsDir, `${platform}-${(attempt += 1)}.mp4`),
-            startMs,
-            endMs
-          }),
-        discard: (piece) => rm(piece.path, { force: true })
-      });
+      const part = await cutLessonStart(
+        config,
+        pool,
+        {
+          lesson,
+          limitBytes: partsLimit(platform, config.telegram?.apiUrl),
+          platform,
+          assetId: ordered?.assetId ?? null
+        },
+        { cutter, probe, frameSize, ensureRanges }
+      );
 
       // У Telegram подпись поста — это подпись видео (предел 1024); у MAX текст
       // идёт отдельно, и предел у него свой.
       const limit = platform === 'telegram_parts' ? TELEGRAM_CAPTION_LIMIT : MAX_TEXT_LIMIT;
       const text = buildFirstPartCaption({
         lesson,
-        part,
-        durationMs,
+        part: { startMs: part.startMs, endMs: part.endMs },
+        durationMs: part.durationMs,
         publicBaseUrl: config.publicBaseUrl,
         publications: await publicationsFor(pool, lessonId),
         skipPlatform: ANNOUNCEMENT_OF[platform],
         limit
       });
-      // Путь null — запись влезла целиком, уходит сам файл.
-      const sending = part.path ?? input;
-      // Размеры кадра и длительность площадка сама не знает: без них Telegram
-      // показывает квадратную заглушку и растягивает в неё кадр. Меряем тот
-      // файл, который уезжает, а не исходник: у куска своя длительность.
-      const [size, seconds] = await Promise.all([
-        Promise.resolve(frameSize(sending)).catch(() => null),
-        Promise.resolve(probe(sending)).catch(() => null)
-      ]);
       const files = [
         {
-          path: sending,
+          path: part.path,
           caption: text,
-          ...(size ? { width: size.width, height: size.height } : {}),
-          ...(seconds ? { duration: Math.round(seconds) } : {})
+          ...(part.width ? { width: part.width, height: part.height } : {}),
+          ...(part.duration ? { duration: part.duration } : {})
         }
       ];
 
+      // Обложка — превью поста: её ищем среди файлов урока.
+      const assets = await assetsOfLesson(pool, lessonId);
       const cover = lesson.coverUrl
         ? assets.find((asset) => `/media/asset/${asset.id}` === lesson.coverUrl)
         : null;

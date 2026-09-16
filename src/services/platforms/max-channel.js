@@ -234,50 +234,25 @@ export async function postToMax({
   token,
   channel,
   filePath,
-  videoPath = null,
   caption,
   fetchImpl = maxFetch,
   uploadFetch = fetch
 }) {
-  const attachments = await albumAttachments({ token, filePath, videoPath, fetchImpl, uploadFetch });
+  const photoToken = filePath
+    ? await uploadImage({ token, filePath, fetchImpl, uploadFetch })
+    : null;
 
   const response = await fetchImpl(`${API}/messages?chat_id=${encodeURIComponent(channel)}`, {
     method: 'POST',
     headers: { Authorization: token, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       text: caption,
-      ...(attachments.length ? { attachments } : {})
+      ...(photoToken ? { attachments: [{ type: 'image', payload: { token: photoToken } }] } : {})
     })
   });
   if (!response.ok) await failure(response, token);
 
   return { messageId: readMessageId(await response.json()), url: null };
-}
-
-/**
- * Вложения поста: обложка и, если есть, начало урока.
- *
- * Порядок важен — картинка первой: в ленте канала она и становится лицом
- * поста. Файла нет — нет и вложения: у поста о новости картинки может не быть
- * вовсе, а пустой список площадка поймёт как «снять всё».
- */
-async function albumAttachments({ token, filePath, videoPath, fetchImpl, uploadFetch }) {
-  const attachments = [];
-  if (filePath) {
-    const photoToken = await uploadImage({ token, filePath, fetchImpl, uploadFetch });
-    attachments.push({ type: 'image', payload: { token: photoToken } });
-  }
-  if (videoPath) {
-    const videoToken = await uploadVideo({
-      token,
-      filePath: videoPath,
-      fileName: 'start.mp4',
-      fetchImpl,
-      uploadFetch
-    });
-    attachments.push({ type: 'video', payload: { token: videoToken } });
-  }
-  return attachments;
 }
 
 /**
@@ -291,20 +266,19 @@ export async function editMaxPost({
   messageId,
   caption,
   filePath,
-  videoPath = null,
   fetchImpl = maxFetch,
   uploadFetch = fetch
 }) {
-  // Видео прикладывается заново вместе с картинкой: правка у MAX заменяет
-  // вложения целиком, и без него начало урока слетело бы с поста.
-  const attachments = await albumAttachments({ token, filePath, videoPath, fetchImpl, uploadFetch });
+  const photoToken = filePath
+    ? await uploadImage({ token, filePath, fetchImpl, uploadFetch })
+    : null;
 
   const response = await fetchImpl(`${API}/messages?message_id=${encodeURIComponent(messageId)}`, {
     method: 'PUT',
     headers: { Authorization: token, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       text: caption,
-      ...(attachments.length ? { attachments } : {})
+      ...(photoToken ? { attachments: [{ type: 'image', payload: { token: photoToken } }] } : {})
     })
   });
   if (!response.ok) await failure(response, token);

@@ -87,43 +87,8 @@ export async function postToTelegram({
   channel,
   photoUrl,
   caption,
-  video = null,
   fetchImpl = fetch
 }) {
-  // Обложка и начало урока одним постом — это альбом. Добавить файл в уже
-  // отправленный пост площадка не даёт, поэтому альбом собирается целиком
-  // здесь: заказчик 2026-09-16 просил видео в самом анонсе.
-  if (video?.path && photoUrl) {
-    const form = new FormData();
-    form.append('chat_id', channel);
-    form.append(
-      'media',
-      JSON.stringify([
-        // Подпись — у первого файла: она становится подписью всего альбома.
-        { type: 'photo', media: photoUrl, caption },
-        {
-          type: 'video',
-          media: 'attach://video',
-          supports_streaming: true,
-          ...measuresOf(video)
-        }
-      ])
-    );
-    form.append('video', await openAsBlob(video.path, { type: 'video/mp4' }), 'start.mp4');
-
-    const response = await fetchImpl(botMethod(apiUrl, token, 'sendMediaGroup'), {
-      method: 'POST',
-      body: form
-    });
-    if (!response.ok) await failure(response);
-
-    const body = await response.json();
-    // У альбома ответ — список сообщений; адрес поста у первого.
-    const first = Array.isArray(body.result) ? body.result[0] : body.result;
-    const messageId = String(first?.message_id ?? '');
-    return { messageId, url: postUrl(channel, messageId) };
-  }
-
   const [method, payload] = photoUrl
     ? ['sendPhoto', { chat_id: channel, photo: photoUrl, caption }]
     : ['sendMessage', { chat_id: channel, text: caption }];
