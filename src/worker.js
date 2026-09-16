@@ -147,9 +147,11 @@ const handlers = {
     insertCaptions,
     setThumbnail,
     shrinkThumbnail
-  }),
-  [JOBS.publishTelegram]: makePublishChannel(config, pool, 'telegram', telegramAdapter),
-  [JOBS.publishMax]: makePublishChannel(config, pool, 'max', maxAdapter),
+  }, queue),
+  // Очередь шагу нужна, чтобы попросить поправить посты, отправленные раньше:
+  // в них ещё нет ссылки на этот канал.
+  [JOBS.publishTelegram]: makePublishChannel(config, pool, 'telegram', telegramAdapter, queue),
+  [JOBS.publishMax]: makePublishChannel(config, pool, 'max', maxAdapter, queue),
   // Урок частями видео — следом за анонсом, в тот же канал.
   [JOBS.publishTelegramParts]: makePublishLessonParts(config, pool, 'telegram_parts', telegramAdapter),
   [JOBS.publishMaxParts]: makePublishLessonParts(config, pool, 'max_parts', maxAdapter),

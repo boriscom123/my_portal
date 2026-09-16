@@ -106,6 +106,32 @@ test('удачная выкладка доводит публикацию до �
   });
 });
 
+test('сразу публичный ролик просит поправить посты в каналах, приватный — нет', skipWithoutDb, async () => {
+  // Пост в канале собирается из того, что вышло к его отправке. Ролик, ставший
+  // публичным следом, в нём не появится сам — о правке надо попросить. Пока
+  // ролик приватный, ссылка на него подписчику не откроется, и дописывать её
+  // нечестно: этим занимается проверка «ролик уже публичный?».
+  await withTestDb(async (pool) => {
+    const { lesson, publicationId } = await seed(pool);
+    await pool.query(`UPDATE publications SET mode = 'auto' WHERE id = $1`, [publicationId]);
+    const added = [];
+    const queue = { add: async (name, data) => added.push({ name, data }) };
+
+    await makePublishYoutube(config, pool, platformStub(), queue)({
+      lessonId: lesson.id,
+      publicationId
+    });
+    assert.deepEqual(added, [{ name: 'refreshChannels', data: { lessonId: lesson.id } }]);
+
+    const second = await seed(pool);
+    await makePublishYoutube(config, pool, platformStub(), queue)({
+      lessonId: second.lesson.id,
+      publicationId: second.publicationId
+    });
+    assert.equal(added.length, 1, 'приватный ролик в посты не дописывается');
+  });
+});
+
 test('отказ обложки не роняет выкладку', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
     const { lesson, publicationId } = await seed(pool);

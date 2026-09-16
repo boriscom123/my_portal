@@ -16,6 +16,7 @@ import {
   publicationById
 } from '../services/publications.js';
 import { buildAnnouncement, buildNewsAnnouncement } from '../services/platforms/announcement.js';
+import { addJob, JOBS } from '../queue.js';
 
 /**
  * Собирает пост об уроке: подпись, обложка ссылкой и файлом.
@@ -123,7 +124,7 @@ async function shortPost(config, pool, shortId, platform) {
  * adapter — две функции площадки: post и edit. Приходит доводом, а не импортом:
  * так шаг проверяется тестом без сети.
  */
-export function makePublishChannel(config, pool, platform, adapter) {
+export function makePublishChannel(config, pool, platform, adapter, queue = null) {
   return async ({ lessonId = null, newsId = null, shortId = null, publicationId }) => {
     // Подготовка внутри try вместе с отправкой: отказ на ней — тоже отказ
     // публикации. Оставь его снаружи — и строка навсегда застрянет в «в
@@ -161,6 +162,11 @@ export function makePublishChannel(config, pool, platform, adapter) {
         // на канал: это не точное место, но единственное честное.
         url: url ?? app.link ?? null
       });
+      // Посты, отправленные раньше, собирались без этой ссылки: пост в Telegram
+      // не знал про MAX, вышедший следом. Дописываем её правкой — заказчик
+      // 2026-09-16 увидел ровно это. Задача чинит и сам этот пост: соседние
+      // ссылки в нём уже стоят, правка их не меняет.
+      if (queue && lessonId) await addJob(queue, JOBS.refreshChannels, { lessonId });
       return { messageId };
     } catch (error) {
       await markPublicationState(pool, publicationId, {

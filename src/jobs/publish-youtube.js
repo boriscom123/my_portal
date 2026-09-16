@@ -18,13 +18,14 @@ import {
 } from '../services/platforms/youtube-fields.js';
 import { chaptersForVideo } from '../lib/chapters.js';
 import { ensureTrimRanges } from '../services/trim-ranges.js';
+import { addJob, JOBS } from '../queue.js';
 
 // Предел площадки — 2 МБ. Порог ниже предела: обложка ровно на границе уже
 // встречалась, и гадать, считает YouTube мегабайт как 1 000 000 или 1 048 576,
 // мы не будем.
 const THUMBNAIL_LIMIT_BYTES = 1_900_000;
 
-export function makePublishYoutube(config, pool, platform) {
+export function makePublishYoutube(config, pool, platform, queue = null) {
   return async ({ lessonId, publicationId }) => {
     const token = await platform.accessToken(pool, config);
     if (!token) {
@@ -112,14 +113,19 @@ export function makePublishYoutube(config, pool, platform) {
       }
     }
 
+    // auto ставится только после аудита Google; до него ролик приватный, и
+    // published означало бы ссылку в никуда на карточке урока.
+    const state = mode === 'auto' ? 'published' : 'ready';
     await markPublicationState(pool, publicationId, {
-      // auto ставится только после аудита Google; до него ролик приватный, и
-      // published означало бы ссылку в никуда на карточке урока.
-      state: mode === 'auto' ? 'published' : 'ready',
+      state,
       externalId: videoId,
       url: `https://youtu.be/${videoId}`,
       error: complaints.length ? complaints.join('; ').slice(0, 500) : null
     });
+    // Посты в каналах, отправленные раньше, собирались без этой ссылки —
+    // дописываем её правкой. Приватный ролик не дописываем: ссылка на него
+    // подписчику не откроется, и этим занимается проверка «уже публичный?».
+    if (queue && state === 'published') await addJob(queue, JOBS.refreshChannels, { lessonId });
 
     return { videoId, complaints: complaints.length };
   };

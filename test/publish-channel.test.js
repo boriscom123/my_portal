@@ -73,6 +73,26 @@ test('анонс уходит в канал и запоминается', skipWi
   });
 });
 
+test('вышедший анонс просит поправить посты, отправленные раньше', skipWithoutDb, async () => {
+  // Заказчик 2026-09-16: урок ушёл в YouTube, потом в Telegram, потом в MAX —
+  // и в посте Telegram не было ссылки на MAX. Пост собирается из того, что
+  // вышло к его отправке, а следом вышедшее дописывается правкой. Раньше о
+  // правке просила только проверка ролика YouTube, и выкладка в соседний канал
+  // оставляла прежние посты со старыми ссылками.
+  await withTestDb(async (pool) => {
+    const { lesson, publicationId } = await seed(pool, { platform: 'max' });
+    const added = [];
+    const queue = { add: async (name, data) => added.push({ name, data }) };
+
+    await makePublishChannel(config, pool, 'max', adapterStub(), queue)({
+      lessonId: lesson.id,
+      publicationId
+    });
+
+    assert.deepEqual(added, [{ name: 'refreshChannels', data: { lessonId: lesson.id } }]);
+  });
+});
+
 test('без обложки анонс не отправляется, и сказано почему', skipWithoutDb, async () => {
   await withTestDb(async (pool) => {
     const { lesson, publicationId } = await seed(pool, { cover: false });
