@@ -8,6 +8,7 @@ import { escapeHtml } from '../lib/html.js';
 import { assetUrl } from '../lib/assets.js';
 import { layout } from './layout.js';
 import { publicationLabel } from './publication-state.js';
+import { timeLabel } from './search.js';
 
 /** Дата человеку: «10 сентября 2026». */
 function formatDate(value) {
@@ -228,6 +229,69 @@ ${clipsPanel ? clipsPanelHtml(clipsPanel) : ''}
   });
 }
 
+/**
+ * Расшифровка по репликам и титры.
+ *
+ * Реплики правятся здесь же: из них вшиваются титры, и ослышку распознавания
+ * («нахлитель» вместо Telegram) надо исправить до вшивания, а не после.
+ * У нарезки из урока титры вшиты ещё при нарезке — там блок только объясняет,
+ * где их править.
+ */
+function subtitlesPanel(short) {
+  if (short.lesson) {
+    return `<section class="card">
+  <h2>Титры</h2>
+  <p class="hint">Титры вшиты при нарезке из урока. Поправить их можно в расшифровке
+    урока «<a href="/admin/lesson/${encodeURIComponent(short.lesson.slug)}">${escapeHtml(
+      short.lesson.title
+    )}</a>», а затем пересобрать нарезки.</p>
+</section>`;
+  }
+  const slug = escapeHtml(short.slug);
+  const burned = Boolean(short.sourceAssetId);
+  return `<section class="card">
+  <h2>Титры</h2>
+  ${
+    short.segments.length
+      ? `<p class="hint">
+           Поправьте ослышки распознавания и нажмите «Сохранить расшифровку», затем
+           «${burned ? 'Вшить титры заново' : 'Вшить титры'}». Титры вшиваются в саму
+           картинку: ролик можно смотреть без звука в ленте и в каналах. Файл без
+           титров портал хранит, так что вшивать заново можно сколько угодно.
+         </p>
+         <form data-short-segments="${slug}">
+           <ol class="segments">
+             ${short.segments
+               .map(
+                 (segment, index) => `<li class="segment">
+               <span class="meta">${escapeHtml(timeLabel(segment.startedMs))}</span>
+               <textarea rows="1" maxlength="500" data-short-segment="${index}">${escapeHtml(
+                 segment.text
+               )}</textarea>
+             </li>`
+               )
+               .join('')}
+           </ol>
+           <p class="form-row">
+             <button class="button" type="submit">Сохранить расшифровку</button>
+             <button class="button-brand" type="button" data-short-burn="${slug}">
+               ${burned ? 'Вшить титры заново' : 'Вшить титры'}
+             </button>
+           </p>
+         </form>
+         <p class="hint">${
+           burned
+             ? 'Сейчас у ролика вшитые титры — в плеере выше и на площадках файл с ними.'
+             : 'Титры ещё не вшиты.'
+         } Вшивание занимает минуту-две.</p>`
+      : `<p class="hint">
+           Сначала расшифруйте ролик кнопкой выше — титры собираются из расшифровки,
+           и перед вшиванием её можно поправить.
+         </p>`
+  }
+</section>`;
+}
+
 /** Страница правки: вся работа над роликом собрана здесь. */
 export function shortEditPage({ config, user, short, publications = [], platforms = [], videoUrl = null }) {
   const published = short.status === 'published';
@@ -323,14 +387,12 @@ export function shortEditPage({ config, user, short, publications = [], platform
   <p class="form-row">
     <button class="button-brand" type="button" data-short-suggest="${escapeHtml(short.slug)}"
       ${short.assetId ? '' : 'disabled title="Сначала загрузите файл"'}>
-      ${short.transcript ? 'Предложить текст заново' : 'Расшифровать и предложить текст'}
+      ${short.segments.length ? 'Предложить текст заново' : 'Расшифровать и предложить текст'}
     </button>
   </p>
-  <details data-short-transcript ${short.transcript ? '' : 'hidden'}>
-    <summary>Расшифровка</summary>
-    <p class="hint" data-short-transcript-text>${escapeHtml(short.transcript ?? '')}</p>
-  </details>
 </section>
+
+${subtitlesPanel(short)}
 
 <section class="card">
   <h2>Каналы</h2>

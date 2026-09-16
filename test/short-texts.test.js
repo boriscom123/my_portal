@@ -58,7 +58,10 @@ function speechStub(text = 'Сегодня подключаем докер к п
   const calls = [];
   return {
     calls,
-    transcribe: async (input) => (calls.push(input), { text, segments: [] })
+    transcribe: async (input) => (
+      calls.push(input),
+      { text, segments: text.trim() ? [{ startedMs: 0, endedMs: 2000, text }] : [] }
+    )
   };
 }
 

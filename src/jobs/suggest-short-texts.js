@@ -8,7 +8,7 @@
 // Зачем очередью: расшифровка идёт на тех же двух ядрах, что и всё остальное,
 // а модель на бесплатной доле отвечает дольше, чем nginx держит запрос.
 // Расшифровка считается один раз на файл — повторное нажатие просит у модели
-// другой вариант, не трогая whisper.
+// другой вариант, не трогая whisper и не стирая правки автора в репликах.
 //
 // Отказ не бросается дальше, а ложится в заготовку: страница ждёт ответ и
 // перестаёт ждать, только увидев его. Повторить автор может той же кнопкой.
@@ -32,7 +32,8 @@ async function transcribeShort(config, pool, short, { speech, ffmpeg }) {
   if (!speech) {
     throw new Error('распознавание не настроено: нет whisper-cli или модели');
   }
-  const asset = await assetById(pool, short.assetId);
+  // Звук берём из файла без титров: он тот же, но вшитый файл могли и удалить.
+  const asset = await assetById(pool, short.sourceAssetId ?? short.assetId);
   if (!asset) throw new Error('файла ролика нет в учёте — загрузите его заново');
 
   const input = mediaPath(config, asset.path);
@@ -47,8 +48,17 @@ async function transcribeShort(config, pool, short, { speech, ffmpeg }) {
   const audio = mediaPath(config, `${path.dirname(asset.path)}/short-${short.id}-audio.ogg`);
   try {
     await ffmpeg(ffmpegArgsForAudio(input, audio));
-    const { text } = await speech.transcribe(audio);
-    return String(text ?? '').trim();
+    const { text, segments = [] } = await speech.transcribe(audio);
+    return {
+      text: String(text ?? '').trim(),
+      segments: segments
+        .map((segment) => ({
+          startedMs: Number(segment.startedMs),
+          endedMs: Number(segment.endedMs),
+          text: String(segment.text ?? '').trim()
+        }))
+        .filter((segment) => segment.text)
+    };
   } finally {
     await rm(audio, { force: true });
   }
@@ -62,13 +72,21 @@ export function makeSuggestShortTexts(config, pool, { speech, texts, ffmpeg = ru
     try {
       if (!short.assetId) throw new Error('у ролика нет файла — сначала загрузите его');
 
+      // Считаем заново, только если реплик нет: иначе повторное нажатие стёрло
+      // бы правки автора. Ролик, расшифрованный до появления титров, реплик не
+      // имеет — его пересчитываем.
       let transcript = short.transcript;
-      if (!transcript) {
-        transcript = await transcribeShort(config, pool, short, { speech, ffmpeg });
+      if (!short.segments.length) {
+        const heard = await transcribeShort(config, pool, short, { speech, ffmpeg });
+        transcript = heard.text;
         // Ролик под музыку без слов — не сбой распознавания. Писать подпись не
         // из чего, и модель честно выдумала бы её из воздуха.
         if (!transcript) throw new Error('речи в ролике не нашлось — текст писать не из чего');
-        await pool.query('UPDATE shorts SET transcript = $1 WHERE id = $2', [transcript, shortId]);
+        await pool.query('UPDATE shorts SET transcript = $1, segments = $2::jsonb WHERE id = $3', [
+          transcript,
+          JSON.stringify(heard.segments),
+          shortId
+        ]);
       }
 
       let suggested;

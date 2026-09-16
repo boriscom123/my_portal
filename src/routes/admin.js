@@ -40,7 +40,8 @@ import {
   publishShort,
   deleteShort,
   getShortBySlug,
-  shortFromClip
+  shortFromClip,
+  editShortSegments
 } from '../services/shorts.js';
 import {
   saveSeries,
@@ -559,6 +560,47 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
     ]);
     await addJob(req.app.locals.queue, JOBS.suggestShortTexts, { shortId: short.id });
     res.json({ started: true, transcribed: Boolean(short.transcript) });
+  });
+
+  // Правка реплик расшифровки ролика. Из них вшиваются титры, поэтому ослышки
+  // распознавания автор исправляет здесь, до вшивания.
+  router.post('/shorts/:slug/segments', async (req, res) => {
+    const short = await getShortBySlug(pool, req.params.slug);
+    if (!short) throw new PublicError('Ролик не найден', 404);
+    const edits = Array.isArray(req.body?.segments) ? req.body.segments : [];
+    if (!edits.length) throw new PublicError('Нечего сохранять', 400);
+    const changed = await editShortSegments(pool, short.id, edits);
+    res.json({ changed });
+  });
+
+  // Титры в картинку. Очередью: пересжатие ролика идёт минуты.
+  router.post('/shorts/:slug/subtitles', async (req, res) => {
+    const short = await getShortBySlug(pool, req.params.slug);
+    if (!short) throw new PublicError('Ролик не найден', 404);
+    if (short.lesson) {
+      throw new PublicError('У нарезки из урока титры уже вшиты — их правят на экране урока', 409);
+    }
+    if (!short.segments.length) throw new PublicError('Сначала расшифруйте ролик', 409);
+    if (!req.app.locals.queue) throw new PublicError('Очередь недоступна', 503);
+
+    // Отметка «вшивается» — до постановки: страница спрашивает состояние сразу
+    // и не должна принять прошлый итог за новый.
+    await pool.query(
+      `UPDATE shorts SET generated = jsonb_set(generated, '{subtitles}', $1::jsonb) WHERE id = $2`,
+      [JSON.stringify({ state: 'burning', at: new Date().toISOString() }), short.id]
+    );
+    await addJob(req.app.locals.queue, JOBS.burnShortSubtitles, { shortId: short.id });
+    res.json({ state: 'burning' });
+  });
+
+  router.get('/shorts/:slug/subtitles', async (req, res) => {
+    const short = await getShortBySlug(pool, req.params.slug);
+    if (!short) throw new PublicError('Ролик не найден', 404);
+    const { rows } = await pool.query(
+      `SELECT generated->'subtitles' AS subtitles FROM shorts WHERE id = $1`,
+      [short.id]
+    );
+    res.json(rows[0]?.subtitles ?? { state: 'none' });
   });
 
   router.delete('/shorts/:slug', async (req, res) => {

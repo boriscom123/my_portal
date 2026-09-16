@@ -820,16 +820,99 @@ function initPage() {
       shortForm.querySelector('[name=title]').value = answer.title;
       shortForm.querySelector('[name=description]').value = answer.description;
       shortForm.querySelector('[name=hashtags]').value = (answer.hashtags ?? []).join(', ');
-      if (answer.transcript) {
-        document.querySelector('[data-short-transcript-text]').textContent = answer.transcript;
-        document.querySelector('[data-short-transcript]').hidden = false;
-      }
+      // Реплики для правки появились впервые — их блок рисует сервер. Поля формы
+      // при этом не теряем: перезагрузка стёрла бы только что подставленное.
+      const firstTime = !document.querySelector('[data-short-segments]');
+      toast(
+        answer.warning ??
+          (firstTime
+            ? 'Поля заполнены — сохраните их. Расшифровка для титров появится после обновления страницы.'
+            : 'Поля заполнены. Поправьте и нажмите «Сохранить».'),
+        Boolean(answer.warning)
+      );
       shortSuggest.textContent = 'Предложить текст заново';
-      toast(answer.warning ?? 'Поля заполнены. Поправьте и нажмите «Сохранить».', Boolean(answer.warning));
     } catch (error) {
       toast(`Не получилось: ${error.message}`, true);
     } finally {
       shortSuggest.disabled = false;
+    }
+  });
+
+  // Правка реплик ролика: уходят только изменённые.
+  const shortSegments = document.querySelector('[data-short-segments]');
+  shortSegments?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const button = shortSegments.querySelector('button[type=submit]');
+    button.disabled = true;
+    try {
+      if (await saveShortSegments()) toast('Расшифровка сохранена.');
+    } catch (error) {
+      toast(`Не сохранилось: ${error.message}`, true);
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  const segmentOriginal = new Map(
+    [...(shortSegments?.querySelectorAll('[data-short-segment]') ?? [])].map((input) => [
+      input.dataset.shortSegment,
+      input.value
+    ])
+  );
+  shortSegments?.addEventListener('keydown', (event) => {
+    // Перенос в реплике оборвал бы титр — Enter здесь ничего не делает.
+    if (event.key === 'Enter' && event.target.matches('[data-short-segment]')) event.preventDefault();
+  });
+
+  /** Сохраняет изменённые реплики. Возвращает false, если сохранить не вышло. */
+  async function saveShortSegments() {
+    const changed = [...shortSegments.querySelectorAll('[data-short-segment]')]
+      .filter((input) => input.value !== segmentOriginal.get(input.dataset.shortSegment))
+      .map((input) => ({ index: Number(input.dataset.shortSegment), text: input.value }));
+    if (!changed.length) return true;
+    const answer = await request(`/api/admin/shorts/${shortSegments.dataset.shortSegments}/segments`, {
+      method: 'POST',
+      body: JSON.stringify({ segments: changed })
+    });
+    if (!answer) return false;
+    for (const input of shortSegments.querySelectorAll('[data-short-segment]')) {
+      segmentOriginal.set(input.dataset.shortSegment, input.value);
+    }
+    return true;
+  }
+
+  // Вшивание титров. Несохранённые правки сохраняем сами: иначе вшились бы
+  // старые реплики, и автор увидел бы ослышку, которую только что исправил.
+  const shortBurn = document.querySelector('[data-short-burn]');
+  shortBurn?.addEventListener('click', async () => {
+    const slug = shortBurn.dataset.shortBurn;
+    const url = `/api/admin/shorts/${slug}/subtitles`;
+    shortBurn.disabled = true;
+    try {
+      if (!(await saveShortSegments())) return;
+      const started = await request(url, { method: 'POST' });
+      if (!started) return;
+      toast('Вшиваю титры. Это минута-две — страница обновится сама.');
+
+      const deadline = Date.now() + 15 * 60 * 1000;
+      while (Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 4000));
+        const answer = await request(url);
+        if (answer?.state === 'done') {
+          toast('Титры вшиты.');
+          setTimeout(() => location.reload(), 900);
+          return;
+        }
+        if (answer?.state === 'failed') {
+          toast(`Не вшилось: ${answer.error}`, true);
+          return;
+        }
+      }
+      toast('Ответа нет за пятнадцать минут. Обновите страницу позже.', true);
+    } catch (error) {
+      toast(`Не вшилось: ${error.message}`, true);
+    } finally {
+      shortBurn.disabled = false;
     }
   });
 

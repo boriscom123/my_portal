@@ -9,12 +9,13 @@ import { slugify } from '../lib/slug.js';
 
 const DEFAULT_LIMIT = 20;
 const FIELDS = `id, slug, title, description, status, asset_id, cover_url, lesson_id,
-                published_at, created_at, transcript, hashtags`;
+                published_at, created_at, transcript, hashtags, segments, source_asset_id`;
 
 // То же самое, но с именем таблицы: ролик почти везде читается вместе с уроком,
 // из которого вырезан, и без приставки postgres не знает, чей это slug.
 const JOINED = `s.id, s.slug, s.title, s.description, s.status, s.asset_id, s.cover_url,
                 s.lesson_id, s.published_at, s.created_at, s.transcript, s.hashtags,
+                s.segments, s.source_asset_id,
                 l.slug AS lesson_slug, l.title AS lesson_title
            FROM shorts s LEFT JOIN lessons l ON l.id = s.lesson_id`;
 
@@ -34,6 +35,10 @@ function toShort(row) {
     // Расшифровка речи: null — ещё не считали.
     transcript: row.transcript ?? null,
     hashtags: row.hashtags ?? [],
+    // Реплики с временами — из них вшиваются титры.
+    segments: row.segments ?? [],
+    // Файл без титров; пока титры не вшивали — null, и чистый файл сам assetId.
+    sourceAssetId: row.source_asset_id ? Number(row.source_asset_id) : null,
     // Урок, из которого вырезан ролик: нужен ссылкой на странице и в посте.
     // Заполняется только там, где есть что показать.
     lesson: row.lesson_slug ? { slug: row.lesson_slug, title: row.lesson_title } : null
@@ -159,13 +164,16 @@ export async function shortFromClip(pool, { assetId, lesson, title }) {
 
 /**
  * Привязывает к ролику загруженный файл и его кадр-заставку.
- * Новый файл — новая речь: расшифровка и заготовка старого забываются, иначе
- * кнопка выдала бы текст про ролик, которого уже нет.
+ * Новый файл — новая речь: расшифровка, титры и заготовка старого забываются,
+ * иначе кнопка выдала бы текст про ролик, которого уже нет.
  */
 export async function setShortFile(pool, shortId, { assetId, coverUrl = null }) {
   const { rows } = await pool.query(
     `UPDATE shorts
         SET transcript = CASE WHEN asset_id IS DISTINCT FROM $2 THEN NULL ELSE transcript END,
+            segments = CASE WHEN asset_id IS DISTINCT FROM $2 THEN '[]' ELSE segments END,
+            source_asset_id = CASE WHEN asset_id IS DISTINCT FROM $2 THEN NULL
+                                   ELSE source_asset_id END,
             generated = CASE WHEN asset_id IS DISTINCT FROM $2 THEN '{}' ELSE generated END,
             asset_id = $2, cover_url = COALESCE($3, cover_url)
       WHERE id = $1 RETURNING ${FIELDS}`,
@@ -210,4 +218,34 @@ export async function shortsOfLesson(pool, lessonId) {
     [lessonId]
   );
   return rows.map(toShort);
+}
+
+/**
+ * Правка реплик расшифровки: [{ index, text }].
+ * Время не правится — его знает только распознавание. Пустая реплика не
+ * принимается: это дыра в титрах, а не правка. Текст целиком пересобирается из
+ * реплик, чтобы заготовка от модели шла по исправленному.
+ * Возвращает число изменённых реплик.
+ */
+export async function editShortSegments(pool, shortId, edits) {
+  const short = await getShortById(pool, shortId);
+  if (!short) return null;
+  const segments = short.segments.map((segment) => ({ ...segment }));
+  let changed = 0;
+  for (const edit of edits) {
+    const segment = segments[Number(edit?.index)];
+    // Переносы — в пробел: пустая строка в файле субтитров обрывает реплику.
+    const text = String(edit?.text ?? '').replace(/\s+/g, ' ').trim();
+    if (!segment || !text || segment.text === text) continue;
+    segment.text = text;
+    changed += 1;
+  }
+  if (changed) {
+    await pool.query('UPDATE shorts SET segments = $1::jsonb, transcript = $2 WHERE id = $3', [
+      JSON.stringify(segments),
+      segments.map((segment) => segment.text).join(' '),
+      shortId
+    ]);
+  }
+  return changed;
 }

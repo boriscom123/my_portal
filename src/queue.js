@@ -54,7 +54,9 @@ export const JOBS = {
   // раз: дальше площадка отдаёт то же видео зрителям по номеру файла.
   uploadLessonVideo: 'uploadLessonVideo',
   // Текст ролика для площадок: расшифровка и подпись от модели. По кнопке.
-  suggestShortTexts: 'suggestShortTexts'
+  suggestShortTexts: 'suggestShortTexts',
+  // Титры, вшитые в картинку ролика: смотреть без звука. По кнопке.
+  burnShortSubtitles: 'burnShortSubtitles'
 };
 
 /**
@@ -171,7 +173,9 @@ const NO_RETRY_JOBS = new Set([
   JOBS.publishMaxParts,
   // Текст ролика: отказ шаг кладёт в заготовку сам, а повтор поверх этого
   // заново гонял бы whisper. Повторяет автор той же кнопкой.
-  JOBS.suggestShortTexts
+  JOBS.suggestShortTexts,
+  // Вшивание титров — минуты двух ядер; повтор того же отказа их бы и съел.
+  JOBS.burnShortSubtitles
 ]);
 
 /**
