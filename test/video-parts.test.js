@@ -1,5 +1,5 @@
-// Нарезка записи на части. Цель — как можно меньше частей, каждая не тяжелее
-// предела площадки; резка по главам, размер не угадывается, а меряется.
+// Начало записи для канала: один кусок не тяжелее предела площадки, резка по
+// главам, размер не угадывается, а меряется.
 // Настоящий ffmpeg в первых тестах не нужен: резка подставляется. Последний —
 // на настоящем ffmpeg, потому что резка без пережатия ведёт себя по-своему.
 import test from 'node:test';
@@ -8,7 +8,7 @@ import { spawn } from 'node:child_process';
 import { mkdtemp, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { splitIntoParts, SIZE_MARGIN } from '../src/lib/video-parts.js';
+import { cutFirstPart, SIZE_MARGIN } from '../src/lib/video-parts.js';
 import { ffmpegArgsForPart, runFfmpeg, probeDuration } from '../src/lib/ffmpeg.js';
 
 const MB = 1024 * 1024;
@@ -39,128 +39,70 @@ const chapters = [
   { atMs: min(30), title: 'Итоги', number: 4 }
 ];
 
-test('запись целиком влезает — не режем вовсе', async () => {
-  const cutter = fakeCutter(() => 0);
-  const parts = await splitIntoParts({
+test('в канал уходит только начало записи — режем один кусок, а не всю запись', async () => {
+  // Заказчик 2026-09-16: в канал идёт обложка и первый кусок видео, остальное
+  // зритель смотрит на площадках. Нарезать ради этого всю запись значит занять
+  // ffmpeg на минуты и выбросить сделанное.
+  const cutter = fakeCutter(even(10));
+  const part = await cutFirstPart({
     durationMs: min(40),
-    totalBytes: 600 * MB,
+    totalBytes: 400 * MB,
     chapters,
-    limitBytes: 2000 * MB,
+    limitBytes: 250 * MB,
     ...cutter
   });
-  assert.equal(parts.length, 1);
-  assert.equal(parts[0].path, null, 'часть — сам файл, резать незачем');
-  assert.equal(parts[0].chapters.length, 4);
+  // В 250·0,95 МБ влезают две главы по 100 МБ.
+  assert.equal(part.startMs, 0);
+  assert.equal(part.endMs, min(20));
+  assert.deepEqual(part.chapters.map((chapter) => chapter.number), [1, 2]);
+  assert.ok(part.bytes <= 250 * MB * SIZE_MARGIN);
+  // Хвост записи не режется вовсе: примерок несколько, а не по куску на главу.
+  assert.ok(cutter.cuts.length <= 3, `лишние примерки: ${cutter.cuts.length}`);
+  assert.ok(cutter.cuts.every((cut) => cut.startMs === 0), 'кусок берётся от начала записи');
+});
+
+test('запись легче предела — в канал уходит сам файл, резать нечего', async () => {
+  const cutter = fakeCutter(() => 0);
+  const part = await cutFirstPart({
+    durationMs: min(40),
+    totalBytes: 30 * MB,
+    chapters,
+    limitBytes: 50 * MB,
+    ...cutter
+  });
+  assert.equal(part.path, null, 'часть — сам файл');
+  assert.equal(part.endMs, min(40));
   assert.equal(cutter.cuts.length, 0);
 });
 
-test('главы набиваются в часть до предела — частей как можно меньше', async () => {
-  // Ровно 10 МБ в минуту: 40 минут — 400 МБ, предел 250 МБ.
+test('первая глава тяжелее предела — кусок обрывается внутри неё', async () => {
+  // Первые 50 МБ при 10 МБ в минуту — около пяти минут, это меньше главы.
   const cutter = fakeCutter(even(10));
-  const parts = await splitIntoParts({
+  const part = await cutFirstPart({
     durationMs: min(40),
     totalBytes: 400 * MB,
     chapters,
-    limitBytes: 250 * MB,
+    limitBytes: 50 * MB,
     ...cutter
   });
-  // В 250·0,95 МБ влезают две главы по 100 МБ, три — уже нет.
-  assert.equal(parts.length, 2);
-  assert.deepEqual(
-    parts.map((part) => part.chapters.map((chapter) => chapter.number)),
-    [
-      [1, 2],
-      [3, 4]
-    ]
-  );
-  assert.ok(parts.every((part) => part.bytes <= 250 * MB * SIZE_MARGIN));
-  // Части встык: ни одна секунда не потеряна и не повторена.
-  assert.equal(parts[0].endMs, parts[1].startMs);
-  assert.equal(parts.at(-1).endMs, min(40));
+  assert.equal(part.startMs, 0);
+  assert.ok(part.endMs < min(10), `кусок вышел за первую главу: ${part.endMs}`);
+  assert.ok(part.bytes <= 50 * MB * SIZE_MARGIN);
+  assert.ok(cutter.cuts.length <= 4, `лишние примерки: ${cutter.cuts.length}`);
 });
 
-test('часть не влезла по весу — убираем последнюю главу и режем снова', async () => {
-  // Средняя плотность врёт: вторая глава тяжелее остальных впятеро.
-  const heavy = (start, end) => {
-    let bytes = 0;
-    for (let t = start; t < end; t += 60_000) bytes += (t >= min(10) && t < min(20) ? 30 : 6) * MB;
-    return bytes;
-  };
-  const cutter = fakeCutter(heavy);
-  const parts = await splitIntoParts({
-    durationMs: min(40),
-    totalBytes: heavy(0, min(40)),
-    chapters,
-    limitBytes: 250 * MB,
-    ...cutter
-  });
-  assert.ok(parts.every((part) => part.bytes <= 250 * MB * SIZE_MARGIN), 'часть тяжелее предела');
-  assert.ok(cutter.discarded.length > 0, 'перевес должен был отбросить пробную часть');
-  // Отброшенные куски не выдаются как части.
-  const kept = new Set(parts.map((part) => part.path));
-  assert.ok(cutter.discarded.every((item) => !kept.has(item)));
-});
-
-test('часть легче предела с запасом — пробуем добавить главу', async () => {
-  // Первая глава по оценке «не влезает» вместе со второй, но на деле лёгкая:
-  // средняя плотность завышена тяжёлым хвостом.
-  const bytesFor = (start, end) => {
-    let bytes = 0;
-    for (let t = start; t < end; t += 60_000) bytes += (t >= min(30) ? 40 : 5) * MB;
-    return bytes;
-  };
-  const cutter = fakeCutter(bytesFor);
-  const parts = await splitIntoParts({
-    durationMs: min(40),
-    totalBytes: bytesFor(0, min(40)),
-    chapters,
-    limitBytes: 250 * MB,
-    ...cutter
-  });
-  // Первые три главы — 150 МБ, влезают вместе; четвёртая — 400 МБ, режется.
-  assert.deepEqual(parts[0].chapters.map((chapter) => chapter.number), [1, 2, 3]);
-  assert.ok(parts.every((part) => part.bytes <= 250 * MB * SIZE_MARGIN));
-});
-
-test('одна глава тяжелее предела — делится на наименьшее число кусков', async () => {
+test('глав нет — кусок отмеряется временем от начала', async () => {
   const cutter = fakeCutter(even(10));
-  const parts = await splitIntoParts({
-    durationMs: min(60),
-    totalBytes: 600 * MB,
-    chapters: [
-      { atMs: 0, title: 'Всё сразу', number: 1 },
-      { atMs: min(50), title: 'Итоги', number: 2 },
-      { atMs: min(55), title: 'Вопросы', number: 3 }
-    ],
-    limitBytes: 250 * MB,
-    ...cutter
-  });
-  const pieces = parts.filter((part) => part.piece);
-  // 500 МБ главы в куски до 237,5 МБ — три куска.
-  assert.equal(pieces.length, 3);
-  assert.deepEqual(
-    pieces.map((part) => part.piece),
-    [
-      { n: 1, of: 3 },
-      { n: 2, of: 3 },
-      { n: 3, of: 3 }
-    ]
-  );
-  // Хвост из двух коротких глав — одной частью.
-  assert.deepEqual(parts.at(-1).chapters.map((chapter) => chapter.number), [2, 3]);
-});
-
-test('глав нет — делим запись на наименьшее число частей', async () => {
-  const cutter = fakeCutter(even(10));
-  const parts = await splitIntoParts({
+  const part = await cutFirstPart({
     durationMs: min(40),
     totalBytes: 400 * MB,
     chapters: [],
-    limitBytes: 250 * MB,
+    limitBytes: 50 * MB,
     ...cutter
   });
-  assert.equal(parts.length, 2);
-  assert.ok(parts.every((part) => part.chapters.length === 0 && part.piece === null));
+  assert.equal(part.startMs, 0);
+  assert.ok(part.bytes <= 50 * MB * SIZE_MARGIN);
+  assert.equal(part.chapters.length, 0);
 });
 
 test('аргументы резки: без пережатия, с перемоткой до входа', () => {

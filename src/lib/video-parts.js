@@ -1,11 +1,11 @@
-// Нарезка записи урока на части для каналов.
+// Начало записи урока для канала.
 //
-// Задача — как можно меньше частей, каждая не тяжелее предела площадки.
-// Режем по главам: часть набирает главы подряд, пока помещается. Вес не
-// угадываем по средней плотности, а меряем: у записи экрана он «плавает» —
-// неподвижный экран лёгкий, движение тяжёлое. Резка без пережатия идёт секунды,
-// поэтому примерка дешёвая. Жадная набивка глав подряд даёт наименьшее число
-// частей при резке по порядку.
+// Задача — вырезать один кусок от начала, не тяжелее предела площадки: в канал
+// уходит обложка и начало урока, а смотреть целиком зритель идёт на площадки.
+// Режем по главам, чтобы кусок обрывался на смене темы, а не посреди фразы.
+// Вес не угадываем по средней плотности, а меряем: у записи экрана он
+// «плавает» — неподвижный экран лёгкий, движение тяжёлое. Резка без пережатия
+// идёт секунды, поэтому примерка дешёвая.
 // Резка и удаление подставляются доводом: так алгоритм проверяется без ffmpeg.
 // Вызывается из src/jobs/publish-lesson-parts.js.
 
@@ -25,43 +25,20 @@ function unitsOf(chapters, durationMs) {
   }));
 }
 
-/**
- * Делит одну единицу на наименьшее число равных по времени кусков, каждый не
- * тяжелее предела. Не влез хоть один — кусков становится на один больше.
- */
-async function splitEvenly(unit, { limit, perMs, cut, discard }) {
-  let count = Math.max(2, Math.ceil(((unit.endMs - unit.startMs) * perMs) / limit));
-  for (;;) {
-    const step = (unit.endMs - unit.startMs) / count;
-    const pieces = [];
-    for (let n = 0; n < count; n += 1) {
-      const startMs = Math.round(unit.startMs + step * n);
-      const endMs = n === count - 1 ? unit.endMs : Math.round(unit.startMs + step * (n + 1));
-      pieces.push({ startMs, endMs, ...(await cut({ startMs, endMs })) });
-    }
-    if (pieces.every((piece) => piece.bytes <= limit)) {
-      return pieces.map((piece, n) => ({
-        startMs: piece.startMs,
-        endMs: piece.endMs,
-        chapters: unit.chapters,
-        // Кусок главы подписывается «Глава 2 · 1 из 3»; у записи без глав
-        // куски — просто части, номер им даст подпись.
-        piece: unit.chapters.length ? { n: n + 1, of: count } : null,
-        path: piece.path,
-        bytes: piece.bytes
-      }));
-    }
-    for (const piece of pieces) await discard(piece);
-    count += 1;
-  }
-}
+// Сколько примерок делать, отмеряя кусок временем: каждая — вызов ffmpeg.
+const SLICE_TRIES = 4;
 
 /**
- * Режет запись на части. Отдаёт их по порядку: границы, главы внутри, путь к
- * файлу части и её вес. Путь null — часть совпадает с записью целиком, резать
- * было незачем.
+ * Вырезает начало записи — один кусок не тяжелее предела площадки.
+ *
+ * В канал уходит обложка и начало урока, а смотреть целиком зритель идёт на
+ * площадки. Нарезать ради этого всю запись значит занять ffmpeg на минуты и
+ * выбросить сделанное, поэтому режется ровно один кусок: сперва по границам
+ * глав, а если тяжела и первая глава — по времени, с примеркой веса.
+ * Путь null — запись целиком легче предела, резать нечего.
+ * Вызывается из src/jobs/publish-lesson-parts.js.
  */
-export async function splitIntoParts({
+export async function cutFirstPart({
   durationMs,
   totalBytes,
   chapters = [],
@@ -71,40 +48,26 @@ export async function splitIntoParts({
 }) {
   const limit = Math.floor(limitBytes * SIZE_MARGIN);
   if (totalBytes <= limit) {
-    return [{ startMs: 0, endMs: durationMs, chapters, piece: null, path: null, bytes: totalBytes }];
+    return { startMs: 0, endMs: durationMs, chapters, piece: null, path: null, bytes: totalBytes };
   }
 
   const units = unitsOf(chapters, durationMs);
   const perMs = totalBytes / durationMs;
-  const parts = [];
-  let first = 0;
+  const range = (to) => ({ startMs: 0, endMs: units[to].endMs });
 
-  while (first < units.length) {
-    // Оценка по средней плотности — только отправная точка.
-    let last = first;
-    while (last + 1 < units.length && (units[last + 1].endMs - units[first].startMs) * perMs <= limit) {
-      last += 1;
-    }
+  // Оценка по средней плотности — только отправная точка, вес меряем резкой.
+  let last = 0;
+  while (last + 1 < units.length && units[last + 1].endMs * perMs <= limit) last += 1;
 
-    const range = (to) => ({ startMs: units[first].startMs, endMs: units[to].endMs });
-    let piece = await cut(range(last));
+  let piece = await cut(range(last));
+  while (piece.bytes > limit && last > 0) {
+    await discard(piece);
+    last -= 1;
+    piece = await cut(range(last));
+  }
 
-    // Не влезла — убираем последнюю главу и режем снова.
-    while (piece.bytes > limit && last > first) {
-      await discard(piece);
-      last -= 1;
-      piece = await cut(range(last));
-    }
-
-    // Одна глава (или запись без глав) сама тяжелее предела — делится на куски.
-    if (piece.bytes > limit) {
-      await discard(piece);
-      parts.push(...(await splitEvenly(units[first], { limit, perMs, cut, discard })));
-      first += 1;
-      continue;
-    }
-
-    // Влезла с большим запасом — пробуем добавить следующую главу.
+  if (piece.bytes <= limit) {
+    // Влез с большим запасом — пробуем прихватить следующую главу.
     while (last + 1 < units.length && piece.bytes < limit * GROW_BELOW) {
       const bigger = await cut(range(last + 1));
       if (bigger.bytes > limit) {
@@ -115,15 +78,35 @@ export async function splitIntoParts({
       piece = bigger;
       last += 1;
     }
-
-    parts.push({
-      ...range(last),
-      chapters: units.slice(first, last + 1).flatMap((unit) => unit.chapters),
+    return {
+      startMs: 0,
+      endMs: units[last].endMs,
+      chapters: units.slice(0, last + 1).flatMap((unit) => unit.chapters),
       piece: null,
       path: piece.path,
       bytes: piece.bytes
-    });
-    first = last + 1;
+    };
   }
-  return parts;
+
+  // Даже первая глава тяжелее предела — отмеряем кусок временем.
+  await discard(piece);
+  let endMs = Math.min(units[0].endMs, Math.max(1000, Math.round(limit / perMs)));
+  for (let attempt = 0; attempt < SLICE_TRIES; attempt += 1) {
+    const slice = await cut({ startMs: 0, endMs });
+    if (slice.bytes <= limit) {
+      return {
+        startMs: 0,
+        endMs,
+        chapters: units[0].chapters,
+        piece: null,
+        path: slice.path,
+        bytes: slice.bytes
+      };
+    }
+    await discard(slice);
+    // Промахнулись — укорачиваем по измеренной плотности, с запасом.
+    endMs = Math.max(1000, Math.round(endMs * (limit / slice.bytes) * SIZE_MARGIN));
+  }
+  throw new Error('Не вышло вырезать начало записи в предел площадки');
 }
+

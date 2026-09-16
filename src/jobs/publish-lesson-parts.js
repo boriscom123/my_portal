@@ -18,13 +18,12 @@ import {
 } from '../services/publications.js';
 import { pickVideoAsset } from '../services/platforms/youtube-fields.js';
 import {
-  partTitle,
-  buildPartsCaption,
+  buildFirstPartCaption,
   MAX_TEXT_LIMIT,
   TELEGRAM_CAPTION_LIMIT
 } from '../services/platforms/announcement.js';
 import { chaptersForVideo } from '../lib/chapters.js';
-import { splitIntoParts } from '../lib/video-parts.js';
+import { cutFirstPart } from '../lib/video-parts.js';
 import { runFfmpeg, ffmpegArgsForPart, probeDuration } from '../lib/ffmpeg.js';
 import { ensureTrimRanges } from '../services/trim-ranges.js';
 
@@ -115,8 +114,9 @@ export function makePublishLessonParts(
       await markPublicationState(pool, publicationId, { state: 'uploading' });
       await mkdir(partsDir, { recursive: true });
       let attempt = 0;
-      const parts = await splitIntoParts({
-        durationMs: Math.round(durationSeconds * 1000),
+      const durationMs = Math.round(durationSeconds * 1000);
+      const part = await cutFirstPart({
+        durationMs,
         totalBytes: video.bytes,
         chapters,
         limitBytes: partsLimit(platform, config.telegram?.apiUrl),
@@ -130,16 +130,20 @@ export function makePublishLessonParts(
         discard: (piece) => rm(piece.path, { force: true })
       });
 
-      // У Telegram подпись поста — это подпись первой части (предел 1024); у
-      // MAX текст идёт отдельно от частей, и предел у него свой.
+      // У Telegram подпись поста — это подпись видео (предел 1024); у MAX текст
+      // идёт отдельно, и предел у него свой.
       const limit = platform === 'telegram_parts' ? TELEGRAM_CAPTION_LIMIT : MAX_TEXT_LIMIT;
-      const text = buildPartsCaption({ lesson, parts, publicBaseUrl: config.publicBaseUrl, limit });
-      const files = parts.map((part, index) => ({
-        // Путь null — запись влезла целиком, уходит сам файл.
-        path: part.path ?? input,
-        caption:
-          index === 0 && platform === 'telegram_parts' ? text : partTitle(part, index + 1, parts.length)
-      }));
+      const text = buildFirstPartCaption({
+        lesson,
+        part,
+        durationMs,
+        publicBaseUrl: config.publicBaseUrl,
+        publications: await publicationsFor(pool, lessonId),
+        skipPlatform: ANNOUNCEMENT_OF[platform],
+        limit
+      });
+      // Путь null — запись влезла целиком, уходит сам файл.
+      const files = [{ path: part.path ?? input, caption: text }];
 
       const cover = lesson.coverUrl
         ? assets.find((asset) => `/media/asset/${asset.id}` === lesson.coverUrl)
@@ -169,7 +173,7 @@ export function makePublishLessonParts(
         externalId: result.messageId,
         url: result.url ?? app.link ?? null
       });
-      return { parts: parts.length };
+      return { parts: files.length };
     } catch (error) {
       await markPublicationState(pool, publicationId, {
         state: 'failed',

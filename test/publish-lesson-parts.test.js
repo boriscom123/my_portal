@@ -85,13 +85,15 @@ test('урок уходит в MAX частями не тяжелее преде
       probe: async () => 3600
     })({ lessonId: lesson.id, publicationId });
 
-    // 600 МБ при пределе 250·0,95 — три части.
-    assert.equal(result.parts, 3);
+    // В канал уходит только начало записи: 600 МБ при пределе 250·0,95 — один
+    // кусок, остальное зритель смотрит на площадках.
+    assert.equal(result.parts, 1);
     const sent = adapter.calls[0];
-    assert.equal(sent.parts.length, 3);
+    assert.equal(sent.parts.length, 1);
     assert.match(sent.text, /^Урок про портал/);
+    assert.match(sent.text, /Первые \d+ минут урока/);
     assert.match(sent.text, /https:\/\/p\.example\/lesson\/urok$/);
-    assert.equal(sent.parts[1].caption, 'Часть 2 из 3');
+    assert.doesNotMatch(sent.parts[0].path, /source\.mp4$/, 'уехал исходник целиком');
     assert.equal(sent.multiVideo, true, 'способ ещё не известен — пробуем одним сообщением');
 
     const publication = await publicationById(pool, publicationId);
@@ -153,13 +155,12 @@ test('в облачный Telegram запись режется по его пр�
       probe: async () => 3600
     })({ lessonId: lesson.id, publicationId });
 
-    assert.ok(result.parts > 1, `запись должна была разойтись на части, а вышло ${result.parts}`);
+    // Уезжает один кусок в предел облака, а не исходные 250 МБ целиком.
+    assert.equal(result.parts, 1);
     const sent = adapter.calls[0];
-    assert.equal(sent.parts.length, result.parts);
-    // Ушли нарезанные куски, а не исходный файл целиком.
-    for (const part of sent.parts) {
-      assert.doesNotMatch(part.path, /source\.mp4$/);
-    }
+    assert.equal(sent.parts.length, 1);
+    assert.doesNotMatch(sent.parts[0].path, /source\.mp4$/);
+    assert.match(sent.text, /Первые \d+ минут урока/);
   });
 });
 
