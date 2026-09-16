@@ -1,9 +1,20 @@
 import { keyToBytes } from './push-key.js';
 import { startNavigation } from './navigation.js';
-import { toast, request, reportError, bindProjectFields, projectValues } from './ui.js';
+import {
+  toast,
+  request,
+  reportError,
+  bindProjectFields,
+  projectValues,
+  lockZoomInApp
+} from './ui.js';
 
 // Помощники живут в ui.js; реэкспорт — чтобы не рвать чужие импорты.
 export { toast, request };
+
+// Приложение с домашнего экрана: нажатие в поле увеличивало страницу, а
+// вернуть масштаб в нём нечем — ни щипка, ни адресной строки.
+lockZoomInApp(document, isInstalledApp());
 
 /* Клиент портала: ванильный JS, без сборки.
  *

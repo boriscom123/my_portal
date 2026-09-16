@@ -103,6 +103,27 @@ export function bindProjectFields(form) {
   sync();
 }
 
+/**
+ * Запирает масштаб, когда портал открыт как приложение с домашнего экрана.
+ *
+ * iPhone увеличивает страницу, когда нажимаешь в поле, и обратно не отдаляет.
+ * Во вкладке масштаб возвращают сами: щипком или кнопкой в адресной строке. В
+ * приложении ни того, ни другого нет — страница остаётся увеличенной и ездит
+ * из стороны в сторону, что заказчик и увидел на поле запроса для рисования.
+ * Поэтому в приложении увеличение запрещаем, а во вкладке не трогаем: там оно
+ * право человека, и отнимать его ради удобства нельзя.
+ * Вызывается из public/app.js на каждой странице.
+ */
+export function lockZoomInApp(doc, installed) {
+  if (!installed) return;
+  const meta = doc.querySelector('meta[name="viewport"]');
+  if (!meta) return;
+  const content = meta.getAttribute('content') ?? '';
+  // Второй раз не дописываем: страницы подменяются переходами без перезагрузки.
+  if (content.includes('maximum-scale')) return;
+  meta.setAttribute('content', `${content}, maximum-scale=1`);
+}
+
 /** Поля проектов формы в том виде, в котором их ждёт API. */
 export function projectValues(fields) {
   return { mainSlug: fields.get('mainSlug') ?? '', relatedSlugs: fields.getAll('relatedSlugs') };
