@@ -59,6 +59,9 @@ export function adminReviewPage({
   platforms = [],
   series = [],
   projects = [],
+  // Номер записи в Telegram: есть — значит зрители уже могут получить видео
+  // в личку по ссылке из анонса.
+  telegramFileId = null,
   links
 }) {
   const state = stateLabel(lesson);
@@ -379,6 +382,21 @@ ${
     Публикация показывает урок на витрине и рассылает уведомление подписчикам —
     один раз: повторное сохранение никого не разбудит второй раз. Заголовок,
     описание и теги уходят из блока «Что видит зритель».
+  </p>
+  <p class="hint">
+    Полная запись в Telegram: автор грузит её один раз, дальше зрители получают
+    то же видео мгновенно — по ссылке из анонса. Загрузка идёт минуты.
+  </p>
+  <p class="form-row">
+    <button class="button" type="button" data-telegram-video="${escapeHtml(lesson.slug)}">
+      ${telegramFileId ? 'Загрузить видео заново' : 'Загрузить видео в Telegram'}
+    </button>
+    ${
+      telegramFileId && config.telegram?.botUsername
+        ? `<a class="button" href="https://t.me/${escapeHtml(config.telegram.botUsername)}?start=l${lesson.id}"
+             target="_blank" rel="noopener">Ссылка для зрителей</a>`
+        : ''
+    }
   </p>
   <p class="form-row">
     <!-- Кнопка вне формы, но отправляет именно её (атрибут form): публикация —

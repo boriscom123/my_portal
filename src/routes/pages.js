@@ -23,6 +23,7 @@ import {
   relatedLessons
 } from '../services/series.js';
 import { listProjects, projectsFor, getProjectBySlug } from '../services/projects.js';
+import { telegramFileOfLesson } from '../services/telegram-files.js';
 import { seriesPage } from '../views/series.js';
 import {
   shortsListPage,
@@ -371,6 +372,8 @@ export function pageRoutes(config, pool) {
         series: await listSeries(pool, { includeDrafts: true }),
         // Все проекты — для выбора основного и связанных в блоке «Проект».
         projects: await listProjects(pool),
+        // Загружена ли запись в Telegram: от этого зависит ссылка для зрителей.
+        telegramFileId: await telegramFileOfLesson(pool, lesson.id),
         // Площадки, у которых есть настройки: без ключей кнопка выкладки была бы
         // кнопкой, которая всегда отвечает отказом.
         platforms: (

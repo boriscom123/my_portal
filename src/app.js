@@ -8,6 +8,7 @@ import { version } from './version.js';
 import { notFound, errorHandler } from './middleware/errors.js';
 import { sessionMiddleware } from './middleware/session.js';
 import { authRoutes } from './routes/auth.js';
+import { telegramBotRoutes } from './routes/telegram-bot.js';
 import { pageRoutes } from './routes/pages.js';
 import { pwaRoutes } from './routes/pwa.js';
 import { pushRoutes } from './routes/push.js';
@@ -67,6 +68,10 @@ export function createApp({ config, pool, fetchImpl, queue = null }) {
   // Общий разбор тела — после загрузки, для всех остальных маршрутов.
   app.use(express.json({ limit: '64kb' }));
 
+  // Приёмник обновлений бота: единственный вход без сессии — здесь не
+  // человек с куками, а площадка. Адрес со скрытой частью, её знает только
+  // Telegram.
+  app.use('/api/telegram', telegramBotRoutes(config, pool, fetchImpl));
   app.use('/api/auth', authRoutes(config, pool));
   app.use('/api/integrations', integrationRoutes(config, pool, fetchImpl));
   // Обложки и временные ссылки на файлы буфера. Один маршрут: обложка лежит

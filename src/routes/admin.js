@@ -26,6 +26,7 @@ import {
   markPublicationState
 } from '../services/publications.js';
 import { assetsOfLesson } from '../services/media.js';
+import { pickVideoAsset } from '../services/platforms/youtube-fields.js';
 import {
   pickPublishVideo,
   VIDEO_VERSIONS,
@@ -947,6 +948,26 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
   // это копирование файла на сайт, а обработка занимает у машины полчаса.
   // Сразу после копирования её запускать нельзя: сперва автор убеждается, что
   // скопировалась нужная запись.
+  /**
+   * Загрузить запись урока в Telegram — автору в личку.
+   *
+   * Долгая загрузка делается один раз: площадка возвращает номер файла, и
+   * дальше бот отдаёт то же видео зрителям мгновенно. Кнопка только ставит
+   * задачу: загрузка идёт минуты, а запрос через nginx рвётся на шестидесяти
+   * секундах.
+   */
+  router.post('/lessons/:slug/telegram-video', async (req, res) => {
+    const lesson = await getLessonBySlug(pool, req.params.slug, { includeDrafts: true });
+    if (!lesson) throw new PublicError('Урок не найден', 404);
+    if (!req.app.locals.queue) throw new PublicError('Очередь недоступна', 503);
+
+    const video = pickVideoAsset(await assetsOfLesson(pool, lesson.id));
+    if (!video) throw new PublicError('Записи урока нет в буфере — сначала загрузите её', 409);
+
+    await addJob(req.app.locals.queue, JOBS.uploadLessonVideo, { lessonId: lesson.id });
+    res.json({ started: true });
+  });
+
   router.post('/lessons/:slug/process', async (req, res) => {
     const lesson = await getLessonBySlug(pool, req.params.slug, { includeDrafts: true });
     if (!lesson) throw new PublicError('Урок не найден', 404);

@@ -210,6 +210,27 @@ export async function editTelegramPost({
 }
 
 /**
+ * Пишет человеку в личку от имени бота.
+ * Нужен боту урока: когда отдавать нечего, он должен сказать об этом словами —
+ * молчащий бот человек считает сломанным.
+ * Вызывается из src/routes/telegram-bot.js.
+ */
+export async function sendBotMessage({
+  apiUrl = DEFAULT_API_URL,
+  token,
+  chatId,
+  text,
+  fetchImpl = fetch
+}) {
+  const response = await fetchImpl(botMethod(apiUrl, token, 'sendMessage'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, text, link_preview_options: { is_disabled: true } })
+  });
+  if (!response.ok) await failure(response);
+}
+
+/**
  * Проверка связи с сервером Bot API: getMe по настроенному адресу.
  * Нужна после переезда бота на свой сервер: упавший сервер — это бот, который
  * молчит, и узнать об этом лучше кнопкой в настройках, чем по пропавшим постам.
