@@ -268,6 +268,19 @@ test('обложка урока показывается целиком: на н
   assert.match(rule.slice(0, 300), /object-fit: contain/);
 });
 
+test('плеер ролика не вылезает за карточку', async () => {
+  // Заказчик 2026-09-16: на странице правки видео выходило за рамки блока.
+  // Причина была в двух правилах на один селектор: второе ставило width: auto
+  // без предела по ширине, и вертикальный ролик раздвигал карточку своим
+  // собственным размером.
+  const styles = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
+  const rules = [...styles.matchAll(/\.short-video \{[^}]*\}/g)].map((match) => match[0]);
+  assert.equal(rules.length, 1, `правил .short-video ${rules.length}: они перебивают друг друга`);
+  assert.match(rules[0], /max-width: 100%/, 'плеер шире карточки');
+  assert.match(rules[0], /max-height/, 'вертикаль уйдёт за нижний край экрана');
+  assert.match(rules[0], /object-fit: contain/, 'кадр обрежется');
+});
+
 test('шапка закреплена, иначе ракете некуда лететь', async () => {
   const styles = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
   // Ракета летит к разделу навигации, а для этого раздел обязан оставаться на
