@@ -1705,8 +1705,9 @@ form[action='/search'] input {
 
 /* Правка титров ролика под плеером. Плеер закреплён под шапкой (отступ ставит
    скрипт по её высоте): на телефоне автор слушает и правит одновременно и не
-   должен прокручивать назад к ролику. Высота — не больше двух пятых экрана,
-   иначе на правку не остаётся места. Список не прокручивается сам по себе:
+   должен прокручивать назад к ролику. Высота — не больше пятой части экрана:
+   при двух пятых открытая клавиатура не оставляла места под правку (заказчик
+   2026-09-16). Список не прокручивается сам по себе:
    при вложенной прокрутке закрепление не работает. */
 .subtitle-editor-video {
   position: sticky;
@@ -1714,7 +1715,7 @@ form[action='/search'] input {
   z-index: 5;
   display: block;
   width: 100%;
-  max-height: 40vh;
+  max-height: 20vh;
   margin: 0 0 var(--gap);
   background: #000;
   object-fit: contain;
@@ -1726,7 +1727,7 @@ form[action='/search'] input {
 }
 /* Прокрутка к звучащей реплике ставит её под плеер, а не под него. */
 .subtitle-editor .segment {
-  scroll-margin-top: calc(var(--editor-top, 0px) + 40vh + var(--gap));
+  scroll-margin-top: calc(var(--editor-top, 0px) + 20vh + var(--gap));
 }
 .segment-time {
   background: none;
