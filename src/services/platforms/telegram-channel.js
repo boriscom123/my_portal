@@ -206,7 +206,14 @@ export async function editTelegramPost({
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   });
-  if (!response.ok) await failure(response);
+  if (response.ok) return;
+
+  // Если новый текст совпадает со старым, Telegram отвечает отказом «message is
+  // not modified». Но пост уже в нужном виде — это успех, а не ошибка: иначе
+  // повторное «Обновить» без новых ссылок вешает на урок ложную тревогу.
+  const body = await response.json().catch(() => ({}));
+  if (/message is not modified/i.test(body.description ?? '')) return;
+  throw new Error(`Telegram отказал (${response.status}): ${body.description ?? 'без объяснения'}`);
 }
 
 /**

@@ -70,6 +70,42 @@ test('правка поста в Telegram идёт по номеру сообщ�
   assert.match(sent.body.caption, /youtu\.be/);
 });
 
+test('правка поста с той же подписью — не ошибка', async () => {
+  // Telegram отказывает, если текст не изменился. Но цель правки — пост в
+  // нужном виде, и он уже такой: ругаться здесь не на что.
+  const fetchStub = async () => ({
+    ok: false,
+    status: 400,
+    json: async () => ({
+      ok: false,
+      description:
+        'Bad Request: message is not modified: specified new message content and reply markup are exactly the same as a current content and reply markup of the message'
+    })
+  });
+
+  await editTelegramPost({
+    token: 't',
+    channel: '@k',
+    messageId: '1',
+    photoUrl: 'https://portal.example/media/asset/9',
+    caption: 'c',
+    fetchImpl: fetchStub
+  });
+});
+
+test('прочий отказ Telegram при правке поста не глотается', async () => {
+  const fetchStub = async () => ({
+    ok: false,
+    status: 400,
+    json: async () => ({ ok: false, description: 'Bad Request: message to edit not found' })
+  });
+
+  await assert.rejects(
+    editTelegramPost({ token: 't', channel: '@k', messageId: '1', caption: 'c', fetchImpl: fetchStub }),
+    /message to edit not found/
+  );
+});
+
 test('в MAX картинка кладётся двумя шагами и прикладывается токеном', async () => {
   // Ссылку MAX принимает на словах, а на деле отвечает «Failed to upload image»:
   // он её честно скачивает и всё равно отказывает. Поэтому файл грузится на их
