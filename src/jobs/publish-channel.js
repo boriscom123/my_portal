@@ -275,6 +275,10 @@ export function makeRefreshChannels(config, pool, adapters) {
           caption
         });
         updated += 1;
+        // Прошлая неудачная правка больше не правда: подпись теперь та, что надо.
+        if (publication.error) {
+          await markPublicationState(pool, publication.id, { state: 'published', error: null });
+        }
       } catch (error) {
         // Пост в канале уже стоит и урок не ломает: неудачную правку пишем
         // рядом с ним, а остальные каналы правим дальше.

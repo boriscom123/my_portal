@@ -181,3 +181,28 @@ test('неудачная правка не ломает пост и не меш�
     assert.match(publication.error, /подпись не обновилась/);
   });
 });
+
+test('удачная правка снимает старую ошибку правки', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const { lesson, publicationId } = await seed(pool);
+    const adapter = adapterStub();
+    await makePublishChannel(config, pool, 'telegram', adapter)({
+      lessonId: lesson.id,
+      publicationId
+    });
+
+    const failing = adapterStub({
+      edit: async () => {
+        throw new Error('слишком часто');
+      }
+    });
+    await makeRefreshChannels(config, pool, { telegram: failing })({ lessonId: lesson.id });
+    await makeRefreshChannels(config, pool, { telegram: adapterStub() })({ lessonId: lesson.id });
+
+    // Иначе надпись «подпись не обновилась» висит у урока и после того, как
+    // подпись давно обновилась.
+    const [publication] = await publicationsFor(pool, lesson.id);
+    assert.equal(publication.state, 'published');
+    assert.equal(publication.error, null);
+  });
+});
