@@ -827,7 +827,9 @@ export function pageRoutes(config, pool) {
         // NVIDIA.
         sources: user?.role === 'admin' ? await listSources(pool) : [],
         projects,
-        seriesList
+        seriesList,
+        // Только что заведённую серию настройки открывают сразу на ней.
+        selectedSeries: typeof req.query.series === 'string' ? req.query.series : null
       })
     );
   });

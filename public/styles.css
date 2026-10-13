@@ -2185,6 +2185,44 @@ label[for='cover-file'] {
   margin-bottom: 6px;
 }
 
+/* Выбор серии и кнопка «Добавить» — в одну строку: список растягивается,
+   кнопка стоит по нижнему краю, вровень с полем, а не с подписью. */
+.series-picker {
+  align-items: flex-end;
+  margin-bottom: var(--gap);
+}
+.series-picker > label {
+  flex: 1 1 14rem;
+}
+.series-picker select {
+  width: 100%;
+}
+.series-editor {
+  border-top: 1px solid var(--line);
+  padding-top: var(--gap);
+}
+
+/* Всплывающее окно. Браузер сам держит его поверх страницы и закрывает по
+   Esc; своё здесь — только вид под тему и ширина под телефон. */
+.dialog {
+  width: min(28rem, calc(100vw - 32px));
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: clamp(20px, 3vw, 26px);
+}
+.dialog::backdrop {
+  background: rgb(0 0 0 / 0.5);
+}
+.dialog h3 {
+  margin-top: 0;
+}
+.dialog form {
+  display: grid;
+  gap: 12px;
+}
+
 /* --- Кнопки проектов ---------------------------------------------------- */
 
 /* Основной проект — фирменным цветом, связанные — обычной рамкой: сразу

@@ -518,6 +518,49 @@ function initPage() {
     });
   }
 
+  // Правится одна серия — выбранная в списке. Выбор пишется в адрес, чтобы
+  // после сохранения (страница перезагружается) открылась та же серия.
+  const seriesPicker = document.querySelector('[data-series-picker]');
+  seriesPicker?.addEventListener('change', () => {
+    for (const item of document.querySelectorAll('[data-series-item]')) {
+      item.hidden = item.dataset.seriesItem !== seriesPicker.value;
+    }
+    const address = new URL(location.href);
+    address.searchParams.set('series', seriesPicker.value);
+    history.replaceState(null, '', address);
+  });
+
+  // «Добавить» спрашивает одно название во всплывающем окне; заведённая
+  // серия сразу открывается в списке — дальше её правят там.
+  const seriesDialog = document.querySelector('[data-series-dialog]');
+  const seriesNew = document.querySelector('[data-series-new]');
+  document.querySelector('[data-series-add]')?.addEventListener('click', () => {
+    seriesNew.reset();
+    seriesDialog.showModal();
+  });
+  seriesDialog?.querySelector('[data-series-dialog-close]').addEventListener('click', () => {
+    seriesDialog.close();
+  });
+  seriesNew?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const button = seriesNew.querySelector('button[type=submit]');
+    button.disabled = true;
+    try {
+      const answer = await request('/api/admin/series', {
+        method: 'POST',
+        body: JSON.stringify({ title: new FormData(seriesNew).get('title') })
+      });
+      if (!answer) return;
+      const address = new URL(location.href);
+      address.searchParams.set('series', answer.slug);
+      location.href = address;
+    } catch (error) {
+      toast(`Не завелась: ${error.message}`, true);
+    } finally {
+      button.disabled = false;
+    }
+  });
+
   for (const remove of document.querySelectorAll('[data-series-settings-delete]')) {
     remove.addEventListener('click', async () => {
       if (!confirm('Удалить серию? Уроки останутся, они просто перестанут быть связанными.')) return;

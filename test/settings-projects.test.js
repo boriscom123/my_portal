@@ -73,10 +73,44 @@ test('автор видит разделы «Проекты» и «Серии»,
       assert.match(author, /data-block="series"/);
       assert.match(author, /<form data-series-settings="portal-s-nulya"/);
       assert.match(author, /href="\/series\/portal-s-nulya"/);
+      // Новая серия — кнопкой и окном с одним названием, а не формой в конце
+      // ленты.
+      assert.match(author, /data-series-add/);
+      assert.match(author, /<dialog[^>]*data-series-dialog/);
+      assert.doesNotMatch(author, /data-series-settings=""/);
 
       const guest = await (await fetch(`${base}/settings`)).text();
       assert.doesNotMatch(guest, /data-block="projects"/);
       assert.doesNotMatch(guest, /data-block="series"/);
+    });
+  });
+});
+
+test('серии в настройках: правится одна, выбранная в списке', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    await saveSeries(pool, { title: 'Альфа' });
+    await saveSeries(pool, { title: 'Бета' });
+    const { rows } = await pool.query(
+      `INSERT INTO users (display_name, role) VALUES ('Автор', 'admin') RETURNING id`
+    );
+    const headers = {
+      Accept: 'text/html',
+      Authorization: `Bearer ${signSession({ userId: Number(rows[0].id), role: 'admin' }, config.jwtSecret)}`
+    };
+    const app = finalize(createApp({ config, pool, queue: { add: async () => {} } }));
+
+    await withServer(app, async (base) => {
+      // Без выбора открыта первая по алфавиту, вторая спрятана.
+      const first = await (await fetch(`${base}/settings`, { headers })).text();
+      assert.match(first, /<option value="alfa" selected>Альфа<\/option>/);
+      assert.match(first, /data-series-item="alfa">/);
+      assert.match(first, /data-series-item="beta" hidden>/);
+
+      // Только что заведённая приходит в адресе и открывается сразу.
+      const chosen = await (await fetch(`${base}/settings?series=beta`, { headers })).text();
+      assert.match(chosen, /<option value="beta" selected>Бета<\/option>/);
+      assert.match(chosen, /data-series-item="alfa" hidden>/);
+      assert.match(chosen, /data-series-item="beta">/);
     });
   });
 });

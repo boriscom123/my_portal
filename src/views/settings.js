@@ -25,8 +25,14 @@ export function settingsPage({
   drawing = null,
   sources = [],
   projects = [],
-  seriesList = []
+  seriesList = [],
+  selectedSeries = null
 }) {
+  // Правится одна серия — выбранная в списке. Серий набирается десяток, и
+  // десяток форм подряд превращал блок в ленту, где форма заведения новой
+  // терялась в самом низу. Без выбора открыта первая по алфавиту.
+  const currentSeries =
+    seriesList.find((series) => series.slug === selectedSeries)?.slug ?? seriesList[0]?.slug ?? null;
   return layout({
     config,
     user,
@@ -124,10 +130,30 @@ ${
     Порядок уроков в серии — стрелками на странице серии или номером на экране
     урока. Основной проект серии получают все её уроки.
   </p>
-  <ul class="settings-list">
-    ${seriesList
-      .map(
-        (series) => `<li>
+  <div class="form-row series-picker">
+    ${
+      seriesList.length
+        ? `<label class="field">Серия
+      <select data-series-picker>
+        ${seriesList
+          .map(
+            (series) =>
+              `<option value="${escapeHtml(series.slug)}"${
+                series.slug === currentSeries ? ' selected' : ''
+              }>${escapeHtml(series.title)}</option>`
+          )
+          .join('')}
+      </select>
+    </label>`
+        : '<p class="hint">Серий пока нет — заведите первую.</p>'
+    }
+    <button class="button-brand" type="button" data-series-add>Добавить</button>
+  </div>
+  ${seriesList
+    .map(
+      (series) => `<div class="series-editor" data-series-item="${escapeHtml(series.slug)}"${
+        series.slug === currentSeries ? '' : ' hidden'
+      }>
       <form data-series-settings="${escapeHtml(series.slug)}">
         <label>Название
           <input name="title" value="${escapeHtml(series.title)}" maxlength="200" required>
@@ -147,22 +173,23 @@ ${
           <button class="button" type="button" data-series-settings-delete="${escapeHtml(series.slug)}">Удалить</button>
         </div>
       </form>
-    </li>`
-      )
-      .join('')}
-  </ul>
-  <form data-series-settings="">
-    <label>Название
-      <input name="title" placeholder="Игра с нуля" maxlength="200" required>
-    </label>
-    <label>Описание
-      <textarea name="description" rows="2" maxlength="1000"></textarea>
-    </label>
-    ${projectFields({ projects })}
-    <div class="form-row">
-      <button class="button-brand" type="submit">Завести серию</button>
-    </div>
-  </form>
+    </div>`
+    )
+    .join('')}
+  <!-- Новая серия заводится по одному названию: описание и проекты правятся
+       потом, в форме выбранной серии. -->
+  <dialog class="dialog" data-series-dialog>
+    <form method="dialog" data-series-new>
+      <h3>Новая серия</h3>
+      <label>Название
+        <input name="title" placeholder="Игра с нуля" maxlength="200" required>
+      </label>
+      <div class="form-row">
+        <button class="button-brand" type="submit">Добавить</button>
+        <button class="button" type="button" data-series-dialog-close>Отмена</button>
+      </div>
+    </form>
+  </dialog>
 </details>
 
 <details class="card settings-block" data-block="youtube" open>
