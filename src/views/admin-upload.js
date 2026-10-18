@@ -13,7 +13,39 @@
 // Вызывается из src/routes/pages.js по адресу /admin/upload.
 import { escapeHtml } from '../lib/html.js';
 import { assetUrl } from '../lib/assets.js';
+import { readSettings } from '../lib/settings.js';
 import { layout } from './layout.js';
+
+/**
+ * Карточка «Титры из монтажа»: файл .srt и отметка о вшитых титрах.
+ * Только когда урок известен: файл уходит сразу при выборе, и ему нужен урок
+ * до того, как автор нажмёт что-нибудь ещё. Без урока то же самое есть на
+ * экране урока.
+ */
+function subtitlesCard(lesson) {
+  const { burnedSubtitles } = readSettings(lesson.settings);
+  return `<section class="card" data-imported-subtitles="${lesson.id}">
+  <h2>Титры из монтажа</h2>
+  <p class="hint">
+    Если титры сделаны в CapCut, приложите выгруженный оттуда файл .srt — сайт
+    возьмёт текст из него и не будет распознавать речь заново. Файл
+    проверяется сразу, до загрузки видео.
+  </p>
+  <label>Файл титров (.srt)
+    <input type="file" accept=".srt,application/x-subrip,text/plain" data-subtitles-file>
+  </label>
+  <p class="hint" data-subtitles-status>Файл не выбран — речь распознается как обычно.</p>
+  <label class="checkbox-row">
+    <input type="checkbox" data-burned-subtitles ${burnedSubtitles ? 'checked' : ''}>
+    Титры уже вшиты в видео
+  </label>
+  <p class="hint">
+    Тогда сайт не накладывает свои титры поверх в плеере, не отдаёт дорожку
+    субтитров на YouTube и не режет из урока вертикальные ролики — иначе на
+    кадре вышли бы две строки.
+  </p>
+</section>`;
+}
 
 export function adminUploadPage({
   config,
@@ -79,6 +111,8 @@ ${
     ? ''
     : '<p class="hint">Уроков пока нет — сначала заведите урок, потом загружайте файл.</p>'
 }
+
+${lesson ? subtitlesCard(lesson) : ''}
 
 <form id="upload-form" class="card">
   ${

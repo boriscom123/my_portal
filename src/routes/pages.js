@@ -10,6 +10,7 @@ import { adminUploadPage } from '../views/admin-upload.js';
 import { lessonsPage } from '../views/lessons-page.js';
 import { lessonNewPage } from '../views/lesson-new.js';
 import { settingsPage } from '../views/settings.js';
+import { readSettings } from '../lib/settings.js';
 import { newsListPage, newsPage, newsEditPage } from '../views/news.js';
 import { listNews, getNewsBySlug } from '../services/news.js';
 import { privacyPage, termsPage } from '../views/legal.js';
@@ -329,7 +330,7 @@ export function pageRoutes(config, pool) {
     );
     const trimmed = assets.find((row) => row.kind === 'trimmed');
     const { rows: transcript } = await pool.query(
-      'SELECT text FROM transcripts WHERE lesson_id = $1',
+      'SELECT text, provider FROM transcripts WHERE lesson_id = $1',
       [lesson.id]
     );
     // Реплики с временами: их правит автор прямо на экране проверки.
@@ -371,6 +372,7 @@ export function pageRoutes(config, pool) {
           expiresLabel: new Date(row.expires_at).toLocaleDateString('ru-RU')
         })),
         transcript: transcript[0]?.text ?? null,
+        transcriptProvider: transcript[0]?.provider ?? null,
         // Без токена рисования кнопка неактивна и объясняет, где его взять.
         drawingReady: Boolean((await loadDrawingSettings(pool, config)).token),
         // Обложек у урока бывает две: кадр из записи и нарисованная. Автор
@@ -519,7 +521,12 @@ export function pageRoutes(config, pool) {
     // Нарезки из уроков — здесь же: нарезка и есть способ завести ролик.
     // Страница только для автора (requireAdmin), поэтому проверять роль ещё раз
     // незачем.
-    const lessons = await listLessons(pool, { includeDrafts: true, limit: 200 });
+    // Уроки с вшитыми титрами в выбор не попадают: вертикальный кадр из
+    // середины горизонтального обрезал бы их строки по краям, а свои подписи
+    // поверх дали бы две строки. Автор такие уроки не режет.
+    const lessons = (await listLessons(pool, { includeDrafts: true, limit: 200 })).filter(
+      (lesson) => !readSettings(lesson.settings).burnedSubtitles
+    );
     const chosen = req.query.lesson
       ? await getLessonBySlug(pool, String(req.query.lesson), { includeDrafts: true })
       : null;
@@ -547,11 +554,12 @@ export function pageRoutes(config, pool) {
       );
       hasTranscript = count.n > 0;
     }
+    const burned = chosen ? readSettings(chosen.settings).burnedSubtitles : false;
     res.type('html').send(
       shortNewPage({
         config,
         user: await currentUser(pool, req),
-        clipsPanel: { lessons, chosen, clips, made, hasTranscript }
+        clipsPanel: { lessons, chosen, clips, made, hasTranscript, burned }
       })
     );
   });

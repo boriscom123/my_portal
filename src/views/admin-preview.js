@@ -7,6 +7,7 @@
 // накладывает сам: вшивать их ради просмотра незачем.
 // Вызывается из src/routes/pages.js по адресу /admin/lesson/:slug/preview.
 import { escapeHtml } from '../lib/html.js';
+import { readSettings } from '../lib/settings.js';
 import { layout } from './layout.js';
 
 export function adminPreviewPage({ config, user, lesson, videoUrl, subtitlesUrl }) {
@@ -36,7 +37,11 @@ ${
   ${
     subtitlesUrl
       ? `<track kind="subtitles" srclang="ru" label="Русские субтитры"
-              src="${escapeHtml(subtitlesUrl)}" default>`
+              src="${escapeHtml(subtitlesUrl)}"${
+                // Титры уже на картинке: свои поверх дали бы две строки. Дорожка
+                // остаётся — её можно включить в плеере, чтобы сверить текст.
+                readSettings(lesson.settings).burnedSubtitles ? '' : ' default'
+              }>`
       : ''
   }
   Ваш браузер не умеет показывать видео.

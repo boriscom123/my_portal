@@ -46,6 +46,45 @@ export async function uploadFile(file, lessonId, onProgress) {
   return finished.json();
 }
 
+/**
+ * Отправляет файл титров .srt к уроку.
+ * Готовую расшифровку сервер без подтверждения не заменит: правки в
+ * редакторе титров пропали бы молча. Поэтому на его отказ переспрашиваем
+ * автора и повторяем с согласием. Возвращает ответ сервера или null, если
+ * автор передумал.
+ * Вызывается из обработчиков карточки «Титры из монтажа» ниже.
+ */
+export async function sendSubtitles(lessonId, file) {
+  const send = (query) =>
+    fetch(`/api/upload/subtitles/${lessonId}${query}`, { method: 'PUT', body: file });
+
+  let response = await send('');
+  if (response.status === 409) {
+    const body = await response.json().catch(() => ({}));
+    if (!/Подтвердите замену/.test(body.error ?? '')) {
+      throw new Error(body.error ?? 'сервер отказал');
+    }
+    if (!confirm('У урока уже есть расшифровка. Заменить её титрами из файла? Правки в ней пропадут.')) {
+      return null;
+    }
+    response = await send('?replace=1');
+  }
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error ?? `сервер ответил ${response.status}`);
+  }
+  return response.json();
+}
+
+/** Время для автора: «12:05» или «1:02:03». */
+function clock(ms) {
+  const total = Math.round(ms / 1000);
+  const hours = Math.floor(total / 3600);
+  const minutes = String(Math.floor((total % 3600) / 60)).padStart(hours ? 2 : 1, '0');
+  const seconds = String(total % 60).padStart(2, '0');
+  return hours ? `${hours}:${minutes}:${seconds}` : `${minutes}:${seconds}`;
+}
+
 /* --- Страничные обработчики ---------------------------------------------
  *
  * Всё это привязано к узлам внутри main, а при переходе без перезагрузки
@@ -68,7 +107,10 @@ export function initPage() {
   form?.addEventListener('submit', async (event) => {
     event.preventDefault();
     const file = form.querySelector('input[type=file]').files[0];
-    const lessonId = Number(form.querySelector('select').value);
+    // Урок — выпадающим списком или скрытым полем, когда автор пришёл со
+    // своего урока. Искали только список, и со страницы урока загрузка с
+    // компьютера падала, не начавшись.
+    const lessonId = Number(form.elements.lessonId?.value);
     if (!file || !lessonId) {
       toast('Выберите урок и файл.', true);
       return;
@@ -98,6 +140,67 @@ export function initPage() {
     } finally {
       button.disabled = false;
     }
+  });
+
+  /* --- Титры из монтажа ------------------------------------------------- */
+
+  // Карточка есть на странице загрузки и на экране урока. Файл уходит сразу
+  // при выборе: ошибка формата должна быть видна до часовой загрузки видео.
+  document.querySelectorAll('[data-imported-subtitles]').forEach((card) => {
+    const lessonId = card.dataset.importedSubtitles;
+    const input = card.querySelector('[data-subtitles-file]');
+    const status = card.querySelector('[data-subtitles-status]');
+
+    input?.addEventListener('change', async () => {
+      const file = input.files[0];
+      if (!file) return;
+      if (status) status.textContent = 'Проверяю файл…';
+      try {
+        const answer = await sendSubtitles(lessonId, file);
+        if (!answer) {
+          if (status) status.textContent = 'Оставил прежнюю расшифровку.';
+          input.value = '';
+          return;
+        }
+        const summary = `Титры приняты: ${answer.segments} реплик, до ${clock(answer.lastEndedMs)}.`;
+        if (status) status.textContent = `${summary} Речь распознаваться не будет.`;
+        toast(summary);
+        // На экране урока перечитываем страницу: расшифровка в редакторе
+        // должна стать новой, а собирать её здесь заново — дублировать сервер.
+        if (card.matches('[data-reload]')) setTimeout(() => location.reload(), 800);
+      } catch (error) {
+        if (status) status.textContent = `Не принят: ${error.message}`;
+        toast(`Файл титров не принят: ${error.message}`, true);
+        input.value = '';
+      }
+    });
+
+    card.querySelector('[data-burned-subtitles]')?.addEventListener('change', async (event) => {
+      const box = event.target;
+      try {
+        await request(`/api/upload/burned/${lessonId}`, {
+          method: 'POST',
+          body: JSON.stringify({ burned: box.checked })
+        });
+        toast(box.checked ? 'Отмечено: титры вшиты в видео.' : 'Отметка о вшитых титрах снята.');
+      } catch (error) {
+        box.checked = !box.checked;
+        toast(`Не сохранилось: ${error.message}`, true);
+      }
+    });
+
+    card.querySelector('[data-subtitles-remove]')?.addEventListener('click', async () => {
+      if (!confirm('Убрать загруженные титры? Расшифровки у урока не останется — нажмите «Обработать», чтобы распознать речь.')) {
+        return;
+      }
+      try {
+        await request(`/api/upload/subtitles/${lessonId}`, { method: 'DELETE' });
+        toast('Загруженные титры убраны.');
+        setTimeout(() => location.reload(), 800);
+      } catch (error) {
+        toast(`Не убралось: ${error.message}`, true);
+      }
+    });
   });
 
   /* --- Подключение Яндекс Диска ------------------------------------------- */

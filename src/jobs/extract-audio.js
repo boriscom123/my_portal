@@ -10,6 +10,7 @@ import path from 'node:path';
 import { runFfmpeg, ffmpegArgsForAudio, probeDuration } from '../lib/ffmpeg.js';
 import { mediaPath, registerAsset, assetById } from '../services/media.js';
 import { addJob } from '../queue.js';
+import { hasImportedSubtitles } from '../services/imported-subtitles.js';
 
 export function makeExtractAudio(config, pool, queue) {
   return async ({ lessonId }) => {
@@ -59,7 +60,14 @@ export function makeExtractAudio(config, pool, queue) {
 
     // Следующий шаг ставим сами: знание о порядке конвейера живёт в шагах, а
     // не размазано по вызывающим.
-    await addJob(queue, 'transcribe', { lessonId, audioAssetId: asset.id });
+    //
+    // Титры загружены из монтажа — распознавать нечего: whisper затёр бы
+    // вычитанный автором текст своим. Сразу собираем субтитры.
+    if (await hasImportedSubtitles(pool, lessonId)) {
+      await addJob(queue, 'subtitles', { lessonId });
+    } else {
+      await addJob(queue, 'transcribe', { lessonId, audioAssetId: asset.id });
+    }
     return { audioAssetId: asset.id, bytes: size, duration };
   };
 }

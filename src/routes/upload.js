@@ -23,6 +23,7 @@ import { getNewsBySlug } from '../services/news.js';
 import { attachNewsImage } from '../services/news-images.js';
 import { getLessonBySlug } from '../services/lessons.js';
 import { getShortBySlug, setShortFile } from '../services/shorts.js';
+import { importSubtitles, removeImportedSubtitles } from '../services/imported-subtitles.js';
 import { probeFrameSize, runFfmpeg, ffmpegArgsForCover } from '../lib/ffmpeg.js';
 import { addJob } from '../queue.js';
 
@@ -38,6 +39,10 @@ const COVER_LIMIT = 10 * 1024 * 1024;
 // десятки, а всё, что больше, — это уже не короткий ролик, и площадки его не
 // возьмут.
 const SHORT_LIMIT = 300 * 1024 * 1024;
+
+// Предел для файла титров. Часовой урок — это сотня килобайт текста; два
+// мегабайта с запасом, а больше — уже не титры.
+const SUBTITLES_LIMIT = 2 * 1024 * 1024;
 
 /**
  * Приводит имя файла к безопасному виду.
@@ -168,6 +173,70 @@ export function uploadRoutes(config, pool) {
     ]);
 
     res.json({ assetId: asset.id, bytes: bytes.length, type });
+  });
+
+  // Титры из монтажа: файл .srt, выгруженный из CapCut вместе с видео.
+  //
+  // Одним запросом, как обложка: файл маленький. Разбирается сразу, а не на
+  // шаге конвейера — ошибку формата автор видит в форме загрузки, а не через
+  // полчаса как «обработка упала».
+  router.put('/subtitles/:lessonId', async (req, res) => {
+    const lessonId = Number(req.params.lessonId);
+    const { rows } = await pool.query(
+      `SELECT l.pipeline_state, t.lesson_id IS NOT NULL AS has_transcript
+         FROM lessons l LEFT JOIN transcripts t ON t.lesson_id = l.id
+        WHERE l.id = $1`,
+      [lessonId]
+    );
+    if (!rows[0]) throw new PublicError('Урок не найден', 404);
+    // Идущая расшифровка записала бы свой текст поверх загруженного.
+    if (rows[0].pipeline_state === 'processing') {
+      throw new PublicError('Урок сейчас обрабатывается. Дождитесь окончания', 409);
+    }
+    // Замена — только с явного согласия: правки автора в редакторе титров
+    // пропали бы молча. Подтверждение спрашивает страница, а отказ живёт здесь.
+    if (rows[0].has_transcript && req.query.replace !== '1') {
+      throw new PublicError('У урока уже есть расшифровка. Подтвердите замену', 409);
+    }
+
+    const chunks = [];
+    let size = 0;
+    for await (const chunk of req) {
+      size += chunk.length;
+      if (size > SUBTITLES_LIMIT) throw new PublicError('Файл титров больше двух мегабайт', 413);
+      chunks.push(chunk);
+    }
+
+    let result;
+    try {
+      result = await importSubtitles(config, pool, lessonId, Buffer.concat(chunks).toString('utf8'));
+    } catch (error) {
+      // Ошибки разбора написаны для автора — отдаём их как есть.
+      if (/^(Файл титров|В файле титров)/.test(error.message)) {
+        throw new PublicError(error.message, 422);
+      }
+      throw error;
+    }
+    res.json(result);
+  });
+
+  // Убрать загруженные титры: урок снова пойдёт через распознавание речи.
+  router.delete('/subtitles/:lessonId', async (req, res) => {
+    const removed = await removeImportedSubtitles(config, pool, Number(req.params.lessonId));
+    res.json({ removed });
+  });
+
+  // Отметка «титры уже вшиты в видео» со страницы загрузки. Сливается с
+  // остальными настройками урока, а не заменяет их: обводка и паузы, выбранные
+  // раньше, не должны сброситься от одной галочки.
+  router.post('/burned/:lessonId', async (req, res) => {
+    const { rowCount } = await pool.query(
+      `UPDATE lessons SET settings = settings || jsonb_build_object('burnedSubtitles', $1::boolean)
+        WHERE id = $2`,
+      [req.body?.burned === true, Number(req.params.lessonId)]
+    );
+    if (!rowCount) throw new PublicError('Урок не найден', 404);
+    res.json({ burned: req.body?.burned === true });
   });
 
   // Картинка новости. Устроена как обложка урока: тот же предел, та же проверка

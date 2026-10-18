@@ -113,3 +113,40 @@ test('исчезнувший с диска файл объясняется че�
     );
   });
 });
+
+test('титры загружены из монтажа — после звука идут субтитры, а не whisper',
+  { ...skipWithoutFfmpeg }, async () => {
+  const config = await makeConfig();
+  await withTestDb(async (pool) => {
+    const lesson = await saveLesson(pool, { slug: 'urok', title: 'Урок' });
+    await mkdir(path.join(config.media.dir, `lesson-${lesson.id}`), { recursive: true });
+    const relative = `lesson-${lesson.id}/source.mp4`;
+    await makeSample(path.join(config.media.dir, relative));
+    const source = await registerAsset(pool, config, {
+      lessonId: lesson.id,
+      kind: 'source',
+      relativePath: relative,
+      bytes: 1000
+    });
+    await pool.query('UPDATE lessons SET source_asset_id = $1 WHERE id = $2', [
+      source.id,
+      lesson.id
+    ]);
+    await pool.query(
+      `INSERT INTO transcripts (lesson_id, text, provider) VALUES ($1, 'вычитано', 'srt')`,
+      [lesson.id]
+    );
+
+    const added = [];
+    await makeExtractAudio(config, pool, {
+      add: async (name, data) => added.push({ name, data })
+    })({ lessonId: lesson.id });
+
+    assert.deepEqual(added.map((job) => job.name), ['subtitles']);
+    // Длительность нужна и такому уроку: по ней карточка и нарезка пауз.
+    const { rows } = await pool.query('SELECT duration_seconds FROM lessons WHERE id = $1', [
+      lesson.id
+    ]);
+    assert.equal(rows[0].duration_seconds, 5);
+  });
+});

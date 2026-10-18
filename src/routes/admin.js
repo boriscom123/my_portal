@@ -1108,6 +1108,13 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
     if (!rows[0].n) {
       throw new PublicError('Нарезать нечего: расшифровки у урока нет', 409);
     }
+    // Кнопки у такого урока нет, но запрос можно послать и мимо неё.
+    if (readSettings(lesson.settings).burnedSubtitles) {
+      throw new PublicError(
+        'У урока титры вшиты в видео: в вертикальном кадре они обрежутся. Ролики из него не режутся',
+        409
+      );
+    }
 
     await pool.query(
       `UPDATE lessons SET pipeline_state = 'processing', pipeline_error = NULL WHERE id = $1`,

@@ -45,12 +45,45 @@ function assetRow(asset) {
 }
 
 
+/**
+ * Титры из монтажа на экране урока: приложить файл .srt позже или убрать.
+ * Отметка «вшиты» здесь не повторяется — она в «Как готовить урок».
+ */
+function importedSubtitlesBlock(lesson, imported, hasSegments) {
+  return `<div data-imported-subtitles="${lesson.id}" data-reload>
+  <p class="hint">
+    ${
+      imported
+        ? 'Расшифровка взята из загруженного файла титров — речь не распознавалась.'
+        : hasSegments
+          ? 'Титры сделаны в CapCut? Файл .srt заменит эту расшифровку — сайт спросит подтверждение.'
+          : 'Титры сделаны в CapCut? Приложите файл .srt — распознавать речь не придётся.'
+    }
+  </p>
+  <div class="form-row">
+    <label class="button" for="subtitles-file-${lesson.id}">
+      ${imported ? 'Заменить файл титров' : 'Приложить файл титров (.srt)'}
+    </label>
+    <input id="subtitles-file-${lesson.id}" type="file" hidden
+           accept=".srt,application/x-subrip,text/plain" data-subtitles-file>
+    ${
+      imported
+        ? '<button class="button" type="button" data-subtitles-remove>Убрать загруженные титры</button>'
+        : ''
+    }
+  </div>
+  <p class="hint" data-subtitles-status></p>
+</div>`;
+}
+
 export function adminReviewPage({
   config,
   user,
   lesson,
   assets,
   transcript,
+  // Откуда расшифровка: 'srt' — титры из монтажа, остальное — распознавание.
+  transcriptProvider = null,
   segments = [],
   covers = [],
   sideError = null,
@@ -163,9 +196,12 @@ ${
            </button>
          </p>
          ${
-           processed
-             ? '<p class="hint">Субтитры уже есть — повтор перезапишет их.</p>'
-             : '<p class="hint">Субтитров пока нет.</p>'
+           transcriptProvider === 'srt'
+             ? // Титры из монтажа повтор не трогает: whisper пропускается.
+               '<p class="hint">Титры загружены из файла: обработка снимет звук и соберёт субтитры, речь распознаваться не будет.</p>'
+             : processed
+               ? '<p class="hint">Субтитры уже есть — повтор перезапишет их.</p>'
+               : '<p class="hint">Субтитров пока нет.</p>'
          }`
       : '<p class="hint">Сначала загрузите запись — обрабатывать нечего.</p>'
   }
@@ -208,6 +244,7 @@ ${
            <pre class="transcript">${escapeHtml(transcript)}</pre>`
         : '<p class="hint">Расшифровки нет — шаг ещё не выполнен.</p>'
   }
+  ${importedSubtitlesBlock(lesson, transcriptProvider === 'srt', segments.length > 0)}
   ${
     links.subtitles.length
       ? `<p class="hint">Субтитры (ссылка живёт час):</p>
@@ -616,8 +653,9 @@ ${
       На записи уже есть наложенные титры
     </label>
     <p class="hint">
-      Если титры уже на записи, в вертикальные ролики свои вшиваться не будут:
-      иначе выйдут две строки подписей друг под другом.
+      Если титры уже на записи, сайт не накладывает свои поверх в плеере, не
+      отдаёт дорожку субтитров на YouTube и не режет из урока вертикальные
+      ролики: иначе выйдут две строки подписей друг под другом.
     </p>
     <label>Пауза короче этой не режется, секунд
       <input name="minPauseSeconds" type="number" min="0.5" max="30" step="0.5"

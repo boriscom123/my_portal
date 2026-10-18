@@ -40,7 +40,14 @@ export function shortPlayer(short, src = null) {
  * Выбор урока — обычной формой с адресом: работает и без скрипта, и страницу
  * с выбранным уроком можно открыть по ссылке.
  */
-function clipsPanelHtml({ lessons = [], chosen = null, clips = [], made = [], hasTranscript = false }) {
+function clipsPanelHtml({
+  lessons = [],
+  chosen = null,
+  clips = [],
+  made = [],
+  hasTranscript = false,
+  burned = false
+}) {
   return `<section class="card">
   <h2>Нарезки из уроков</h2>
   <p class="hint">
@@ -66,7 +73,13 @@ function clipsPanelHtml({ lessons = [], chosen = null, clips = [], made = [], ha
     <button class="button" type="submit">Показать</button>
   </form>
   ${
-    chosen
+    chosen && burned
+      ? // Урок мог открыться по старой ссылке: в списке выбора его уже нет.
+        `<p class="hint">
+           У этого урока титры вшиты в видео: в вертикальном кадре они
+           обрезались бы по краям. Ролики из него не режутся.
+         </p>`
+      : chosen
       ? `${
           clips.length
             ? `<ul class="clip-list">${clips
