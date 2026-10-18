@@ -7,7 +7,7 @@
 import { loadConfig } from './config.js';
 import { createPool } from './db.js';
 import { waitForSchema } from './migrate.js';
-import { createQueue, createWorker, scheduleCleanup, isPipelineJob, JOBS } from './queue.js';
+import { createQueue, createWorker, scheduleCleanup, scheduleAgent, isPipelineJob, JOBS } from './queue.js';
 import { createWebPushChannel } from './services/notify/webpush.js';
 import { createTelegramChannel } from './services/notify/telegram.js';
 import { notifyJobDone } from './services/notify/lesson.js';
@@ -62,6 +62,16 @@ import { makeUploadLessonVideo } from './jobs/upload-lesson-video.js';
 import { makePublishInstagram } from './jobs/publish-instagram.js';
 import { instagramAccess } from './services/platforms/instagram-auth.js';
 import {
+  makeAgentCollect,
+  makeAgentRender,
+  makeAgentPublish,
+  makePublishYoutubeShort
+} from './jobs/agent.js';
+import { createTts } from './services/tts.js';
+import { tellAdmin } from './services/agent-bot.js';
+import { getDraft } from './services/shorts-agent.js';
+import { youtubeApp } from './services/platform-apps.js';
+import {
   createReelContainer,
   containerStatus,
   publishContainer,
@@ -114,6 +124,40 @@ const maxAdapter = {
   edit: editMaxPost,
   postParts: postPartsToMax
 };
+
+// Куда агент роликов выкладывает после «Выложить». ready — подключена ли
+// площадка сейчас; неподключённая пропускается, остальные не ждут.
+const agentPlatforms = [
+  {
+    name: 'telegram',
+    title: 'Telegram',
+    job: JOBS.publishTelegram,
+    ready: async (db, cfg) => (await channelApp(db, cfg, 'telegram')).configured,
+    mode: async () => 'auto'
+  },
+  {
+    name: 'max',
+    title: 'MAX',
+    job: JOBS.publishMax,
+    ready: async (db, cfg) => (await channelApp(db, cfg, 'max')).configured,
+    mode: async () => 'auto'
+  },
+  {
+    name: 'instagram',
+    title: 'Instagram',
+    job: JOBS.publishInstagram,
+    ready: async (db, cfg) => Boolean(await instagramAccess(db, cfg)),
+    mode: async () => 'auto'
+  },
+  {
+    name: 'youtube',
+    title: 'YouTube Shorts',
+    job: JOBS.publishYoutubeShort,
+    ready: async (db, cfg) => Boolean(await youtubeAccessToken(db, cfg).catch(() => null)),
+    // Режим приложения: до проверки Google ролик ляжет приватным.
+    mode: async (db, cfg) => (await youtubeApp(db, cfg)).mode
+  }
+];
 
 // Обработчики шагов конвейера. Добавляются по мере готовности.
 const handlers = {
@@ -180,8 +224,48 @@ const handlers = {
   [JOBS.refreshPost]: makeRefreshPost(config, pool, {
     telegram: telegramAdapter,
     max: maxAdapter
+  }),
+  [JOBS.agentCollect]: makeAgentCollect(config, pool, queue, createTexts(config)),
+  [JOBS.agentRender]: makeAgentRender(config, pool, {
+    tts: createTts(config),
+    speech,
+    texts: createTexts(config)
+  }),
+  [JOBS.agentPublish]: makeAgentPublish(config, pool, queue, agentPlatforms),
+  [JOBS.publishYoutubeShort]: makePublishYoutubeShort(config, pool, {
+    accessToken: youtubeAccessToken,
+    startUploadSession,
+    uploadVideoFile
   })
 };
+
+/**
+ * Итог выкладки ролика агента — автору в личку: он нажал «Выложить» и ушёл,
+ * а узнать, где ролик вышел, а где нет, должен без захода в кабинет.
+ */
+const AGENT_PUBLISH_TITLES = {
+  [JOBS.publishTelegram]: 'Telegram',
+  [JOBS.publishMax]: 'MAX',
+  [JOBS.publishInstagram]: 'Instagram',
+  [JOBS.publishYoutubeShort]: 'YouTube Shorts'
+};
+async function reportAgentPublication(job, error = null) {
+  const where = AGENT_PUBLISH_TITLES[job?.name];
+  if (!where || !job.data?.shortId) return;
+  const draft = await getDraft(pool, job.data.shortId);
+  if (!draft) return;
+  const { rows } = await pool.query('SELECT url, state FROM publications WHERE id = $1', [
+    job.data.publicationId
+  ]);
+  const text = error
+    ? `❌ «${draft.script.title}» не ушёл в ${where}: ${error.message}`
+    : rows[0]?.state === 'ready'
+      ? `☑️ «${draft.script.title}» загружен в ${where} приватным — сделайте публичным в студии: ${rows[0].url}`
+      : `✅ «${draft.script.title}» вышел в ${where}${rows[0]?.url ? `: ${rows[0].url}` : ''}`;
+  await tellAdmin(config, text).catch((sendError) =>
+    console.error('Агент: итог выкладки автору не ушёл:', sendError.message)
+  );
+}
 
 const worker = createWorker(config, handlers);
 
@@ -239,6 +323,7 @@ const DONE_MESSAGES = {
 
 worker.on('completed', async (job) => {
   console.log(`Задача ${job.name} выполнена`);
+  await reportAgentPublication(job);
 
   const message = DONE_MESSAGES[job.name];
   if (!message || !job?.data?.lessonId) return;
@@ -251,6 +336,7 @@ worker.on('completed', async (job) => {
 
 worker.on('failed', async (job, err) => {
   console.error(`Задача ${job?.name} упала: ${err.message}`);
+  await reportAgentPublication(job, err);
   // Причину видит автор в кабинете, а не только журнал контейнера: с телефона
   // до журнала не добраться, а понять, почему урок застрял, нужно именно там.
   // Отказ рисования картинки к новости — рядом с новостью: у неё нет ни
@@ -302,6 +388,7 @@ worker.on('failed', async (job, err) => {
 });
 
 await scheduleCleanup(queue);
+await scheduleAgent(queue);
 
 console.log(`Воркер поднят, известные шаги: ${Object.values(JOBS).join(', ')}`);
 

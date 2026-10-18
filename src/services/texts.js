@@ -16,6 +16,14 @@
 // Портал обязан работать без модели.
 // Вызывается из src/routes/admin.js.
 
+import {
+  buildPickPrompt,
+  parsePickResponse,
+  buildScriptPrompt,
+  parseScriptResponse,
+  PICK_SCHEMA,
+  SCRIPT_SCHEMA
+} from './agent-prompts.js';
 import { parseTimecode } from '../lib/chapters.js';
 
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -595,6 +603,18 @@ export function createTexts(config, fetchImpl = fetch) {
      * двадцати пяти секундах новости Gemini не успевал, и обложка рисовалась
      * по запасному шаблону.
      */
+    /** Агент роликов: лучшие темы из свежих новостей. Ждёт воркер. */
+    async pickShortTopics(items, count) {
+      const { body, model: name } = await ask(buildPickPrompt(items, count), PICK_SCHEMA);
+      return { picks: parsePickResponse(body, items, count), model: name };
+    },
+
+    /** Агент роликов: сценарий по новости, с поправкой автора, если она есть. */
+    async writeShortScript(topic, options = {}) {
+      const { body, model: name } = await ask(buildScriptPrompt(topic, options), SCRIPT_SCHEMA);
+      return { ...parseScriptResponse(body), model: name };
+    },
+
     async suggestCoverPrompt(lesson) {
       const { body, model: name } = await ask(buildCoverImagePrompt(lesson), {
         type: 'object',

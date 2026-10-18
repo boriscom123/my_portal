@@ -55,6 +55,12 @@ export const JOBS = {
   uploadLessonVideo: 'uploadLessonVideo',
   // Текст ролика для площадок: расшифровка и подпись от модели. По кнопке.
   suggestShortTexts: 'suggestShortTexts',
+  // Агент роликов: сбор тем (по расписанию и кнопкой), сборка ролика, выкладка
+  // после «Выложить» и выкладка ролика на YouTube как Shorts.
+  agentCollect: 'agentCollect',
+  agentRender: 'agentRender',
+  agentPublish: 'agentPublish',
+  publishYoutubeShort: 'publishYoutubeShort',
   // Титры, вшитые в картинку ролика: смотреть без звука. По кнопке.
   burnShortSubtitles: 'burnShortSubtitles'
 };
@@ -76,6 +82,21 @@ export async function scheduleCleanup(queue, { everyMs = 60 * 60 * 1000 } = {}) 
     'cleanup-media',
     { every: everyMs },
     { name: JOBS.cleanupMedia, data: {}, opts: { removeOnComplete: 24, removeOnFail: 24 } }
+  );
+}
+
+/**
+ * Ставит агента роликов на расписание: раз в час он смотрит, не пора ли
+ * собирать. Час сбора задаёт автор в настройках, а они живут в базе и
+ * меняются из api — поэтому проверка «пора ли» внутри задачи, а не в cron
+ * планировщика: иначе каждую правку часа пришлось бы переносить в Redis.
+ * Вызывается из src/worker.js при старте.
+ */
+export async function scheduleAgent(queue, { everyMs = 60 * 60 * 1000 } = {}) {
+  return queue.upsertJobScheduler(
+    'shorts-agent',
+    { every: everyMs },
+    { name: JOBS.agentCollect, data: { scheduled: true }, opts: { removeOnComplete: 24, removeOnFail: 24 } }
   );
 }
 
@@ -161,6 +182,13 @@ const NO_RETRY_JOBS = new Set([
   // Instagram по той же причине, и ещё по одной: площадка обрабатывает ролик у
   // себя минутами, и повтор поверх незаконченной обработки кладёт второй Reels.
   JOBS.publishInstagram,
+  JOBS.publishYoutubeShort,
+  // Агент: повтор сборки прислал бы автору второй такой же черновик, повтор
+  // сбора — второе сообщение о той же ошибке модели. Следующий сбор будет
+  // через час сам.
+  JOBS.agentCollect,
+  JOBS.agentRender,
+  JOBS.agentPublish,
   // Рисование обложки: слой рисования сам перебирает модели на «занято», а
   // повтор всей задачи через полминуты снимал бы отметку «рисуется» на первой
   // неудаче и потом молча менял обложку. Повторить автор может одной кнопкой.

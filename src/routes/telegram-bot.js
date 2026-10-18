@@ -1,5 +1,8 @@
 // Приёмник обновлений бота: зритель нажал «Start» — получил урок.
 //
+// Через этот же бот автору приходят черновики агента роликов: кнопки под
+// ними и его ответы (голосовое, поправка) разбирает src/services/agent-replies.js.
+//
 // Задача — отдать полную запись урока в личку тому, кто пришёл по ссылке
 // t.me/бот?start=l36 из анонса. Запись уже загружена автором, поэтому уходит
 // по номеру файла: мгновенно и без траты трафика.
@@ -15,6 +18,7 @@ import { createHash } from 'node:crypto';
 import { getLessonById } from '../services/lessons.js';
 import { telegramFileOfLesson } from '../services/telegram-files.js';
 import { sendStoredVideo, sendBotMessage } from '../services/platforms/telegram-channel.js';
+import { handleAgentUpdate } from '../services/agent-replies.js';
 
 /** Скрытая часть адреса: из токена, чтобы не заводить ещё одну настройку. */
 export function webhookSecret(config) {
@@ -46,6 +50,19 @@ export function telegramBotRoutes(config, pool, fetchImpl = fetch) {
     }
     const message = req.body?.message;
     const chatId = message?.chat?.id;
+
+    // Сначала — агенту: нажатие кнопки под черновиком или ответ автора. Его
+    // отказ не должен оставить Telegram без 200 — иначе он будет слать то же
+    // нажатие снова и снова.
+    try {
+      if (await handleAgentUpdate(config, pool, req.app.locals.queue, req.body, fetchImpl)) {
+        return res.json({ ok: true });
+      }
+    } catch (error) {
+      console.error('Агент не разобрал ответ автора:', error.message);
+      return res.json({ ok: true });
+    }
+
     // Площадка повторяет обновление, пока не получит 200. Отвечаем всегда —
     // и всегда ПОСЛЕ работы: ответ раньше дела означал бы, что об отказе никто
     // не узнает, а проверить отправку нечем.

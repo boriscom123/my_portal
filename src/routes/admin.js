@@ -53,6 +53,7 @@ import {
 import { createTexts } from '../services/texts.js';
 import { collectAnnouncements, forgetAnnouncements } from '../services/announcements.js';
 import { listSources, addSource, removeSource, toggleSource } from '../services/news-sources.js';
+import { saveAgentSettings } from '../services/shorts-agent.js';
 import { youtubeAccessToken } from '../services/platforms/youtube-auth.js';
 import { instagramAccess } from '../services/platforms/instagram-auth.js';
 import { youtubeApp, channelApp } from '../services/platform-apps.js';
@@ -660,6 +661,23 @@ export function adminRoutes(config, pool, fetchImpl = fetch) {
   });
 
   // Список источников правит автор: сегодня их девять, завтра появится NVIDIA.
+  // Агент роликов: сколько роликов в день, в какой час собирать, каким голосом.
+  router.post('/agent/settings', async (req, res) => {
+    try {
+      res.json(await saveAgentSettings(pool, req.body ?? {}));
+    } catch (error) {
+      throw new PublicError(error.message, 400);
+    }
+  });
+
+  // «Собрать сейчас»: полная норма роликов, не дожидаясь часа по расписанию.
+  // Работа — в воркере: выбор тем и сценарии моделью идут минутами.
+  router.post('/agent/collect', async (req, res) => {
+    if (!req.app.locals.queue) throw new PublicError('Очередь недоступна', 503);
+    await addJob(req.app.locals.queue, JOBS.agentCollect, { manual: true });
+    res.json({ started: true });
+  });
+
   router.get('/news/sources', async (req, res) => {
     res.json({ sources: await listSources(pool) });
   });

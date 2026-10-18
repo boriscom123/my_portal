@@ -16,6 +16,82 @@ import { escapeHtml } from '../lib/html.js';
 import { layout } from './layout.js';
 import { projectFields } from './project-links.js';
 
+// Как назвать состояние черновика автору.
+const DRAFT_STATES = {
+  rendering: 'собирается',
+  awaiting: 'ждёт решения',
+  voice_wait: 'ждёт голосовое',
+  redo_wait: 'ждёт поправку',
+  published: 'выложен',
+  rejected: 'выброшен',
+  failed: 'не собрался'
+};
+
+/**
+ * Блок агента роликов: сколько роликов в день, когда, каким голосом, и
+ * последние черновики. Сами черновики приходят в личку от бота — здесь только
+ * обзор, чтобы видеть, что агент жив.
+ */
+function agentBlock({ settings, voices, botUsername, hasChat, recent }) {
+  return `<details class="card settings-block" data-block="agent" open>
+  <summary><h2>Агент роликов</h2></summary>
+  <p class="hint">
+    Каждый день агент берёт свежие новости из источников анонсов ниже, выбирает
+    лучшие, пишет сценарий и собирает вертикальный ролик с голосом и титрами.
+    Готовый ролик приходит вам в личку от
+    ${botUsername ? `<a href="https://t.me/${escapeHtml(botUsername)}">@${escapeHtml(botUsername)}</a>` : 'бота портала'}
+    с кнопками «Выложить», «Надиктую сам», «Переделать», «Выбросить». Без
+    «Выложить» никуда ничего не уходит.
+  </p>
+  ${
+    hasChat
+      ? ''
+      : '<p class="hint danger">В ADMIN_IDENTITIES нет Telegram-номера — черновики некуда присылать.</p>'
+  }
+  <p class="hint">Если черновики не приходят — откройте бота и нажмите «Start»: писать первым бот не может.</p>
+  <form data-agent-form>
+    <label class="checkbox-row">
+      <input type="checkbox" name="enabled" ${settings.enabled ? 'checked' : ''}>
+      Собирать по расписанию
+    </label>
+    <label>Роликов в день
+      <input name="perDay" type="number" min="1" max="10" value="${settings.perDay}">
+    </label>
+    <label>Час сбора по Москве
+      <input name="runHour" type="number" min="0" max="23" value="${settings.runHour}">
+    </label>
+    <label>Голос
+      <select name="voice">
+        ${voices
+          .map(
+            (voice) =>
+              `<option value="${escapeHtml(voice.name)}"${voice.name === settings.voice ? ' selected' : ''}>${escapeHtml(voice.title)}</option>`
+          )
+          .join('')}
+      </select>
+    </label>
+    <div class="form-row">
+      <button class="button-brand" type="submit">Сохранить</button>
+      <button class="button" type="button" data-agent-collect>Собрать сейчас</button>
+    </div>
+  </form>
+  ${
+    recent.length
+      ? `<p class="hint">Последние черновики:</p>
+         <ul>${recent
+           .map(
+             (row) =>
+               `<li><a href="/short/${encodeURIComponent(row.slug)}">${escapeHtml(row.title)}</a>
+                 <span class="meta">— ${escapeHtml(DRAFT_STATES[row.state] ?? row.state)}</span></li>`
+           )
+           .join('')}</ul>`
+      : '<p class="hint">Черновиков пока не было.</p>'
+  }
+</details>
+
+`;
+}
+
 export function settingsPage({
   config,
   user,
@@ -24,6 +100,7 @@ export function settingsPage({
   shortPlatforms = [],
   drawing = null,
   sources = [],
+  agent = null,
   projects = [],
   seriesList = [],
   selectedSeries = null
@@ -389,7 +466,7 @@ ${
 
 `
     : ''
-}<details class="card settings-block" data-block="sources" open>
+}${agent ? agentBlock(agent) : ''}<details class="card settings-block" data-block="sources" open>
   <summary><h2>Источники анонсов</h2></summary>
   <p class="hint">
     Их ленты портал показывает в форме новости — по кнопке «Свежие анонсы».

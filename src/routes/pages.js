@@ -11,6 +11,8 @@ import { lessonsPage } from '../views/lessons-page.js';
 import { lessonNewPage } from '../views/lesson-new.js';
 import { settingsPage } from '../views/settings.js';
 import { readSettings } from '../lib/settings.js';
+import { loadAgentSettings, AGENT_VOICES } from '../services/shorts-agent.js';
+import { adminChatId } from '../services/agent-bot.js';
 import { newsListPage, newsPage, newsEditPage } from '../views/news.js';
 import { listNews, getNewsBySlug } from '../services/news.js';
 import { privacyPage, termsPage } from '../views/legal.js';
@@ -834,6 +836,22 @@ export function pageRoutes(config, pool) {
         // Источники анонсов правит автор: сегодня их девять, завтра появится
         // NVIDIA.
         sources: user?.role === 'admin' ? await listSources(pool) : [],
+        // Агент роликов и его последние черновики — только автору.
+        agent: isAuthor
+          ? {
+              settings: await loadAgentSettings(pool),
+              voices: AGENT_VOICES,
+              botUsername: config.telegram?.botUsername ?? '',
+              hasChat: Boolean(adminChatId(config)),
+              recent: (
+                await pool.query(
+                  `SELECT s.title, s.slug, d.state, d.updated_at
+                     FROM agent_drafts d JOIN shorts s ON s.id = d.short_id
+                    ORDER BY d.updated_at DESC LIMIT 8`
+                )
+              ).rows
+            }
+          : null,
         projects,
         seriesList,
         // Только что заведённую серию настройки открывают сразу на ней.

@@ -79,11 +79,36 @@ services:
       redis:
         condition: service_started
         required: false
+    # Своя сеть проекта — явно: на VPS оверлей добавляет воркеру общую сеть с
+    # базой, и без этой строки своя пропала бы, а с ней и синтезатор речи
+    # (tts живёт только в ней).
+    networks:
+      default:
     volumes:
       - portal_media:/app/media
       # Модель распознавания: 182 МБ, качаются один раз и переживают
       # пересборку образа. В образ не кладём — иначе их тянула бы каждая сборка.
       - portal_models:/app/models
+
+  # Синтез речи для роликов агента. Отдельный контейнер: Piper собран под
+  # glibc, а портал живёт на Alpine — подробности в tts/Dockerfile. Порт
+  # наружу не публикуется: голос нужен только воркеру, по внутренней сети.
+  tts:
+    build: ./tts
+    restart: unless-stopped
+    # Замерено: голос среднего качества держит около двухсот мегабайт на время
+    # синтеза. Потолок — чтобы чужая ошибка не съела память машины, где и так
+    # 3.8 ГБ на всё.
+    mem_limit: 400m
+    memswap_limit: 400m
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    volumes:
+      # Голоса по 60 МБ: качаются при первом запросе и переживают пересборку.
+      - portal_voices:/voices
 
   # Своя база и своя очередь — только для запуска на отдельной машине. На VPS
   # их заменяют общие postgres и redis из слоя ClaudeDocker: держать вторые
@@ -135,6 +160,7 @@ services:
     restart: unless-stopped
 
 volumes:
+  portal_voices:
   portal_db:
   portal_media:
   portal_models:

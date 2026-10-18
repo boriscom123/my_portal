@@ -398,6 +398,41 @@ function initPage() {
     });
   }
 
+  /* --- Агент роликов ------------------------------------------------------- */
+
+  const agentForm = document.querySelector('[data-agent-form]');
+  agentForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const fields = new FormData(agentForm);
+    try {
+      const answer = await request('/api/admin/agent/settings', {
+        method: 'POST',
+        body: JSON.stringify({
+          enabled: fields.get('enabled') === 'on',
+          perDay: Number(fields.get('perDay')),
+          runHour: Number(fields.get('runHour')),
+          voice: fields.get('voice')
+        })
+      });
+      if (answer) toast('Настройки агента сохранены.');
+    } catch (error) {
+      toast(`Не сохранилось: ${error.message}`, true);
+    }
+  });
+
+  document.querySelector('[data-agent-collect]')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try {
+      const answer = await request('/api/admin/agent/collect', { method: 'POST' });
+      if (answer) toast('Агент собирает ролики — пришлёт в Telegram через несколько минут.');
+    } catch (error) {
+      toast(`Не запустилось: ${error.message}`, true);
+    } finally {
+      button.disabled = false;
+    }
+  });
+
   /* --- Источники анонсов ---------------------------------------------------- */
 
   const sourceForm = document.querySelector('[data-source-form]');

@@ -32,9 +32,10 @@ if (config.telegram.botToken && config.publicBaseUrl.startsWith('https://')) {
   fetch(`${api}/bot${config.telegram.botToken}/setWebhook`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    // Только сообщения: остальные обновления боту урока не нужны, а лишний
-    // поток — лишняя работа и лишний повод для повторов.
-    body: JSON.stringify({ url, allowed_updates: ['message'] })
+    // Сообщения и нажатия кнопок: кнопки нужны агенту роликов («Выложить»,
+    // «Выбросить» под черновиком). Остальные обновления боту не нужны, а
+    // лишний поток — лишняя работа и лишний повод для повторов.
+    body: JSON.stringify({ url, allowed_updates: ['message', 'callback_query'] })
   })
     .then(async (response) => {
       const body = await response.json().catch(() => ({}));
