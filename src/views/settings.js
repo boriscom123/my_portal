@@ -21,6 +21,7 @@ const DRAFT_STATES = {
   rendering: 'собирается',
   awaiting: 'ждёт решения',
   voice_wait: 'ждёт голосовое',
+  film_wait: 'ждёт видео',
   redo_wait: 'ждёт поправку',
   published: 'выложен',
   rejected: 'выброшен',

@@ -1,4 +1,5 @@
-// Ответы автора агенту роликов: кнопки под черновиком, голосовое, поправка.
+// Ответы автора агенту роликов: кнопки под черновиком, голосовое, своё видео,
+// поправка.
 //
 // Задача — превратить обновление от Telegram в переход черновика и задачу
 // очереди. Здесь ничего долгого: Telegram ждёт ответа на обновление недолго и
@@ -13,7 +14,24 @@ import { getDraft, moveDraft, draftWaitingFor } from './shorts-agent.js';
 import { addJob, JOBS } from '../queue.js';
 
 // Из каких состояний кнопки действуют: всё, где черновик ещё ждёт решения.
-const OPEN = ['awaiting', 'voice_wait', 'redo_wait'];
+const OPEN = ['awaiting', 'voice_wait', 'film_wait', 'redo_wait'];
+
+// Сколько Telegram отдаёт боту через облачный Bot API. Больше — только через
+// свой сервер Bot API (TELEGRAM_API_URL), у него предела почти нет.
+const CLOUD_FILE_LIMIT = 20 * 1024 * 1024;
+
+/**
+ * Видео из сообщения: обычное, кружок или файлом. Файлом — лучший вариант:
+ * обычное видео Telegram пережимает, и в ролик ушла бы уже потерянная
+ * картинка.
+ */
+export function videoOf(message) {
+  if (message.video) return message.video;
+  if (message.video_note) return message.video_note;
+  const document = message.document;
+  if (document && String(document.mime_type ?? '').startsWith('video/')) return document;
+  return null;
+}
 
 async function onButton(config, pool, queue, query, fetchImpl) {
   const button = parseButton(query.data);
@@ -60,6 +78,19 @@ async function onButton(config, pool, queue, query, fetchImpl) {
     return true;
   }
 
+  if (button.action === ACTIONS.film) {
+    if (!(await moveDraft(pool, draft.shortId, { from: OPEN, to: 'film_wait' }))) return closed().then(() => true);
+    await answerButton(config, query.id, '', fetchImpl);
+    await tellAdmin(
+      config,
+      '🎥 Снимите вертикальное видео по этому тексту — своими словами, до минуты — и пришлите сюда. ' +
+        'Лучше файлом (скрепка → Файл): так Telegram его не пережмёт. Титры и логотип наложу сам.\n\n' +
+        (draft.script.sentences ?? []).join(' '),
+      fetchImpl
+    );
+    return true;
+  }
+
   if (button.action === ACTIONS.redo) {
     if (!(await moveDraft(pool, draft.shortId, { from: OPEN, to: 'redo_wait' }))) return closed().then(() => true);
     await answerButton(config, query.id, '', fetchImpl);
@@ -88,6 +119,36 @@ async function rebuild(config, pool, queue, draft, { to, fields, outcome, rewrit
 
 async function onMessage(config, pool, queue, message, fetchImpl) {
   if (!isAdmin(config, message.from?.id)) return false;
+
+  const video = videoOf(message);
+  if (video) {
+    const draft = await draftWaitingFor(pool, 'film_wait');
+    if (!draft) return false;
+    if (!config.telegram?.apiUrl && Number(video.file_size ?? 0) > CLOUD_FILE_LIMIT) {
+      // Черновик остаётся ждать видео: автор пришлёт покороче или сжатое.
+      await tellAdmin(
+        config,
+        '🎥 Видео больше 20 МБ — Telegram не отдаёт боту такие файлы. Пришлите покороче или в меньшем качестве.',
+        fetchImpl
+      );
+      return true;
+    }
+    await rebuild(
+      config,
+      pool,
+      queue,
+      draft,
+      {
+        to: 'rendering',
+        fields: { voice: 'film', authorFileId: video.file_id },
+        outcome: '🎥 Собираю из вашего видео',
+        rewrite: false
+      },
+      fetchImpl
+    );
+    await tellAdmin(config, '🎥 Видео получено: накладываю титры и логотип — пришлю через пару минут.', fetchImpl);
+    return true;
+  }
 
   const voice = message.voice ?? message.audio;
   if (voice) {

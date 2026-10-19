@@ -139,7 +139,8 @@ test('настройки агента проверяются', skipWithoutDb, as
     assert.deepEqual(await loadAgentSettings(pool), {
       enabled: true,
       perDay: 2,
-      runHour: 10,
+      // 7 утра по Москве — перенесено автором 2026-10-19 (было 10).
+      runHour: 7,
       // Выбран автором по образцам 2026-10-18.
       voice: 'ruslan'
     });

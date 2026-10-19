@@ -59,6 +59,7 @@ const press = (action, shortId, from = ADMIN) => ({
 
 test('кнопка разбирается, чужие данные — нет', () => {
   assert.deepEqual(parseButton('agent:publish:12'), { action: 'publish', shortId: 12 });
+  assert.deepEqual(parseButton('agent:film:12'), { action: 'film', shortId: 12 });
   assert.equal(parseButton('agent:delete:12'), null);
   assert.equal(parseButton('other:publish:12'), null);
 });
@@ -128,6 +129,55 @@ test('«Надиктую сам» → голосовое автора перес
     assert.equal(draft.voice, 'author');
     assert.equal(draft.authorFileId, 'F1');
     assert.deepEqual(queue.added.at(-1), { name: 'agentRender', data: { shortId, rewrite: false } });
+  });
+});
+
+test('«Сниму сам» → видео автора файлом уходит в сборку', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const shortId = await seedDraft(pool);
+    const queue = fakeQueue();
+    const { calls, fetchImpl } = fakeTelegram();
+    await handleAgentUpdate(config, pool, queue, press('film', shortId), fetchImpl);
+    assert.equal((await getDraft(pool, shortId)).state, 'film_wait');
+    assert.ok(calls.some((call) => /Файл[\s\S]*Раз\. Два\./.test(call.body?.text ?? '')), 'текст и подсказка прислана');
+
+    // Файлом — лучший путь: обычное видео Telegram пережимает.
+    const film = {
+      message: {
+        from: { id: ADMIN },
+        chat: { id: ADMIN },
+        document: { file_id: 'V1', mime_type: 'video/mp4', file_size: 5_000_000 }
+      }
+    };
+    assert.equal(await handleAgentUpdate(config, pool, queue, film, fetchImpl), true);
+    const draft = await getDraft(pool, shortId);
+    assert.equal(draft.state, 'rendering');
+    assert.equal(draft.voice, 'film');
+    assert.equal(draft.authorFileId, 'V1');
+    assert.deepEqual(queue.added.at(-1), { name: 'agentRender', data: { shortId, rewrite: false } });
+  });
+});
+
+test('видео больше 20 МБ без своего Bot API — черновик ждёт другое', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    const shortId = await seedDraft(pool, 'film_wait');
+    const queue = fakeQueue();
+    const { calls, fetchImpl } = fakeTelegram();
+    const cloud = { ...config, telegram: { botToken: 'T' } };
+    const film = { message: { from: { id: ADMIN }, chat: { id: ADMIN }, video: { file_id: 'V2', file_size: 60_000_000 } } };
+    assert.equal(await handleAgentUpdate(cloud, pool, queue, film, fetchImpl), true);
+    assert.equal((await getDraft(pool, shortId)).state, 'film_wait');
+    assert.deepEqual(queue.added, []);
+    assert.match(calls.at(-1).body.text, /20 МБ/);
+  });
+});
+
+test('видео без ожидающего «Сниму сам» — не агенту', skipWithoutDb, async () => {
+  await withTestDb(async (pool) => {
+    await seedDraft(pool, 'voice_wait');
+    const { fetchImpl } = fakeTelegram();
+    const film = { message: { from: { id: ADMIN }, chat: { id: ADMIN }, video: { file_id: 'V3' } } };
+    assert.equal(await handleAgentUpdate(config, pool, fakeQueue(), film, fetchImpl), false);
   });
 });
 

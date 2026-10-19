@@ -6,6 +6,7 @@
 // написано «код 1», и автор не узнал бы, что файл повреждён.
 // Вызывается из задач в src/jobs/.
 import { spawn } from 'node:child_process';
+import { withLogo } from './logo.js';
 
 // Сколько последних строк вывода сохраняем для объяснения. Больше незачем:
 // причина отказа всегда в конце, а начало — это перечень кодеков на экран.
@@ -156,6 +157,8 @@ export function ffmpegArgsForClip({
   ]
     .filter(Boolean)
     .join(',');
+  // Знак поверх всего, включая титры: им он не мешает — титры внизу, знак сверху.
+  const graph = withLogo(filter);
 
   return [
     '-hide_banner',
@@ -165,7 +168,7 @@ export function ffmpegArgsForClip({
     '-ss', String(startSeconds),
     '-i', input,
     '-t', String(durationSeconds),
-    '-vf', filter,
+    '-vf', graph,
     // Пресет быстрее обычного: на двух ядрах медленный отнимает машину
     // вчетверо дольше, а разница в весе ролика на минуту незаметна.
     '-c:v', 'libx264',
@@ -217,7 +220,7 @@ export function ffmpegArgsForBurnedSubtitles({ input, subtitles, output, style =
     '-hide_banner',
     '-loglevel', 'error',
     '-i', input,
-    '-vf', subtitlesFilter(subtitles, style),
+    '-vf', withLogo(subtitles ? subtitlesFilter(subtitles, style) : ''),
     '-c:v', 'libx264',
     '-preset', 'veryfast',
     '-crf', '23',

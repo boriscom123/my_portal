@@ -172,6 +172,55 @@ test('сборка: вертикальный ролик уходит автор�
   });
 });
 
+test('«Сниму сам»: горизонтальное видео автора режется в вертикаль с титрами', { ...needsFfmpeg, ...skipWithoutDb }, async () => {
+  const config = await makeConfig();
+  await withTestDb(async (pool) => {
+    const draft = await createDraft(pool, {
+      topic: { url: 'https://n/1', title: 'Новость', source: 'X', summary: '' },
+      script: SCRIPT
+    });
+    await moveDraft(pool, draft.shortId, {
+      from: ['rendering'],
+      to: 'rendering',
+      fields: { voice: 'film', authorFileId: 'V1' }
+    });
+    // Видео «с телефона» лежит на диске: свой сервер Bot API отдаёт путь к
+    // файлу, а не адрес для скачивания.
+    const filmed = path.join(config.media.dir, 'filmed.mp4');
+    await new Promise((resolve, reject) => {
+      const child = spawn('ffmpeg', [
+        '-hide_banner', '-loglevel', 'error',
+        '-f', 'lavfi', '-i', 'color=c=green:s=640x360:d=2',
+        '-f', 'lavfi', '-i', 'sine=frequency=300:duration=2',
+        '-c:v', 'libx264', '-c:a', 'aac', '-shortest', '-y', filmed
+      ]);
+      child.on('error', reject);
+      child.on('close', (code) => (code === 0 ? resolve() : reject(new Error('нет видео'))));
+    });
+    const { calls, fetchImpl: base } = fakeTelegram();
+    const fetchImpl = async (url, options) =>
+      String(url).endsWith('/getFile')
+        ? { ok: true, json: async () => ({ ok: true, result: { file_path: filmed } }) }
+        : base(url, options);
+    const heard = [];
+    const speech = {
+      transcribe: async (file) => (heard.push(file), { segments: [{ startedMs: 0, endedMs: 1500, text: 'Привет из кадра' }] })
+    };
+    const tts = { synthesize: async () => assert.fail('синтезатор не нужен — говорит автор') };
+
+    await makeAgentRender(config, pool, { tts, speech, fetchImpl })({ shortId: draft.shortId });
+
+    assert.equal((await getDraft(pool, draft.shortId)).state, 'awaiting');
+    assert.equal(heard.length, 1, 'титры — по речи автора в видео');
+    const frame = await probeFrameSize(path.join(config.media.dir, `short-${draft.shortId}/vertical.mp4`));
+    assert.deepEqual(frame, { width: 1080, height: 1920 });
+    assert.ok(calls.some((call) => call.method === 'sendVideo'));
+    const { rows } = await pool.query('SELECT transcript, title FROM shorts WHERE id = $1', [draft.shortId]);
+    assert.equal(rows[0].transcript, 'Привет из кадра');
+    assert.equal(rows[0].title, SCRIPT.title, 'подписи для площадок — из сценария');
+  });
+});
+
 test('сборка упала — черновик failed, автор узнаёт', skipWithoutDb, async () => {
   const config = await makeConfig();
   await withTestDb(async (pool) => {

@@ -27,7 +27,7 @@ export async function loadAgentSettings(pool) {
   const { rows } = await pool.query(
     'SELECT enabled, per_day, run_hour, voice FROM agent_settings WHERE id'
   );
-  const row = rows[0] ?? { enabled: true, per_day: 2, run_hour: 10, voice: 'ruslan' };
+  const row = rows[0] ?? { enabled: true, per_day: 2, run_hour: 7, voice: 'ruslan' };
   return { enabled: row.enabled, perDay: row.per_day, runHour: row.run_hour, voice: row.voice };
 }
 

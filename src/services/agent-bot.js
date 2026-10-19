@@ -18,6 +18,7 @@ const PREFIX = 'agent';
 export const ACTIONS = {
   publish: 'publish',
   voice: 'voice',
+  film: 'film',
   redo: 'redo',
   reject: 'reject'
 };
@@ -43,17 +44,22 @@ export function buttonData(action, shortId) {
 
 /** Разбирает данные кнопки; null — кнопка не агента или испорчена. */
 export function parseButton(data) {
-  const match = /^agent:(publish|voice|redo|reject):(\d+)$/.exec(String(data ?? ''));
+  const match = /^agent:(publish|voice|film|redo|reject):(\d+)$/.exec(String(data ?? ''));
   return match ? { action: match[1], shortId: Number(match[2]) } : null;
 }
 
-/** Кнопки под черновиком: две строки, чтобы на телефоне подписи не обрезались. */
+/**
+ * Кнопки под черновиком. Три пути к ролику — выложить как есть, надиктовать,
+ * снять самому — и две служебные. По две в строке, чтобы на телефоне подписи
+ * не обрезались; «Выложить» — одна в первой строке: это главное действие.
+ */
 export function draftKeyboard(shortId) {
   return {
     inline_keyboard: [
+      [{ text: '✅ Выложить', callback_data: buttonData(ACTIONS.publish, shortId) }],
       [
-        { text: '✅ Выложить', callback_data: buttonData(ACTIONS.publish, shortId) },
-        { text: '🎙 Надиктую сам', callback_data: buttonData(ACTIONS.voice, shortId) }
+        { text: '🎙 Надиктую сам', callback_data: buttonData(ACTIONS.voice, shortId) },
+        { text: '🎥 Сниму сам', callback_data: buttonData(ACTIONS.film, shortId) }
       ],
       [
         { text: '🔁 Переделать', callback_data: buttonData(ACTIONS.redo, shortId) },

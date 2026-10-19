@@ -1,13 +1,16 @@
 // Сборка вертикального ролика агента из голоса и титров.
 //
 // Задача — сделать ролик без единого чужого кадра: фон рисует сам ffmpeg
-// (медленный градиент в цветах портала), сверху крупный заголовок на первые
-// секунды, по центру — титры, под ними имя канала. Чужие картинки и видео на
+// (медленный градиент в цветах портала), сверху логотип, под ним крупный
+// заголовок на первые секунды, по центру — титры. Чужие картинки и видео на
 // монетизируемых площадках — жалобы правообладателей, поэтому их здесь нет.
 //
 // Кадр 1080×1920, 30 кадров в секунду — то, что берут все площадки коротких
 // видео без пересжатия с потерями.
-// Вызывается из src/jobs/agent-render.js.
+// Здесь же — сборка из видео, которое снял сам автор («Сниму сам»).
+// Вызывается из src/jobs/agent.js.
+import { withLogo } from './logo.js';
+import { subtitlesFilter } from './ffmpeg.js';
 
 export const FRAME = { width: 1080, height: 1920, fps: 30 };
 
@@ -73,17 +76,10 @@ export function ffmpegArgsForVoice({ inputs, durationsMs, output, gapMs = SENTEN
 
 /**
  * Аргументы ffmpeg для самого ролика.
- * headlineFile и brandFile — файлы с текстом: так в drawtext не приходится
- * экранировать кавычки и двоеточия заголовка, а они в новостях бывают всегда.
+ * headlineFile — файл с текстом: так в drawtext не приходится экранировать
+ * кавычки и двоеточия заголовка, а они в новостях бывают всегда.
  */
-export function ffmpegArgsForAgentVideo({
-  audio,
-  subtitles,
-  headlineFile,
-  brandFile,
-  durationSeconds,
-  output
-}) {
+export function ffmpegArgsForAgentVideo({ audio, subtitles, headlineFile, durationSeconds, output }) {
   const { width, height, fps } = FRAME;
   const seconds = Math.max(1, durationSeconds).toFixed(3);
   // Тёмный фон в цветах портала: глубокий синий в фиолетовый. Медленно:
@@ -91,17 +87,13 @@ export function ffmpegArgsForAgentVideo({
   const background =
     `gradients=s=${width}x${height}:r=${fps}:d=${seconds}:speed=0.008:` +
     'c0=0x0b1026:c1=0x2a1b6b:c2=0x0f3a5f:n=3';
-  const video = [
-    `[0:v]format=yuv420p`,
-    // Заголовок — в верхней трети, крупно, первые секунды.
+  const chain = [
+    'format=yuv420p',
+    // Заголовок — в верхней трети под логотипом, крупно, первые секунды.
     `drawtext=fontfile=${FONT_BOLD}:textfile=${escapePath(headlineFile)}:fontsize=84:` +
       'fontcolor=white:line_spacing=18:text_align=center:x=(w-text_w)/2:y=h*0.18:' +
       'box=1:boxcolor=0x000000@0.35:boxborderw=28:' +
       `enable='lt(t\\,${HEADLINE_SECONDS})'`,
-    // Имя канала внизу — всё время: ролик, пересланный без подписи, всё равно
-    // говорит, откуда он.
-    `drawtext=fontfile=${FONT_BOLD}:textfile=${escapePath(brandFile)}:fontsize=40:` +
-      'fontcolor=white@0.75:x=(w-text_w)/2:y=h*0.86',
     // Титры по центру кадра: внизу их закрывают кнопки площадок. Alignment=10
     // — середина кадра в старой нумерации SSA, которой libass читает стиль у
     // srt; по «цифровой клавиатуре» (5) титры уехали в левый верхний угол —
@@ -109,6 +101,9 @@ export function ffmpegArgsForAgentVideo({
     `subtitles=${escapePath(subtitles)}:force_style='FontName=DejaVu Sans,Bold=1,Fontsize=13,` +
       "PrimaryColour=&HFFFFFF,OutlineColour=&H000000,Outline=1.4,Shadow=0,Alignment=10,MarginL=20,MarginR=20'"
   ].join(',');
+  // Логотип — всё время: ролик, пересланный без подписи, всё равно говорит,
+  // откуда он. Он и заменил прежнюю строку с именем канала внизу кадра.
+  const video = withLogo(chain, { input: '[0:v]', output: '[v]' });
 
   return [
     '-hide_banner',
@@ -116,7 +111,7 @@ export function ffmpegArgsForAgentVideo({
     '-f', 'lavfi',
     '-i', background,
     '-i', audio,
-    '-filter_complex', `${video}[v]`,
+    '-filter_complex', video,
     '-map', '[v]',
     '-map', '1:a',
     '-c:v', 'libx264',
@@ -126,6 +121,41 @@ export function ffmpegArgsForAgentVideo({
     '-c:a', 'aac',
     '-b:a', '128k',
     '-shortest',
+    '-movflags', '+faststart',
+    '-y',
+    output
+  ];
+}
+
+/**
+ * Аргументы ffmpeg для ролика из видео автора.
+ *
+ * Кадр приводится к 1080×1920: вертикальное видео телефона просто
+ * масштабируется, горизонтальное или квадратный кружок режется по центру —
+ * чёрные поля выглядят перезаливом с другого сервиса. Титры — внизу, как у
+ * нарезок из уроков: в середине кадра лицо автора. Сверху — логотип.
+ * Поворот, записанный телефоном пометкой, ffmpeg применяет при чтении сам.
+ */
+export function ffmpegArgsForAuthorFilm({ input, subtitles, output, style = {} }) {
+  const { width, height, fps } = FRAME;
+  const chain = [
+    `scale=${width}:${height}:force_original_aspect_ratio=increase`,
+    `crop=${width}:${height}`,
+    'setsar=1',
+    `fps=${fps}`,
+    subtitlesFilter(subtitles, style)
+  ].join(',');
+  return [
+    '-hide_banner',
+    '-loglevel', 'error',
+    '-i', input,
+    '-vf', withLogo(chain),
+    '-c:v', 'libx264',
+    '-preset', 'veryfast',
+    '-crf', '23',
+    '-pix_fmt', 'yuv420p',
+    '-c:a', 'aac',
+    '-b:a', '128k',
     '-movflags', '+faststart',
     '-y',
     output

@@ -27,15 +27,14 @@ import {
   layoutSentences,
   ffmpegArgsForVoice,
   ffmpegArgsForAgentVideo,
+  ffmpegArgsForAuthorFilm,
   wrapHeadline
 } from '../lib/agent-video.js';
 import { mediaPath, registerAsset, forgetAssetByPath, assetById } from '../services/media.js';
 import { getShortById, setShortFile, publishShort } from '../services/shorts.js';
 import { startPublication, markPublicationState } from '../services/publications.js';
+import { DEFAULT_SETTINGS, toAssColor } from '../lib/settings.js';
 import { addJob, JOBS } from '../queue.js';
-
-// Имя канала внизу кадра.
-const BRAND = 'Solo AI Journey';
 
 // Длина строки титров в вертикальном кадре: шрифт крупный, и строка длиннее
 // трёх десятков знаков занимает всю ширину.
@@ -129,9 +128,59 @@ async function authorVoice({ config, speech, fileId, dir, fetchImpl }) {
 }
 
 /**
+ * Ролик из видео автора («Сниму сам»): титры — по тому, что он сказал в
+ * кадре, сверху логотип. Сценарий агента здесь только подсказка автору —
+ * подписи для площадок остаются из него.
+ */
+async function authorFilm({ config, speech, fileId, dir, output, fetchImpl }) {
+  if (!speech) throw new Error('распознавание речи не настроено — титры к видео автора не сделать');
+  const input = await downloadBotFile(config, fileId, `${dir}/author-video`, fetchImpl);
+  const { segments } = await speech.transcribe(input);
+  if (!segments.length) throw new Error('в видео не распознано ни слова');
+  const subtitles = `${dir}/subtitles.srt`;
+  await writeFile(subtitles, toSrt(splitLongSegments(segments)));
+  await runFfmpeg(
+    ffmpegArgsForAuthorFilm({
+      input,
+      subtitles,
+      output,
+      style: { color: toAssColor(DEFAULT_SETTINGS.subtitleColor), outline: DEFAULT_SETTINGS.subtitleOutline }
+    }),
+    // Пропавший шрифт даёт ролик без титров, который выглядит готовым.
+    { failOn: /fontconfig|failed to find any fallback|Glyph 0x/i }
+  );
+  await rm(input, { force: true });
+  return segments;
+}
+
+/** Ролик агента: голос (синтезатор или голосовое автора), фон, заголовок, титры. */
+async function agentVideo({ config, pool, speech, tts, draft, dir, output, fetchImpl }) {
+  const settings = await loadAgentSettings(pool);
+  const { audio, segments } =
+    draft.voice === 'author' && draft.authorFileId
+      ? await authorVoice({ config, speech, fileId: draft.authorFileId, dir, fetchImpl })
+      : await synthesizeVoice({ tts, sentences: draft.script.sentences ?? [], voice: settings.voice, dir });
+
+  const subtitles = `${dir}/subtitles.srt`;
+  await writeFile(subtitles, toSrt(splitLongSegments(segments, SUBTITLE_CHARS)));
+  const headlineFile = `${dir}/headline.txt`;
+  await writeFile(headlineFile, wrapHeadline(draft.script.headline || draft.script.title));
+  await runFfmpeg(
+    ffmpegArgsForAgentVideo({
+      audio,
+      subtitles,
+      headlineFile,
+      durationSeconds: await probeDuration(audio),
+      output
+    })
+  );
+  return segments;
+}
+
+/**
  * Сборка ролика по черновику и отправка автору.
- * Повтор сборки (после «Надиктую сам» или «Переделать») пишет файл на то же
- * место: старый вариант автору больше не нужен.
+ * Повтор сборки (после «Надиктую сам», «Сниму сам» или «Переделать») пишет
+ * файл на то же место: старый вариант автору больше не нужен.
  */
 export function makeAgentRender(config, pool, { tts, speech = null, texts = null, fetchImpl = fetch } = {}) {
   return async ({ shortId, rewrite = false }) => {
@@ -154,36 +203,12 @@ export function makeAgentRender(config, pool, { tts, speech = null, texts = null
         await moveDraft(pool, shortId, { from: ['rendering'], to: 'rendering', fields: { script } });
         draft = await getDraft(pool, shortId);
       }
-      const settings = await loadAgentSettings(pool);
-      const { audio, segments } =
-        draft.voice === 'author' && draft.authorFileId
-          ? await authorVoice({ config, speech, fileId: draft.authorFileId, dir: work, fetchImpl })
-          : await synthesizeVoice({
-              tts,
-              sentences: draft.script.sentences ?? [],
-              voice: settings.voice,
-              dir: work
-            });
-
-      const subtitles = `${work}/subtitles.srt`;
-      await writeFile(subtitles, toSrt(splitLongSegments(segments, SUBTITLE_CHARS)));
-      const headlineFile = `${work}/headline.txt`;
-      await writeFile(headlineFile, wrapHeadline(draft.script.headline || draft.script.title));
-      const brandFile = `${work}/brand.txt`;
-      await writeFile(brandFile, BRAND);
-
       const relative = `${dir}/vertical.mp4`;
       const output = mediaPath(config, relative);
-      await runFfmpeg(
-        ffmpegArgsForAgentVideo({
-          audio,
-          subtitles,
-          headlineFile,
-          brandFile,
-          durationSeconds: await probeDuration(audio),
-          output
-        })
-      );
+      const segments =
+        draft.voice === 'film' && draft.authorFileId
+          ? await authorFilm({ config, speech, fileId: draft.authorFileId, dir: work, output, fetchImpl })
+          : await agentVideo({ config, pool, speech, tts, draft, dir: work, output, fetchImpl });
 
       await forgetAssetByPath(pool, { shortId, path: relative });
       const asset = await registerAsset(pool, config, {

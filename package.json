@@ -13,7 +13,8 @@
     "test": "node --test \"test/**/*.test.js\"",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "icons": "node scripts/build-icons.mjs"
+    "icons": "node scripts/build-icons.mjs",
+    "logo": "node scripts/build-logo.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
